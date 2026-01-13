@@ -7,6 +7,7 @@ from uiflow import router as flow_router
 from transactions_api import router as transactions_router
 from convert_currency_api import router as convert_router
 from networth_api import router as networth_router
+from auth_api import router as auth_router
 from database.session import init_db
 
 
@@ -28,6 +29,7 @@ async def rewrite_api_path(request: Request, call_next: Callable[[Request], Awai
     response = await call_next(request)
     return response
 
+app.include_router(auth_router)
 app.include_router(flow_router)
 app.include_router(transactions_router)
 app.include_router(convert_router)

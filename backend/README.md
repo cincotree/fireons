@@ -154,7 +154,29 @@ POSTGRES_DB=aimoney
 postgresql://postgres:postgres@localhost:5432/aimoney
 ```
 
-## Running Tests
+## Development Setup
+
+### Prerequisites
+- Python 3.10.5 or higher
+- PostgreSQL 14+
+- [uv](https://docs.astral.sh/uv/) package manager
+
+### Backend Setup
+```bash
+cd backend
+uv sync  # Install dependencies
+```
+
+### Running the Backend
+```bash
+# Development server with auto-reload
+uv run uvicorn app:app --reload
+
+# With environment variables
+ANTHROPIC_API_KEY=<your_key> uv run uvicorn app:app --reload
+```
+
+### Running Tests
 
 Tests require PostgreSQL and automatically create/drop a test database:
 
