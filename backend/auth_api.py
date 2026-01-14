@@ -27,8 +27,7 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
 security = HTTPBearer()
 
 
-class UserRegister(BaseModel):
-    """User registration request model."""
+class UserFields(BaseModel):
     email: EmailStr
     username: str
     password: str
@@ -36,22 +35,22 @@ class UserRegister(BaseModel):
     location: Optional[str] = None
     primary_currency: str = "USD"
 
+    class Config:
+        from_attributes = True
 
-class UserLogin(BaseModel):
-    """User login request model."""
+
+class LoginCreds(BaseModel):
     username: str
     password: str
 
 
 class UserResponse(BaseModel):
-    """User response model."""
     id: str
-    email: str
+    email: EmailStr
     username: str
     full_name: Optional[str] = None
     location: Optional[str] = None
-    primary_currency: str
-    is_active: bool
+    primary_currency: str = "USD"
 
     class Config:
         from_attributes = True
@@ -61,19 +60,6 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     session: AsyncSession = Depends(get_session)
 ) -> User:
-    """
-    Dependency to get the current authenticated user from JWT token.
-
-    Args:
-        credentials: HTTP Bearer credentials containing the JWT token
-        session: Database session
-
-    Returns:
-        User object
-
-    Raises:
-        HTTPException: If authentication fails
-    """
     token = credentials.credentials
     token_data = decode_token(token)
 
@@ -84,16 +70,15 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Get user from database
     result = await session.execute(
         select(User).where(User.id == token_data.user_id)
     )
     user = result.scalar_one_or_none()
 
-    if user is None or not user.is_active:
+    if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found or inactive",
+            detail="User not found",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -102,23 +87,16 @@ async def get_current_user(
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(
-    user_data: UserRegister,
+    user_data: UserFields,
     session: AsyncSession = Depends(get_session)
 ):
-    """
-    Register a new user.
 
-    Args:
-        user_data: User registration data
-        session: Database session
+    if not user_data.password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password is required"
+        )
 
-    Returns:
-        Created user data
-
-    Raises:
-        HTTPException: If username or email already exists
-    """
-    # Check if username already exists
     result = await session.execute(
         select(User).where(User.username == user_data.username)
     )
@@ -128,7 +106,6 @@ async def register(
             detail="Username already registered"
         )
 
-    # Check if email already exists
     result = await session.execute(
         select(User).where(User.email == user_data.email)
     )
@@ -138,7 +115,6 @@ async def register(
             detail="Email already registered"
         )
 
-    # Create new user
     hashed_password = get_password_hash(user_data.password)
     new_user = User(
         email=user_data.email,
@@ -158,29 +134,14 @@ async def register(
 
 @router.post("/login", response_model=Token)
 async def login(
-    login_data: UserLogin,
+    login_data: LoginCreds,
     session: AsyncSession = Depends(get_session)
 ):
-    """
-    Authenticate user and return JWT token.
-
-    Args:
-        login_data: User login credentials
-        session: Database session
-
-    Returns:
-        JWT access token
-
-    Raises:
-        HTTPException: If authentication fails
-    """
-    # Find user by username
     result = await session.execute(
         select(User).where(User.username == login_data.username)
     )
     user = result.scalar_one_or_none()
 
-    # Verify user exists and password is correct
     if not user or not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -188,13 +149,6 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user"
-        )
-
-    # Create access token
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={
@@ -212,13 +166,4 @@ async def login(
 async def get_current_user_info(
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Get current authenticated user information.
-
-    Args:
-        current_user: Current authenticated user from JWT token
-
-    Returns:
-        User information
-    """
     return current_user
