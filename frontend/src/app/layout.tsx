@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Navigation from "@/components/Navigation";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 import { Nunito } from 'next/font/google'
 
@@ -8,8 +9,8 @@ import "./globals.css";
 const customFont = Nunito({ weight: "400", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "AI Money",
-  description: "AI Money",
+  title: "Fireons",
+  description: "Fireons",
 };
 
 export default function RootLayout({
@@ -22,8 +23,10 @@ export default function RootLayout({
       <body
         className={`${customFont.className} antialiased`}
       >
-        <Navigation />
-        {children}
+        <AuthProvider>
+          <Navigation />
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

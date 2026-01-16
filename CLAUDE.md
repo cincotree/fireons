@@ -10,6 +10,12 @@ AI Money is a personal finance expense tracker that converts credit card stateme
 
 ### Backend (Python/FastAPI)
 - **FastAPI Application** (`app.py`): Main server with middleware to rewrite `/api` paths
+- **Authentication System**:
+  - `auth_api.py`: User registration, login, and JWT authentication endpoints
+  - `auth_utils.py`: Password hashing (bcrypt) and JWT token generation/validation
+  - `database/models.py`: User model with email, username, password, profile fields
+  - JWT-based authentication with 30-minute token expiration
+  - Endpoints: `/api/auth/register`, `/api/auth/login`, `/api/auth/me`
 - **Agent Workflow System** (`agents/`):
   - `workflow.py`: LangGraph StateGraph that orchestrates the categorization flow
   - `orchestrator.py`: OrchestratorAgent manages workflow state transitions and user feedback collection
@@ -26,10 +32,19 @@ AI Money is a personal finance expense tracker that converts credit card stateme
   - `/ws/workflow`: WebSocket endpoint for agent workflow communication (beancount_filepath query param)
   - `transactions_api.py`: Transaction CRUD operations
   - `convert_currency_api.py`: Currency conversion (USD to INR)
+  - `networth_api.py`: Net worth tracking and calculations
   - `uiflow.py`: WebSocket handler that invokes the LangGraph workflow
 
 ### Frontend (Next.js 15/React/TypeScript)
 - **App Router** (`frontend/src/app/`): Next.js 15 with app directory structure
+  - `/login`: User login page
+  - `/register`: User registration page with email, username, password, optional fields
+  - `/networth`: Net worth tracking dashboard (requires authentication)
+  - `/`: Homepage - redirects to `/networth` if authenticated, `/login` if not
+- **Authentication** (`frontend/src/contexts/`):
+  - `AuthContext.tsx`: Global auth state, login/register/logout functions, JWT token management
+  - Automatic token validation on page load
+  - Protected routes redirect to login if not authenticated
 - **Components** (`frontend/src/components/`):
   - `TransactionFlowClient.tsx`: WebSocket client managing workflow state and user feedback
   - `TransactionTable.tsx`: Displays transactions with categorization status
@@ -49,20 +64,22 @@ AI Money is a personal finance expense tracker that converts credit card stateme
 ### Backend Setup
 ```bash
 cd backend
-poetry shell
-poetry install
+uv sync  # Install dependencies using uv
 ```
 
 ### Backend Development
 ```bash
 # Run dev server (from backend/)
-ANTHROPIC_API_KEY=<your_key> poetry run uvicorn app:app --reload
+ANTHROPIC_API_KEY=<your_key> uv run uvicorn app:app --reload
+
+# Or with .env file
+uv run uvicorn app:app --reload
 
 # Build Docker image
-docker build -t ai-money/backend .
+docker build -t fireons/backend .
 
 # Run Docker container
-docker run -p 8000:8000 -e ANTHROPIC_API_KEY=your_key ai-money/backend
+docker run -p 8000:8000 -e ANTHROPIC_API_KEY=your_key fireons/backend
 ```
 
 ### Frontend Setup
@@ -90,20 +107,41 @@ npm start
 npm run lint
 
 # Build Docker image
-docker build -t ai-money/frontend .
+docker build -t fireons/frontend .
 
 # Run Docker container
-docker run -p 3000:3000 -e BACKEND_HOST=localhost:8000 ai-money/frontend
+docker run -p 3000:3000 -e BACKEND_HOST=localhost:8000 fireons/frontend
 ```
 
 ## Python Configuration
 - **Version**: Python 3.10.5 (specified in `backend/.tool-versions` and `pyproject.toml`)
-- **Package Manager**: Poetry
+- **Package Manager**: uv (fast Python package installer and resolver)
 - **Type Checking**: Pyright with strict mode disabled for general type issues (see `pyrightconfig.json` and `backend/pyproject.toml`)
 
 ## Environment Variables
-- **Backend**: `ANTHROPIC_API_KEY` - Required for Claude AI categorization
-- **Frontend**: `BACKEND_HOST` - Required. Backend API host (e.g., localhost:8000 for local dev). Must be set in `.env.local`
+
+### Backend `.env` (optional, has defaults)
+```bash
+# Database
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=ai_money_development
+
+# Authentication
+SECRET_KEY=your-secret-key-change-this-in-production
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# API Keys
+ANTHROPIC_API_KEY=your-anthropic-api-key  # Required for AI categorization
+```
+
+### Frontend `.env.local` (required)
+```bash
+NEXT_PUBLIC_BACKEND_HOST=localhost:8000
+```
 
 ## Beancount Integration
 - Transaction format uses beancount double-entry accounting

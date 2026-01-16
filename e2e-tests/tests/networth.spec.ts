@@ -2,7 +2,23 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Net Worth Feature - Critical User Journeys', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/networth');
+    // Register and login a test user before each test
+    const timestamp = Date.now();
+    const testUser = {
+      email: `networthuser${timestamp}@example.com`,
+      username: `networthuser${timestamp}`,
+      password: 'Test123!@#'
+    };
+
+    await page.goto('/register');
+    await page.getByLabel(/Email/i).fill(testUser.email);
+    await page.getByLabel(/^Username/i).fill(testUser.username);
+    await page.locator('input[name="password"]').fill(testUser.password);
+    await page.locator('input[name="confirmPassword"]').fill(testUser.password);
+    await page.getByRole('button', { name: /Create account/i }).click();
+
+    // Wait for redirect to networth after successful registration
+    await page.waitForURL(/.*networth/, { timeout: 5000 });
   });
 
   test('complete workflow: create asset account, set balance, view net worth', async ({ page }) => {

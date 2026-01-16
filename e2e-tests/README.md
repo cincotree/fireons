@@ -1,6 +1,6 @@
-# E2E Tests for AI Money
+# E2E Tests for Fireons
 
-Browser-based functional tests using Playwright for the AI Money application.
+Browser-based functional tests using Playwright for the Fireons application.
 
 ## Setup
 
