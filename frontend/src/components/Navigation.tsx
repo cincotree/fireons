@@ -17,15 +17,17 @@ export default function Navigation() {
             className={`text-xl font-bold ${pathname === "/" ? "text-white" : "text-gray-400 hover:text-white"
               }`}
           >
-            🤖 AI Money
+            🤖 Fireons
           </Link>
-          <Link
-            href="/networth"
-            className={`text-xl font-bold ${pathname === "/networth" ? "text-white" : "text-gray-400 hover:text-white"
-              }`}
-          >
-            💰 Net Worth
-          </Link>
+          {isAuthenticated && (
+            <Link
+              href="/networth"
+              className={`text-xl font-bold ${pathname === "/networth" ? "text-white" : "text-gray-400 hover:text-white"
+                }`}
+            >
+              💰 Net Worth
+            </Link>
+          )}
         </div>
 
         {isAuthenticated && user && (

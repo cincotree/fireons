@@ -76,10 +76,10 @@ ANTHROPIC_API_KEY=<your_key> uv run uvicorn app:app --reload
 uv run uvicorn app:app --reload
 
 # Build Docker image
-docker build -t ai-money/backend .
+docker build -t fireons/backend .
 
 # Run Docker container
-docker run -p 8000:8000 -e ANTHROPIC_API_KEY=your_key ai-money/backend
+docker run -p 8000:8000 -e ANTHROPIC_API_KEY=your_key fireons/backend
 ```
 
 ### Frontend Setup
@@ -107,10 +107,10 @@ npm start
 npm run lint
 
 # Build Docker image
-docker build -t ai-money/frontend .
+docker build -t fireons/frontend .
 
 # Run Docker container
-docker run -p 3000:3000 -e BACKEND_HOST=localhost:8000 ai-money/frontend
+docker run -p 3000:3000 -e BACKEND_HOST=localhost:8000 fireons/frontend
 ```
 
 ## Python Configuration

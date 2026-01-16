@@ -1,7 +1,3 @@
-"""
-Authentication API endpoints for user registration and login.
-"""
-
 from datetime import timedelta
 from typing import Optional
 

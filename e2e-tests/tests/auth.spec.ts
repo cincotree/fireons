@@ -15,13 +15,12 @@ test.describe('Authentication Feature - Critical User Journeys', () => {
     await page.goto('/register');
 
     // Verify we're on the registration page
-    await expect(page.locator('h2')).toContainText('Create your account');
+    await expect(page.locator('h2')).toContainText('Create your Fireons account');
 
     // Fill in all registration fields
     await page.getByLabel(/Email/i).fill(testUser.email);
     await page.getByLabel(/^Username/i).fill(testUser.username);
     await page.locator('input[name="password"]').fill(testUser.password);
-    await page.locator('input[name="confirmPassword"]').fill(testUser.password);
     await page.getByLabel(/Full Name/i).fill(testUser.fullName);
     await page.getByLabel(/Location/i).fill(testUser.location);
     await page.getByLabel(/Primary Currency/i).selectOption(testUser.currency);
@@ -43,7 +42,6 @@ test.describe('Authentication Feature - Critical User Journeys', () => {
     await page.getByLabel(/Email/i).fill(testUser.email);
     await page.getByLabel(/^Username/i).fill(testUser.username);
     await page.locator('input[name="password"]').fill(testUser.password);
-    await page.locator('input[name="confirmPassword"]').fill(testUser.password);
     await page.getByRole('button', { name: /Create account/i }).click();
     await page.waitForURL(/.*networth/, { timeout: 5000 });
 
@@ -54,7 +52,7 @@ test.describe('Authentication Feature - Critical User Journeys', () => {
     // Now test login
     await page.getByLabel(/Username/i).fill(testUser.username);
     await page.getByLabel(/Password/i).fill(testUser.password);
-    await page.getByRole('button', { name: /Sign in/i }).click();
+    await page.getByRole('button', { name: /Login/i }).click();
 
     // Should redirect to networth page after successful login
     await expect(page).toHaveURL(/.*networth/, { timeout: 5000 });
@@ -70,7 +68,6 @@ test.describe('Authentication Feature - Critical User Journeys', () => {
     await page.getByLabel(/Email/i).fill(testUser.email);
     await page.getByLabel(/^Username/i).fill(testUser.username);
     await page.locator('input[name="password"]').fill(testUser.password);
-    await page.locator('input[name="confirmPassword"]').fill(testUser.password);
     await page.getByRole('button', { name: /Create account/i }).click();
     await page.waitForURL(/.*networth/, { timeout: 5000 });
 
@@ -106,7 +103,6 @@ test.describe('Authentication Feature - Critical User Journeys', () => {
     await page.getByLabel(/Email/i).fill(testUser.email);
     await page.getByLabel(/^Username/i).fill(testUser.username);
     await page.locator('input[name="password"]').fill(testUser.password);
-    await page.locator('input[name="confirmPassword"]').fill(testUser.password);
     await page.getByRole('button', { name: /Create account/i }).click();
     await page.waitForURL(/.*networth/, { timeout: 5000 });
 
@@ -117,26 +113,12 @@ test.describe('Authentication Feature - Critical User Journeys', () => {
     await expect(page).toHaveURL(/.*networth/, { timeout: 3000 });
   });
 
-  test('registration validation: password mismatch', async ({ page }) => {
-    await page.goto('/register');
-
-    await page.getByLabel(/Email/i).fill(testUser.email);
-    await page.getByLabel(/^Username/i).fill(testUser.username);
-    await page.locator('input[name="password"]').fill(testUser.password);
-    await page.locator('input[name="confirmPassword"]').fill('DifferentPassword123!');
-    await page.getByRole('button', { name: /Create account/i }).click();
-
-    // Should show error message
-    await expect(page.getByText(/Passwords do not match/i)).toBeVisible();
-  });
-
   test('registration validation: short password', async ({ page }) => {
     await page.goto('/register');
 
     await page.getByLabel(/Email/i).fill(testUser.email);
     await page.getByLabel(/^Username/i).fill(testUser.username);
     await page.locator('input[name="password"]').fill('12345');
-    await page.locator('input[name="confirmPassword"]').fill('12345');
     await page.getByRole('button', { name: /Create account/i }).click();
 
     // Should show error message
@@ -148,7 +130,7 @@ test.describe('Authentication Feature - Critical User Journeys', () => {
 
     await page.getByLabel(/Username/i).fill('nonexistentuser');
     await page.getByLabel(/Password/i).fill('wrongpassword');
-    await page.getByRole('button', { name: /Sign in/i }).click();
+    await page.getByRole('button', { name: /Login/i }).click();
 
     // Should show error message
     await expect(page.getByText(/Incorrect username or password/i)).toBeVisible({ timeout: 5000 });
@@ -157,11 +139,11 @@ test.describe('Authentication Feature - Critical User Journeys', () => {
   test('navigation links work correctly', async ({ page }) => {
     // From login to register
     await page.goto('/login');
-    await page.getByRole('link', { name: /create a new account/i }).click();
+    await page.getByRole('link', { name: /Join Fireons/i }).click();
     await expect(page).toHaveURL(/.*register/);
 
     // From register to login
-    await page.getByRole('link', { name: /Sign in/i }).click();
+    await page.getByRole('link', { name: /Login/i }).click();
     await expect(page).toHaveURL(/.*login/);
   });
 
@@ -178,7 +160,6 @@ test.describe('Authentication Feature - Critical User Journeys', () => {
     await page.getByLabel(/Email/i).fill(minimalUser.email);
     await page.getByLabel(/^Username/i).fill(minimalUser.username);
     await page.locator('input[name="password"]').fill(minimalUser.password);
-    await page.locator('input[name="confirmPassword"]').fill(minimalUser.password);
 
     // Submit the form
     await page.getByRole('button', { name: /Create account/i }).click();

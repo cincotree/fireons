@@ -9,8 +9,8 @@ import "./globals.css";
 const customFont = Nunito({ weight: "400", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "AI Money",
-  description: "AI Money",
+  title: "Fireons",
+  description: "Fireons",
 };
 
 export default function RootLayout({

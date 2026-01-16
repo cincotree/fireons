@@ -1,13 +1,3 @@
-"""
-SQLAlchemy models for Beancount-compatible double-entry accounting.
-
-This module defines the database schema for:
-- Accounts (chart of accounts with hierarchy support)
-- Transactions (transaction headers with metadata)
-- Postings (individual debit/credit entries)
-- Balances (balance assertions)
-"""
-
 import enum
 from datetime import date, datetime
 from decimal import Decimal
@@ -34,12 +24,10 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
-    """Base class for all models."""
     pass
 
 
 class AccountType(enum.Enum):
-    """Account types following Beancount conventions."""
     ASSETS = "Assets"
     LIABILITIES = "Liabilities"
     EQUITY = "Equity"
@@ -48,11 +36,6 @@ class AccountType(enum.Enum):
 
 
 class Account(Base):
-    """
-    Account in the chart of accounts.
-
-    Supports hierarchical account names like 'Assets:Bank:Checking'.
-    """
     __tablename__ = "accounts"
 
     id: Mapped[str] = mapped_column(
@@ -85,22 +68,15 @@ class Account(Base):
 
     @property
     def parent_name(self) -> str | None:
-        """Get parent account name (e.g., 'Assets:Bank' for 'Assets:Bank:Checking')."""
         parts = self.name.rsplit(":", 1)
         return parts[0] if len(parts) > 1 else None
 
     @property
     def short_name(self) -> str:
-        """Get the last component of the account name."""
         return self.name.rsplit(":", 1)[-1]
 
 
 class Transaction(Base):
-    """
-    Transaction header containing metadata.
-
-    A transaction contains multiple postings that must balance to zero.
-    """
     __tablename__ = "transactions"
 
     id: Mapped[str] = mapped_column(
@@ -139,17 +115,11 @@ class Transaction(Base):
 
     @property
     def is_balanced(self) -> bool:
-        """Check if transaction postings balance to zero."""
         total = sum(p.amount for p in self.postings if p.amount is not None)
         return abs(total) < Decimal("0.001")
 
 
 class Posting(Base):
-    """
-    Individual posting (debit/credit) within a transaction.
-
-    Each posting represents a change to an account balance.
-    """
     __tablename__ = "postings"
 
     id: Mapped[str] = mapped_column(
@@ -202,11 +172,6 @@ class Posting(Base):
 
 
 class Balance(Base):
-    """
-    Balance assertion for an account on a specific date.
-
-    Used to verify that the account balance matches expectations.
-    """
     __tablename__ = "balances"
 
     id: Mapped[str] = mapped_column(
@@ -276,11 +241,6 @@ class ExchangeRate(Base):
 
 
 class TransactionLink(Base):
-    """
-    Link identifier for a transaction (Beancount ^link syntax).
-
-    Links connect related transactions across time.
-    """
     __tablename__ = "transaction_links"
 
     id: Mapped[str] = mapped_column(
@@ -301,11 +261,6 @@ class TransactionLink(Base):
 
 
 class TransactionTag(Base):
-    """
-    Tag for a transaction (Beancount #tag syntax).
-
-    Tags categorize transactions.
-    """
     __tablename__ = "transaction_tags"
 
     id: Mapped[str] = mapped_column(
@@ -326,11 +281,6 @@ class TransactionTag(Base):
 
 
 class User(Base):
-    """
-    User authentication model.
-
-    Stores user credentials and profile information.
-    """
     __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(
