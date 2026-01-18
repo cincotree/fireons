@@ -19,6 +19,7 @@ const styles = {
         width: '100%',
         height: '100%',
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        zIndex: 1000,
     },
     dialogContent: {
         position: 'relative' as const,
@@ -26,7 +27,10 @@ const styles = {
         padding: '20px',
         borderRadius: '8px',
         boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)',
-        zIndex: 1001,
+        zIndex: 1002,
+        maxWidth: '500px',
+        maxHeight: '90vh',
+        overflow: 'auto',
     },
     dialogContentInner: {
         padding: '10px',
@@ -58,9 +62,16 @@ interface DialogContentProps {
 export const Modal = ({ open, onOpenChange, children }: DialogProps) => {
     if (!open) return null;
 
+    const handleOverlayClick = (e: React.MouseEvent) => {
+        // Only close if clicking directly on the overlay, not on children
+        if (e.target === e.currentTarget) {
+            onOpenChange(false);
+        }
+    };
+
     return (
-        <div style={styles.dialog}>
-            <div style={styles.dialogOverlay} onClick={() => onOpenChange(false)} />
+        <div style={styles.dialog} onClick={handleOverlayClick}>
+            <div style={styles.dialogOverlay} />
             <div style={styles.dialogContent}>{children}</div>
         </div>
     );

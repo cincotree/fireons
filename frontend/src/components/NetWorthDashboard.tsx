@@ -62,22 +62,40 @@ export function NetWorthDashboard() {
   const [balanceAmount, setBalanceAmount] = useState("");
   const [balanceCurrency, setBalanceCurrency] = useState("USD");
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
   const fetchData = async () => {
     setIsLoading(true);
     setError(null);
+
+    // Retry logic for token availability
+    let token = null;
+    for (let i = 0; i < 5; i++) {
+      token = localStorage.getItem('token');
+      if (token) break;
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
     try {
       const baseUrl = await getBaseHttpUrl();
 
+      if (!token) {
+        throw new Error("Not authenticated");
+      }
+
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+      };
+
       const [accountsRes, networthRes] = await Promise.all([
-        fetch(`${baseUrl}/api/networth/accounts`),
-        fetch(`${baseUrl}/api/networth/summary`),
+        fetch(`${baseUrl}/api/networth/accounts`, { headers }),
+        fetch(`${baseUrl}/api/networth/summary`, { headers }),
       ]);
 
       if (!accountsRes.ok || !networthRes.ok) {
+        // If 401, token might be invalid - clear it and show error
+        if (accountsRes.status === 401 || networthRes.status === 401) {
+          localStorage.removeItem('token');
+          throw new Error("Authentication failed. Please log in again.");
+        }
         throw new Error("Failed to fetch data");
       }
 
@@ -94,17 +112,34 @@ export function NetWorthDashboard() {
     }
   };
 
+  useEffect(() => {
+    fetchData();
+  }, []);
+
   const handleCreateAccount = async () => {
     if (!newAccountName.trim()) {
+      console.error("Account creation failed: Account name is required");
       alert("Account name is required");
       return;
     }
 
     try {
       const baseUrl = await getBaseHttpUrl();
+      const token = localStorage.getItem('token');
+
+      console.log("Creating account with name:", newAccountName);
+
+      if (!token) {
+        console.error("Account creation failed: No authentication token found");
+        throw new Error("Not authenticated. Please log in again.");
+      }
+
       const response = await fetch(`${baseUrl}/api/networth/accounts`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
         body: JSON.stringify({
           name: newAccountName,
           currency: newAccountCurrency,
@@ -112,17 +147,22 @@ export function NetWorthDashboard() {
         }),
       });
 
+      console.log("Account creation response status:", response.status);
+
       if (!response.ok) {
         const errorData = await response.json();
+        console.error("Account creation failed:", errorData);
         throw new Error(errorData.detail || "Failed to create account");
       }
 
+      console.log("Account created successfully");
       setNewAccountName("");
       setNewAccountCurrency("USD");
       setNewAccountDescription("");
       setIsAccountModalOpen(false);
       await fetchData();
     } catch (err: any) {
+      console.error("Error in handleCreateAccount:", err);
       alert(err.message);
     }
   };
@@ -135,9 +175,18 @@ export function NetWorthDashboard() {
 
     try {
       const baseUrl = await getBaseHttpUrl();
+      const token = localStorage.getItem('token');
+
+      if (!token) {
+        throw new Error("Not authenticated");
+      }
+
       const response = await fetch(`${baseUrl}/api/networth/balances`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
         body: JSON.stringify({
           account_id: selectedAccount.id,
           amount: parseFloat(balanceAmount),

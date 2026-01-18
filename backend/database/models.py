@@ -41,7 +41,10 @@ class Account(Base):
     id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
     )
-    name: Mapped[str] = mapped_column(String(500), unique=True, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
     account_type: Mapped[AccountType] = mapped_column(Enum(AccountType), nullable=False)
     currency: Mapped[str] = mapped_column(String(10), default="USD", nullable=False)
     open_date: Mapped[date] = mapped_column(Date, nullable=False)
@@ -56,11 +59,17 @@ class Account(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
+    user: Mapped["User"] = relationship(back_populates="accounts")
     postings: Mapped[list["Posting"]] = relationship(
         back_populates="account", cascade="all, delete-orphan"
     )
     balances: Mapped[list["Balance"]] = relationship(
         back_populates="account", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "name", name="uq_account_user_name"),
+        Index("ix_accounts_user_id", "user_id"),
     )
 
     def __repr__(self) -> str:
@@ -177,6 +186,10 @@ class Balance(Base):
     id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
     )
+    # Foreign key to user
+    user_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     # Foreign key to account
     account_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False
@@ -198,11 +211,13 @@ class Balance(Base):
     )
 
     # Relationships
+    user: Mapped["User"] = relationship(back_populates="balances")
     account: Mapped["Account"] = relationship(back_populates="balances")
 
     __table_args__ = (
         UniqueConstraint("account_id", "date", "currency", name="uq_balance_account_date_currency"),
         Index("ix_balances_account_date", "account_id", "date"),
+        Index("ix_balances_user_id", "user_id"),
     )
 
     def __repr__(self) -> str:
@@ -297,6 +312,13 @@ class User(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    accounts: Mapped[list["Account"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    balances: Mapped[list["Balance"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:

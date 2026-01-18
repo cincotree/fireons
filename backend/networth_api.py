@@ -6,8 +6,9 @@ from decimal import Decimal
 from typing import Optional
 
 from database.session import get_session
-from database.models import AccountType
+from database.models import AccountType, User
 from database.repository import AccountRepository, BalanceRepository, ExchangeRateRepository
+from auth_api import get_current_user
 
 router = APIRouter(prefix="/networth", tags=["networth"])
 
@@ -89,6 +90,7 @@ class ExchangeRateResponse(BaseModel):
 
 @router.get("/accounts", response_model=list[AccountResponse])
 async def list_networth_accounts(
+    current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
     account_repo = AccountRepository(session)
@@ -97,10 +99,14 @@ async def list_networth_accounts(
     accounts = []
     for account_type in [AccountType.ASSETS, AccountType.LIABILITIES]:
         accounts.extend(
-            await account_repo.list_all(account_type=account_type, is_active=True)
+            await account_repo.list_all(
+                user_id=current_user.id,
+                account_type=account_type,
+                is_active=True
+            )
         )
 
-    balances = await balance_repo.get_latest_balances()
+    balances = await balance_repo.get_latest_balances(user_id=current_user.id)
     balance_map = {
         (entry.account_id, entry.currency): entry.amount
         for entry in balances
@@ -127,6 +133,7 @@ async def list_networth_accounts(
 @router.post("/accounts", response_model=AccountResponse)
 async def create_networth_account(
     account_data: AccountCreate,
+    current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
     account_repo = AccountRepository(session)
@@ -140,6 +147,7 @@ async def create_networth_account(
 
     try:
         account = await account_repo.create(
+            user_id=current_user.id,
             name=account_data.name,
             open_date=account_data.open_date,
             currency=account_data.currency,
@@ -165,12 +173,13 @@ async def create_networth_account(
 @router.post("/balances", response_model=BalanceResponse)
 async def create_balance(
     balance_data: BalanceCreate,
+    current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
     account_repo = AccountRepository(session)
     balance_repo = BalanceRepository(session)
 
-    account = await account_repo.get_by_id(balance_data.account_id)
+    account = await account_repo.get_by_id(balance_data.account_id, current_user.id)
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
 
@@ -181,6 +190,7 @@ async def create_balance(
         )
 
     balance = await balance_repo.create_or_update(
+        user_id=current_user.id,
         account_id=balance_data.account_id,
         date=balance_data.date,
         amount=balance_data.amount,
@@ -202,6 +212,7 @@ async def create_balance(
 @router.get("/summary", response_model=NetWorthResponse)
 async def get_networth_summary(
     as_of_date: Optional[date_type] = None,
+    current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
     if as_of_date is None:
@@ -209,7 +220,10 @@ async def get_networth_summary(
 
     balance_repo = BalanceRepository(session)
 
-    balances = await balance_repo.get_latest_balances(as_of_date=as_of_date)
+    balances = await balance_repo.get_latest_balances(
+        user_id=current_user.id,
+        as_of_date=as_of_date
+    )
 
     balance_responses = []
     for balance in balances:
@@ -262,11 +276,12 @@ async def get_networth_summary(
 @router.delete("/balances/{balance_id}")
 async def delete_balance(
     balance_id: str,
+    current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
     balance_repo = BalanceRepository(session)
 
-    deleted = await balance_repo.delete(balance_id)
+    deleted = await balance_repo.delete(balance_id, current_user.id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Balance entry not found")
 

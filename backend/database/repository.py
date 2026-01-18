@@ -32,6 +32,7 @@ class AccountRepository:
 
     async def create(
         self,
+        user_id: str,
         name: str,
         open_date: date,
         currency: str = "USD",
@@ -42,6 +43,7 @@ class AccountRepository:
         Create a new account.
 
         Args:
+            user_id: User ID who owns this account
             name: Full account name (e.g., "Assets:Bank:Checking")
             open_date: Date the account was opened
             currency: Default currency for the account
@@ -62,6 +64,7 @@ class AccountRepository:
             )
 
         account = Account(
+            user_id=user_id,
             name=name,
             account_type=account_type,
             currency=currency,
@@ -73,55 +76,62 @@ class AccountRepository:
         await self.session.flush()
         return account
 
-    async def get_by_id(self, account_id: str) -> Account | None:
-        """Get an account by ID."""
+    async def get_by_id(self, account_id: str, user_id: str) -> Account | None:
+        """Get an account by ID for a specific user."""
         result = await self.session.execute(
-            select(Account).where(Account.id == account_id)
+            select(Account).where(
+                and_(Account.id == account_id, Account.user_id == user_id)
+            )
         )
         return result.scalar_one_or_none()
 
-    async def get_by_name(self, name: str) -> Account | None:
-        """Get an account by its full name."""
+    async def get_by_name(self, name: str, user_id: str) -> Account | None:
+        """Get an account by its full name for a specific user."""
         result = await self.session.execute(
-            select(Account).where(Account.name == name)
+            select(Account).where(
+                and_(Account.name == name, Account.user_id == user_id)
+            )
         )
         return result.scalar_one_or_none()
 
     async def get_or_create(
         self,
+        user_id: str,
         name: str,
         open_date: date,
         currency: str = "USD",
         description: str | None = None,
     ) -> tuple[Account, bool]:
         """
-        Get an existing account or create a new one.
+        Get an existing account or create a new one for a specific user.
 
         Returns:
             Tuple of (account, created) where created is True if new
         """
-        account = await self.get_by_name(name)
+        account = await self.get_by_name(name, user_id)
         if account:
             return account, False
-        account = await self.create(name, open_date, currency, description)
+        account = await self.create(user_id, name, open_date, currency, description)
         return account, True
 
     async def list_all(
         self,
+        user_id: str,
         account_type: AccountType | None = None,
         is_active: bool | None = None,
     ) -> list[Account]:
         """
-        List all accounts with optional filters.
+        List all accounts for a specific user with optional filters.
 
         Args:
+            user_id: User ID to filter accounts
             account_type: Filter by account type
             is_active: Filter by active status
 
         Returns:
             List of Account instances
         """
-        query = select(Account).order_by(Account.name)
+        query = select(Account).where(Account.user_id == user_id).order_by(Account.name)
 
         if account_type is not None:
             query = query.where(Account.account_type == account_type)
@@ -131,11 +141,12 @@ class AccountRepository:
         result = await self.session.execute(query)
         return list(result.scalars().all())
 
-    async def list_by_prefix(self, prefix: str) -> list[Account]:
+    async def list_by_prefix(self, user_id: str, prefix: str) -> list[Account]:
         """
-        List accounts matching a name prefix.
+        List accounts matching a name prefix for a specific user.
 
         Args:
+            user_id: User ID to filter accounts
             prefix: Account name prefix (e.g., "Assets:Bank")
 
         Returns:
@@ -143,23 +154,29 @@ class AccountRepository:
         """
         result = await self.session.execute(
             select(Account)
-            .where(Account.name.startswith(prefix))
+            .where(
+                and_(
+                    Account.user_id == user_id,
+                    Account.name.startswith(prefix)
+                )
+            )
             .order_by(Account.name)
         )
         return list(result.scalars().all())
 
-    async def close_account(self, account_id: str, close_date: date) -> Account | None:
+    async def close_account(self, account_id: str, user_id: str, close_date: date) -> Account | None:
         """
-        Close an account.
+        Close an account for a specific user.
 
         Args:
             account_id: Account ID to close
+            user_id: User ID who owns the account
             close_date: Date to close the account
 
         Returns:
             Updated Account or None if not found
         """
-        account = await self.get_by_id(account_id)
+        account = await self.get_by_id(account_id, user_id)
         if account:
             account.close_date = close_date
             account.is_active = False
@@ -199,17 +216,18 @@ class AccountRepository:
         )
         return result.scalar() or Decimal(0)
 
-    async def delete(self, account_id: str) -> bool:
+    async def delete(self, account_id: str, user_id: str) -> bool:
         """
-        Delete an account.
+        Delete an account for a specific user.
 
         Args:
             account_id: Account ID to delete
+            user_id: User ID who owns the account
 
         Returns:
             True if deleted, False if not found
         """
-        account = await self.get_by_id(account_id)
+        account = await self.get_by_id(account_id, user_id)
         if account:
             await self.session.delete(account)
             await self.session.flush()
@@ -573,6 +591,7 @@ class BalanceRepository:
 
     async def create_or_update(
         self,
+        user_id: str,
         account_id: str,
         date: date,
         amount: Decimal,
@@ -581,6 +600,7 @@ class BalanceRepository:
         existing = await self.session.execute(
             select(Balance).where(
                 and_(
+                    Balance.user_id == user_id,
                     Balance.account_id == account_id,
                     Balance.date == date,
                     Balance.currency == currency,
@@ -593,6 +613,7 @@ class BalanceRepository:
             balance.amount = amount
         else:
             balance = Balance(
+                user_id=user_id,
                 account_id=account_id,
                 date=date,
                 amount=amount,
@@ -605,7 +626,7 @@ class BalanceRepository:
         return balance
 
     async def get_latest_balances(
-        self, as_of_date: date | None = None
+        self, user_id: str, as_of_date: date | None = None
     ) -> list[Balance]:
         if as_of_date is None:
             as_of_date = date.today()
@@ -616,7 +637,12 @@ class BalanceRepository:
                 Balance.currency,
                 func.max(Balance.date).label("max_date"),
             )
-            .where(Balance.date <= as_of_date)
+            .where(
+                and_(
+                    Balance.user_id == user_id,
+                    Balance.date <= as_of_date
+                )
+            )
             .group_by(Balance.account_id, Balance.currency)
             .subquery()
         )
@@ -631,13 +657,19 @@ class BalanceRepository:
                     Balance.date == subquery.c.max_date,
                 ),
             )
+            .where(Balance.user_id == user_id)
             .options(selectinload(Balance.account))
         )
         return list(result.scalars().all())
 
-    async def delete(self, balance_id: str) -> bool:
+    async def delete(self, balance_id: str, user_id: str) -> bool:
         result = await self.session.execute(
-            select(Balance).where(Balance.id == balance_id)
+            select(Balance).where(
+                and_(
+                    Balance.id == balance_id,
+                    Balance.user_id == user_id
+                )
+            )
         )
         balance = result.scalar_one_or_none()
         if balance:
