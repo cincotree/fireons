@@ -186,31 +186,23 @@ class Balance(Base):
     id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
     )
-    # Foreign key to user
     user_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    # Foreign key to account
     account_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False
     )
-    # Balance assertion date
     date: Mapped[date] = mapped_column(Date, nullable=False)
-    # Expected balance amount
     amount: Mapped[Decimal] = mapped_column(
         Numeric(precision=20, scale=4), nullable=False
     )
-    # Currency
     currency: Mapped[str] = mapped_column(String(10), default="USD", nullable=False)
-    # Whether the assertion passed
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    # Relationships
     user: Mapped["User"] = relationship(back_populates="balances")
     account: Mapped["Account"] = relationship(back_populates="balances")
 
@@ -264,10 +256,8 @@ class TransactionLink(Base):
     transaction_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), ForeignKey("transactions.id", ondelete="CASCADE"), nullable=False
     )
-    # Link value (without the ^ prefix)
     link: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
 
-    # Relationships
     transaction: Mapped["Transaction"] = relationship(back_populates="links")
 
     __table_args__ = (
@@ -284,10 +274,8 @@ class TransactionTag(Base):
     transaction_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), ForeignKey("transactions.id", ondelete="CASCADE"), nullable=False
     )
-    # Tag value (without the # prefix)
     tag: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
 
-    # Relationships
     transaction: Mapped["Transaction"] = relationship(back_populates="tags")
 
     __table_args__ = (
