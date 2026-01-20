@@ -11,7 +11,7 @@ export default function Privacy() {
   return (
     <div className="bg-white">
       {/* Hero */}
-      <section className="bg-gradient-to-br from-blue-900 to-teal-700 text-white py-20">
+      <section className="bg-cyan-600 text-white py-20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-4xl sm:text-5xl font-bold mb-6">
             Your Privacy is Our Priority
@@ -32,7 +32,7 @@ export default function Privacy() {
             from the ground up with anonymity as a core principle, not an afterthought.
           </p>
 
-          <div className="bg-gradient-to-r from-blue-50 to-teal-50 p-8 rounded-xl mb-12">
+          <div className="bg-cyan-50 p-8 rounded-xl mb-12">
             <h3 className="text-2xl font-bold text-gray-900 mb-4">What We Mean by Anonymous</h3>
             <ul className="space-y-3 text-gray-700">
               <li className="flex items-start">

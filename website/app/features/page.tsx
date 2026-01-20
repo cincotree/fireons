@@ -11,7 +11,7 @@ export default function Features() {
   return (
     <div className="bg-white">
       {/* Hero */}
-      <section className="bg-gradient-to-br from-blue-900 to-teal-700 text-white py-20">
+      <section className="bg-cyan-600 text-white py-20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-4xl sm:text-5xl font-bold mb-6">
             Powerful Features for Your FIRE Journey
@@ -272,7 +272,7 @@ export default function Features() {
       </section>
 
       {/* CTA */}
-      <section className="py-16 bg-gradient-to-br from-blue-900 to-teal-700 text-white">
+      <section className="py-16 bg-cyan-600 text-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl font-bold mb-4">
             Ready to Experience These Features?

@@ -11,7 +11,7 @@ export default function About() {
   return (
     <div className="bg-white">
       {/* Hero */}
-      <section className="bg-gradient-to-br from-blue-900 to-teal-700 text-white py-20">
+      <section className="bg-cyan-600 text-white py-20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-4xl sm:text-5xl font-bold mb-6">
             What is FIRE?
@@ -77,7 +77,7 @@ export default function About() {
             times your annual expenses saved to achieve financial independence.
           </p>
 
-          <div className="bg-gradient-to-r from-blue-50 to-teal-50 p-8 rounded-xl mb-12">
+          <div className="bg-cyan-50 p-8 rounded-xl mb-12">
             <h3 className="text-2xl font-bold text-gray-900 mb-4">Example Calculation</h3>
             <div className="space-y-2 text-gray-700">
               <p>Annual expenses: $40,000</p>
