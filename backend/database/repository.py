@@ -423,9 +423,11 @@ class BalanceRepository:
         currency: str,
     ) -> Balance:
         existing = await self.session.execute(
-            select(Balance).where(
+            select(Balance)
+            .join(Account, Balance.account_id == Account.id)
+            .where(
                 and_(
-                    Balance.user_id == user_id,
+                    Account.user_id == user_id,
                     Balance.account_id == account_id,
                     Balance.date == date,
                     Balance.currency == currency,
@@ -438,7 +440,6 @@ class BalanceRepository:
             balance.amount = amount
         else:
             balance = Balance(
-                user_id=user_id,
                 account_id=account_id,
                 date=date,
                 amount=amount,
@@ -462,9 +463,10 @@ class BalanceRepository:
                 Balance.currency,
                 func.max(Balance.date).label("max_date"),
             )
+            .join(Account, Balance.account_id == Account.id)
             .where(
                 and_(
-                    Balance.user_id == user_id,
+                    Account.user_id == user_id,
                     Balance.date <= as_of_date
                 )
             )
@@ -482,17 +484,20 @@ class BalanceRepository:
                     Balance.date == subquery.c.max_date,
                 ),
             )
-            .where(Balance.user_id == user_id)
+            .join(Account, Balance.account_id == Account.id)
+            .where(Account.user_id == user_id)
             .options(selectinload(Balance.account))
         )
         return list(result.scalars().all())
 
     async def delete(self, balance_id: str, user_id: str) -> bool:
         result = await self.session.execute(
-            select(Balance).where(
+            select(Balance)
+            .join(Account, Balance.account_id == Account.id)
+            .where(
                 and_(
                     Balance.id == balance_id,
-                    Balance.user_id == user_id
+                    Account.user_id == user_id
                 )
             )
         )

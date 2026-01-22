@@ -2,5 +2,4 @@
 .DS_Store
 
 # E2E test logs
-e2e-tests/backend.log
-e2e-tests/frontend.log
+e2e-tests/*.log
