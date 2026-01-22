@@ -66,7 +66,6 @@ export function NetWorthDashboard() {
     setIsLoading(true);
     setError(null);
 
-    // Retry logic for token availability
     let token = null;
     for (let i = 0; i < 5; i++) {
       token = localStorage.getItem('token');
@@ -91,7 +90,6 @@ export function NetWorthDashboard() {
       ]);
 
       if (!accountsRes.ok || !networthRes.ok) {
-        // If 401, token might be invalid - clear it and show error
         if (accountsRes.status === 401 || networthRes.status === 401) {
           localStorage.removeItem('token');
           throw new Error("Authentication failed. Please log in again.");

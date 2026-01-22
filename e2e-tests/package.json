@@ -4,11 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "playwright test",
-    "test:headed": "playwright test --headed",
-    "test:slow": "SLOW_MO=500 playwright test --headed --workers=1",
-    "test:ui": "playwright test --ui",
-    "test:debug": "playwright test --debug",
+    "test": "bash run-tests.sh",
+    "test:headed": "bash run-tests.sh --headed",
+    "test:slow": "SLOW_MO=500 bash run-tests.sh --headed --workers=1",
+    "test:ui": "bash run-tests.sh --ui",
+    "test:debug": "bash run-tests.sh --debug",
     "report": "playwright show-report"
   },
   "keywords": [],
@@ -17,6 +17,9 @@
   "devDependencies": {
     "@playwright/test": "^1.57.0",
     "@types/node": "^25.0.3",
+    "@types/pg": "^8.11.10",
+    "pg": "^8.13.1",
+    "tsx": "^4.19.2",
     "typescript": "^5.9.3"
   }
 }

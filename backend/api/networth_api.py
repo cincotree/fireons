@@ -8,7 +8,7 @@ from typing import Optional
 from database.session import get_session
 from database.models import AccountType, User
 from database.repository import AccountRepository, BalanceRepository, ExchangeRateRepository
-from auth_api import get_current_user
+from api.auth_api import get_current_user
 
 router = APIRouter(prefix="/networth", tags=["networth"])
 

@@ -63,7 +63,6 @@ export const Modal = ({ open, onOpenChange, children }: DialogProps) => {
     if (!open) return null;
 
     const handleOverlayClick = (e: React.MouseEvent) => {
-        // Only close if clicking directly on the overlay, not on children
         if (e.target === e.currentTarget) {
             onOpenChange(false);
         }

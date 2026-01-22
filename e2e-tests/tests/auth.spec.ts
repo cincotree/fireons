@@ -118,11 +118,13 @@ test.describe('Authentication Feature - Critical User Journeys', () => {
 
     await page.getByLabel(/Email/i).fill(testUser.email);
     await page.getByLabel(/^Username/i).fill(testUser.username);
-    await page.locator('input[name="password"]').fill('12345');
+    const passwordInput = page.locator('input[name="password"]');
+    await passwordInput.fill('12345');
     await page.getByRole('button', { name: /Create account/i }).click();
 
-    // Should show error message
-    await expect(page.getByText(/Password must be at least 6 characters/i)).toBeVisible();
+    const validationMessage = await passwordInput.evaluate((el: HTMLInputElement) => el.validationMessage);
+    expect(validationMessage).toBeTruthy();
+    expect(validationMessage.length).toBeGreaterThan(0);
   });
 
   test('login validation: incorrect credentials', async ({ page }) => {

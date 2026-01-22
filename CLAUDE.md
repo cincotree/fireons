@@ -144,7 +144,7 @@ ANTHROPIC_API_KEY=your-anthropic-api-key  # Required for AI categorization
 
 ### Frontend `.env.local` (required)
 ```bash
-NEXT_PUBLIC_BACKEND_HOST=localhost:8000
+BACKEND_HOST=localhost:8000
 ```
 
 ## Beancount Integration

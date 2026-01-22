@@ -2,7 +2,6 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Net Worth Feature - Critical User Journeys', () => {
   test.beforeEach(async ({ page }) => {
-    // Register and login a test user before each test
     const timestamp = Date.now();
     const testUser = {
       email: `networthuser${timestamp}@example.com`,
@@ -16,7 +15,6 @@ test.describe('Net Worth Feature - Critical User Journeys', () => {
     await page.locator('input[name="password"]').fill(testUser.password);
     await page.getByRole('button', { name: /Create account/i }).click();
 
-    // Wait for redirect to networth after successful registration
     await page.waitForURL(/.*networth/, { timeout: 5000 });
   });
 
@@ -148,7 +146,6 @@ test.describe('Net Worth Feature - Critical User Journeys', () => {
     await page.getByRole('button', { name: /Logout/i }).click();
     await page.waitForURL(/.*login/, { timeout: 3000 });
 
-    // Register and login as user 2
     const user2 = {
       email: `networthuser2${timestamp}@example.com`,
       username: `networthuser2${timestamp}`,

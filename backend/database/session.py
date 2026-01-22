@@ -60,9 +60,19 @@ async def init_db():
 
     This should be called at application startup.
     """
+    settings = get_settings()
+    print(f"Connecting to database: {settings.postgres_db}")
+    print(f"Database URL: postgresql://{settings.postgres_host}:{settings.postgres_port}/{settings.postgres_db}")
+
     engine = get_engine()
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    try:
+        async with engine.begin() as conn:
+            print("Creating all tables...")
+            await conn.run_sync(Base.metadata.create_all)
+            print("✓ All tables created successfully")
+    except Exception as e:
+        print(f"Error creating tables: {e}")
+        raise
 
 
 async def drop_db():

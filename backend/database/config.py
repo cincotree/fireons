@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     postgres_password: str = "postgres"
     postgres_host: str = "localhost"
     postgres_port: int = 5432
-    postgres_db: str = "ai_money_development"
+    postgres_db: str = "fireons_development"
 
     # Connection pool settings
     pool_size: int = 5
@@ -27,13 +27,26 @@ class Settings(BaseSettings):
     test_database_url: str | None = None
 
     @property
+    def _effective_db_name(self) -> str:
+        """Get the effective database name (uses exact name from env in testing mode)."""
+        if self.testing:
+            if not self.postgres_db:
+                raise ValueError(
+                    "POSTGRES_DB must be specified in .env.test when TESTING=true"
+                )
+            return self.postgres_db
+        return self.postgres_db
+
+    @property
     def database_url(self) -> str:
         """Get the async database URL for SQLAlchemy."""
         if self.testing and self.test_database_url:
             return self.test_database_url
+
+        db_name = self._effective_db_name
         return (
             f"postgresql+psycopg://{self.postgres_user}:{self.postgres_password}"
-            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+            f"@{self.postgres_host}:{self.postgres_port}/{db_name}"
         )
 
     @property
@@ -42,9 +55,11 @@ class Settings(BaseSettings):
         if self.testing and self.test_database_url:
             # Convert async URL to sync
             return self.test_database_url.replace("+psycopg", "")
+
+        db_name = self._effective_db_name
         return (
             f"postgresql://{self.postgres_user}:{self.postgres_password}"
-            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+            f"@{self.postgres_host}:{self.postgres_port}/{db_name}"
         )
 
     class Config:
@@ -56,4 +71,7 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     """Get cached settings instance."""
+    import os
+    if os.getenv("TESTING", "").lower() == "true":
+        return Settings(_env_file=".env.test")
     return Settings()

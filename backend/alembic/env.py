@@ -9,14 +9,16 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
 from database.models import Base
+from database.config import get_settings
 
 config = context.config
 
-database_url = os.getenv(
-    "DATABASE_URL",
-    "postgresql+psycopg://postgres:postgres@localhost:5432/ai_money_development"
-)
-config.set_main_option("sqlalchemy.url", database_url)x
+database_url = os.getenv("DATABASE_URL")
+if not database_url:
+    settings = get_settings()
+    database_url = settings.database_url
+
+config.set_main_option("sqlalchemy.url", database_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
