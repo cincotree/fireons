@@ -103,7 +103,6 @@ export function NetWorthDashboard() {
       setAccounts(accountsData);
       setNetWorth(networthData);
     } catch (err) {
-      console.error("Error fetching data:", err);
       setError("Failed to load net worth data. Please try again.");
     } finally {
       setIsLoading(false);
@@ -116,7 +115,6 @@ export function NetWorthDashboard() {
 
   const handleCreateAccount = async () => {
     if (!newAccountName.trim()) {
-      console.error("Account creation failed: Account name is required");
       alert("Account name is required");
       return;
     }
@@ -125,10 +123,7 @@ export function NetWorthDashboard() {
       const baseUrl = await getBaseHttpUrl();
       const token = localStorage.getItem('token');
 
-      console.log("Creating account with name:", newAccountName);
-
       if (!token) {
-        console.error("Account creation failed: No authentication token found");
         throw new Error("Not authenticated. Please log in again.");
       }
 
@@ -145,22 +140,17 @@ export function NetWorthDashboard() {
         }),
       });
 
-      console.log("Account creation response status:", response.status);
-
       if (!response.ok) {
         const errorData = await response.json();
-        console.error("Account creation failed:", errorData);
         throw new Error(errorData.detail || "Failed to create account");
       }
 
-      console.log("Account created successfully");
       setNewAccountName("");
       setNewAccountCurrency("USD");
       setNewAccountDescription("");
       setIsAccountModalOpen(false);
       await fetchData();
     } catch (err: any) {
-      console.error("Error in handleCreateAccount:", err);
       alert(err.message);
     }
   };
