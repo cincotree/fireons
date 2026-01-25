@@ -24,7 +24,6 @@ export default function RootLayout({
         className={`${customFont.className} antialiased`}
       >
         <AuthProvider>
-          <Navigation />
           {children}
         </AuthProvider>
       </body>
