@@ -273,6 +273,59 @@ async def get_networth_summary(
     )
 
 
+@router.patch("/accounts/{account_id}")
+async def update_account(
+    account_id: str,
+    account_data: AccountCreate,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    account_repo = AccountRepository(session)
+
+    account = await account_repo.get_by_id(account_id, current_user.id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    account.name = account_data.name
+    account.currency = account_data.currency
+    if account_data.description is not None:
+        account.description = account_data.description
+
+    await session.commit()
+
+    return AccountResponse(
+        id=account.id,
+        name=account.name,
+        account_type=account.account_type.value,
+        currency=account.currency,
+        description=account.description,
+        open_date=account.open_date,
+        close_date=account.close_date,
+        is_active=account.is_active,
+        current_balance=None,
+    )
+
+
+@router.delete("/accounts/{account_id}")
+async def delete_account(
+    account_id: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    account_repo = AccountRepository(session)
+
+    account = await account_repo.get_by_id(account_id, current_user.id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    deleted = await account_repo.delete(account_id, current_user.id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    await session.commit()
+    return {"message": "Account deleted successfully"}
+
+
 @router.delete("/balances/{balance_id}")
 async def delete_balance(
     balance_id: str,
