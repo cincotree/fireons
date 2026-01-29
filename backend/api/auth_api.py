@@ -125,7 +125,14 @@ async def register(
     await session.commit()
     await session.refresh(new_user)
 
-    return new_user
+    return UserResponse(
+        id=new_user.id,
+        email=new_user.email,
+        username=new_user.username,
+        full_name=new_user.full_name,
+        location=new_user.location,
+        primary_currency=new_user.primary_currency,
+    )
 
 
 @router.post("/login", response_model=Token)
@@ -162,4 +169,11 @@ async def login(
 async def get_current_user_info(
     current_user: User = Depends(get_current_user)
 ):
-    return current_user
+    return UserResponse(
+        id=current_user.id,
+        email=current_user.email,
+        username=current_user.username,
+        full_name=current_user.full_name,
+        location=current_user.location,
+        primary_currency=current_user.primary_currency,
+    )

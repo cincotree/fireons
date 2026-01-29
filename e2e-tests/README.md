@@ -1,92 +1,57 @@
-# E2E Tests for Fireons
+# E2E Tests
 
-Browser-based functional tests using Playwright for the Fireons application.
+Browser-based functional tests using Playwright for authentication and net worth features.
 
-## Setup
-
-Install dependencies:
+## Quick Start
 
 ```bash
 npm install
-```
-
-## Running Tests
-
-### Headless Mode (Default)
-
-Run all tests in headless mode:
-
-```bash
 npm test
 ```
 
-### Headed Mode (Visual)
+Tests automatically start servers, run all tests, and clean up.
 
-Run tests with browser visible:
+## Test Modes
 
 ```bash
-npm run test:headed
+npm test              # Run all tests (headless)
+npm run test:headed   # Run with visible browser
+npm run test:ui       # Interactive Playwright UI
+npm run test:debug    # Debug mode with step-through
+npm run report        # View HTML test report
 ```
 
-### Interactive UI Mode
+## Database Setup
 
-Run tests with Playwright's interactive UI:
+Tests use a separate `fireons_test` database for complete isolation:
 
 ```bash
-npm run test:ui
+createdb fireons_test
 ```
 
-### Debug Mode
+Test data is automatically cleaned up after each run.
 
-Run tests in debug mode with step-through execution:
+## Configuration
 
+- Frontend: `http://localhost:3020`
+- Backend: `http://localhost:8020`
+- Test Database: `fireons_test`
+
+Override with environment variables:
 ```bash
-npm run test:debug
-```
-
-## View Test Results
-
-After running tests, view the HTML report:
-
-```bash
-npm run report
+BASE_URL=http://localhost:3020 BACKEND_URL=http://localhost:8020 npm test
 ```
 
 ## Test Coverage
 
-The networth feature has 4 critical E2E tests covering complete user journeys.
+**Authentication (9 tests)**
+- User registration and login flows
+- Form validation
+- Protected routes
+- Navigation
 
-## Test Structure
-
-```
-e2e-tests/
-├── tests/
-│   └── networth.spec.ts       # Net worth feature tests
-├── playwright.config.ts        # Playwright configuration
-├── package.json                # Dependencies and scripts
-└── tsconfig.json               # TypeScript configuration
-```
-
-## Configuration
-
-The tests are configured to:
-- Run against `http://localhost:3000` (frontend)
-- Use Chromium browser
-- Take screenshots on failure
-- Generate HTML reports
-- Automatically start the frontend dev server if not running
-
-## Prerequisites
-
-Before running tests, ensure:
-1. Backend is running on `http://localhost:8000`
-2. Frontend dev server will be started automatically by Playwright if not already running
-3. PostgreSQL database is running and configured
-
-## CI/CD Integration
-
-Tests are configured for CI environments:
-- Retries: 2 attempts in CI, 0 in local development
-- Workers: 1 in CI, parallel in local development
-- Screenshots: Only on failure
-- Traces: On first retry
+**Net Worth (5 tests)**
+- Account creation (assets/liabilities)
+- Balance management
+- Multi-currency support
+- Data isolation

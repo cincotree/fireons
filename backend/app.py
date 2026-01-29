@@ -3,11 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import Callable, Awaitable
 from contextlib import asynccontextmanager
 
-from uiflow import router as flow_router
-from transactions_api import router as transactions_router
-from convert_currency_api import router as convert_router
-from networth_api import router as networth_router
-from auth_api import router as auth_router
+from api.uiflow import router as flow_router
+from api.transactions_api import router as transactions_router
+from api.convert_currency_api import router as convert_router
+from api.networth_api import router as networth_router
+from api.auth_api import router as auth_router
 from database.session import init_db
 
 
@@ -37,7 +37,7 @@ app.include_router(networth_router)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "http://localhost:3020"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

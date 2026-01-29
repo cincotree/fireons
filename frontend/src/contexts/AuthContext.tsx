@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { getBaseHttpUrl } from "@/utils/api";
 
 interface User {
   id: string;
@@ -37,8 +38,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  const BACKEND_HOST = process.env.NEXT_PUBLIC_BACKEND_HOST || "localhost:8000";
-
   useEffect(() => {
     checkAuth();
   }, []);
@@ -51,7 +50,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const response = await fetch(`http://${BACKEND_HOST}/api/auth/me`, {
+      const baseUrl = await getBaseHttpUrl();
+      const response = await fetch(`${baseUrl}/api/auth/me`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -72,7 +72,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const login = async (username: string, password: string) => {
-    const response = await fetch(`http://${BACKEND_HOST}/api/auth/login`, {
+    const baseUrl = await getBaseHttpUrl();
+    const response = await fetch(`${baseUrl}/api/auth/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -93,7 +94,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const register = async (userData: RegisterData) => {
-    const response = await fetch(`http://${BACKEND_HOST}/api/auth/register`, {
+    const baseUrl = await getBaseHttpUrl();
+    const response = await fetch(`${baseUrl}/api/auth/register`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

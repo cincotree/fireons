@@ -2,7 +2,6 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Net Worth Feature - Critical User Journeys', () => {
   test.beforeEach(async ({ page }) => {
-    // Register and login a test user before each test
     const timestamp = Date.now();
     const testUser = {
       email: `networthuser${timestamp}@example.com`,
@@ -14,10 +13,8 @@ test.describe('Net Worth Feature - Critical User Journeys', () => {
     await page.getByLabel(/Email/i).fill(testUser.email);
     await page.getByLabel(/^Username/i).fill(testUser.username);
     await page.locator('input[name="password"]').fill(testUser.password);
-    await page.locator('input[name="confirmPassword"]').fill(testUser.password);
     await page.getByRole('button', { name: /Create account/i }).click();
 
-    // Wait for redirect to networth after successful registration
     await page.waitForURL(/.*networth/, { timeout: 5000 });
   });
 
@@ -132,5 +129,48 @@ test.describe('Net Worth Feature - Critical User Journeys', () => {
     await expect(page.getByRole('button', { name: 'Add Account' })).toBeVisible();
     await expect(page.getByText('Net Worth Summary')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Accounts' })).toBeVisible();
+  });
+
+  test('data isolation: users can only see their own accounts', async ({ page, context }) => {
+    const timestamp = Date.now();
+
+    // Create an account for user 1 (from beforeEach)
+    const user1AccountName = `Assets:Bank:User1${timestamp}`;
+    await page.getByRole('button', { name: 'Add Account' }).click();
+    await page.getByPlaceholder(/e.g., Assets:Bank:Savings/).fill(user1AccountName);
+    await page.getByRole('button', { name: 'Create Account' }).click();
+    await page.waitForTimeout(1000);
+    await expect(page.getByText(user1AccountName)).toBeVisible();
+
+    // Logout user 1
+    await page.getByRole('button', { name: /Logout/i }).click();
+    await page.waitForURL(/.*login/, { timeout: 3000 });
+
+    const user2 = {
+      email: `networthuser2${timestamp}@example.com`,
+      username: `networthuser2${timestamp}`,
+      password: 'Test123!@#'
+    };
+
+    await page.goto('/register');
+    await page.getByLabel(/Email/i).fill(user2.email);
+    await page.getByLabel(/^Username/i).fill(user2.username);
+    await page.locator('input[name="password"]').fill(user2.password);
+    await page.getByRole('button', { name: /Create account/i }).click();
+    await page.waitForURL(/.*networth/, { timeout: 5000 });
+
+    // User 2 should NOT see User 1's account
+    await expect(page.getByText(user1AccountName)).not.toBeVisible();
+
+    // Create an account for user 2
+    const user2AccountName = `Assets:Bank:User2${timestamp}`;
+    await page.getByRole('button', { name: 'Add Account' }).click();
+    await page.getByPlaceholder(/e.g., Assets:Bank:Savings/).fill(user2AccountName);
+    await page.getByRole('button', { name: 'Create Account' }).click();
+    await page.waitForTimeout(1000);
+
+    // User 2 should see their own account but not User 1's
+    await expect(page.getByText(user2AccountName)).toBeVisible();
+    await expect(page.getByText(user1AccountName)).not.toBeVisible();
   });
 });

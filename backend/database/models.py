@@ -41,7 +41,10 @@ class Account(Base):
     id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
     )
-    name: Mapped[str] = mapped_column(String(500), unique=True, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
     account_type: Mapped[AccountType] = mapped_column(Enum(AccountType), nullable=False)
     currency: Mapped[str] = mapped_column(String(10), default="USD", nullable=False)
     open_date: Mapped[date] = mapped_column(Date, nullable=False)
@@ -56,11 +59,17 @@ class Account(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
+    user: Mapped["User"] = relationship(back_populates="accounts")
     postings: Mapped[list["Posting"]] = relationship(
         back_populates="account", cascade="all, delete-orphan"
     )
     balances: Mapped[list["Balance"]] = relationship(
         back_populates="account", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "name", name="uq_account_user_name"),
+        Index("ix_accounts_user_id", "user_id"),
     )
 
     def __repr__(self) -> str:
@@ -177,27 +186,20 @@ class Balance(Base):
     id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
     )
-    # Foreign key to account
     account_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False
     )
-    # Balance assertion date
     date: Mapped[date] = mapped_column(Date, nullable=False)
-    # Expected balance amount
     amount: Mapped[Decimal] = mapped_column(
         Numeric(precision=20, scale=4), nullable=False
     )
-    # Currency
     currency: Mapped[str] = mapped_column(String(10), default="USD", nullable=False)
-    # Whether the assertion passed
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    # Relationships
     account: Mapped["Account"] = relationship(back_populates="balances")
 
     __table_args__ = (
@@ -249,10 +251,8 @@ class TransactionLink(Base):
     transaction_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), ForeignKey("transactions.id", ondelete="CASCADE"), nullable=False
     )
-    # Link value (without the ^ prefix)
     link: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
 
-    # Relationships
     transaction: Mapped["Transaction"] = relationship(back_populates="links")
 
     __table_args__ = (
@@ -269,10 +269,8 @@ class TransactionTag(Base):
     transaction_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), ForeignKey("transactions.id", ondelete="CASCADE"), nullable=False
     )
-    # Tag value (without the # prefix)
     tag: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
 
-    # Relationships
     transaction: Mapped["Transaction"] = relationship(back_populates="tags")
 
     __table_args__ = (
@@ -297,6 +295,10 @@ class User(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    accounts: Mapped[list["Account"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:

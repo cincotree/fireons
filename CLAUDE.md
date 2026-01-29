@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Coding Standards
+
+**IMPORTANT: Do not add code comments anywhere unless explicitly requested.** The code should be self-documenting through clear naming and structure. Comments will only be added when the user specifically asks for them.
+
 ## Project Overview
 
 AI Money is a personal finance expense tracker that converts credit card statements (CSV format) into beancount files and automatically categorizes expenses using AI agents. The system uses a LangGraph-based agent workflow with websocket communication between frontend and backend.
@@ -140,7 +144,7 @@ ANTHROPIC_API_KEY=your-anthropic-api-key  # Required for AI categorization
 
 ### Frontend `.env.local` (required)
 ```bash
-NEXT_PUBLIC_BACKEND_HOST=localhost:8000
+BACKEND_HOST=localhost:8000
 ```
 
 ## Beancount Integration
