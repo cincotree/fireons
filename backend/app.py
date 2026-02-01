@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Callable, Awaitable
@@ -31,9 +33,10 @@ app.include_router(auth_router)
 app.include_router(convert_router)
 app.include_router(networth_router)
 
+cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:3020").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3020"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
