@@ -19,8 +19,9 @@ export default function LoginPage() {
 
     try {
       await login(username, password);
-    } catch (err: any) {
-      setError(err.message || "Login failed. Please try again.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Login failed. Please try again.";
+      setError(message);
     } finally {
       setLoading(false);
     }

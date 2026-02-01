@@ -102,7 +102,7 @@ export function NetWorthDashboard() {
 
       setAccounts(accountsData);
       setNetWorth(networthData);
-    } catch (err) {
+    } catch {
       setError("Failed to load net worth data. Please try again.");
     } finally {
       setIsLoading(false);
@@ -150,8 +150,9 @@ export function NetWorthDashboard() {
       setNewAccountDescription("");
       setIsAccountModalOpen(false);
       await fetchData();
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "An error occurred";
+      alert(message);
     }
   };
 
@@ -192,8 +193,9 @@ export function NetWorthDashboard() {
       setSelectedAccount(null);
       setIsBalanceModalOpen(false);
       await fetchData();
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "An error occurred";
+      alert(message);
     }
   };
 
@@ -330,7 +332,7 @@ export function NetWorthDashboard() {
             </Table>
           ) : (
             <p className="text-gray-500">
-              No accounts yet. Click "Add Account" to create your first account.
+              No accounts yet. Click &quot;Add Account&quot; to create your first account.
             </p>
           )}
         </div>
@@ -354,7 +356,7 @@ export function NetWorthDashboard() {
                 onChange={(e) => setNewAccountName(e.target.value)}
               />
               <p className="text-xs text-gray-500 mt-1">
-                Must start with 'Assets:' or 'Liabilities:'
+                Must start with &apos;Assets:&apos; or &apos;Liabilities:&apos;
               </p>
             </div>
             <div>
