@@ -1,15 +1,11 @@
-## AI Money
+## Fireons
 
-This is a personal finance expense tracker. This works on top of transactions in [beancount](https://beancount.github.io/) file format.
-The app converts uploaded credit card statements (CSV or PDF) into a beancount file and categorizes the expenses with an AI agent.
+A personal finance tracker for managing net worth and accounts.
 
 ### Features
-- **Upload PDF or CSV statements** - Supports any credit card statement format
-- **AI-powered PDF parsing** - Automatically extracts transactions from PDF statements using Claude AI
-- **Smart categorization** - Categorize transactions using AI
-- **Multi-currency support** - Handles transactions in different currencies
-
-![AI money categorize demo](ai-money-categorize.png)
+- **User authentication** - Secure login and registration
+- **Net worth tracking** - Track your assets and liabilities over time
+- **Multi-currency support** - Handles accounts in different currencies
 
 ### Setup
 
@@ -25,7 +21,7 @@ The application requires PostgreSQL to be installed and running. Set up the data
 psql postgres -c "CREATE ROLE postgres WITH LOGIN PASSWORD 'postgres' SUPERUSER CREATEDB CREATEROLE;"
 ```
 
-3. The application will automatically create the `aimoney` database when it runs.
+3. The application will automatically create the database when it runs.
 
 #### Backend
 - Install [uv](https://docs.astral.sh/uv/) package manager
@@ -47,8 +43,6 @@ Install
 
 **Backend**
 
-## To build and run the application:
-
 1. Install dependencies:
 ```bash
 cd backend
@@ -57,76 +51,26 @@ uv sync
 
 2. Run the server:
 ```bash
-ANTHROPIC_API_KEY=<your_key> uv run uvicorn app:app --reload
+uv run uvicorn app:app --reload
 ```
 
-## Build and run the application using Docker:
-
-Build the Docker image:
+Build and run using Docker:
 ```bash
-docker build -t ai-money/backend .
+docker build -t fireons/backend .
+docker run -p 8000:8000 fireons/backend
 ```
-
-Test locally:
-```bash
-docker run -p 8000:8000 -e ANTHROPIC_API_KEY=your_key ai-money/backend
-```
-
-### AWS Deployment
-
-```
-docker build --platform=linux/amd64 -t ai-money/backend:`git log -n 1 --format="%H"` .
-docker tag ai-money/backend:`git log -n 1 --format="%H"` 867344451303.dkr.ecr.us-west-2.amazonaws.com/ai-money/backend:`git log -n 1 --format="%H"`
-aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin 867344451303.dkr.ecr.us-west-2.amazonaws.com
-docker push 867344451303.dkr.ecr.us-west-2.amazonaws.com/ai-money/backend:`git log -n 1 --format="%H"`
-```
-
 
 **Frontend**
 
-## To build and run the application:
-```
+```bash
 cd frontend
 npm run dev
 ```
 
-And visit localhost:3000
+Visit localhost:3000
 
-
-## Build and run the application using Docker:
-
+Build and run using Docker:
 ```bash
-# Build the Docker image
-docker build -t ai-money/frontend .
-
-# Run the container
-docker run -p 3000:3000 -e BACKEND_HOST=localhost:8000 ai-money/frontend
+docker build -t fireons/frontend .
+docker run -p 3000:3000 -e BACKEND_HOST=localhost:8000 fireons/frontend
 ```
-
-### AWS Deployment
-
-```
-docker build --platform=linux/amd64 -t ai-money/frontend:`git log -n 1 --format="%H"` .
-docker tag ai-money/frontend:`git log -n 1 --format="%H"`  867344451303.dkr.ecr.us-west-2.amazonaws.com/ai-money/frontend:`git log -n 1 --format="%H"`
-aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin 867344451303.dkr.ecr.us-west-2.amazonaws.com
-docker push 867344451303.dkr.ecr.us-west-2.amazonaws.com/ai-money/frontend:`git log -n 1 --format="%H"`
-```
-
-
-
-
-**Supported Statement Formats**
-
-The application now supports **both CSV and PDF** credit card statements:
-
-- **CSV**: Sample CSV statement available in `backend/statements/sample-statement.csv`
-- **PDF**:
-  - The AI automatically extracts transactions from any credit card PDF statement format
-  - No manual conversion needed!
-
-Simply upload your credit card statement (CSV or PDF) through the web interface, and the app will automatically process it.
-
-
-### Dashboard
-
-[Paisa](https://paisa.fyi/) is a dashboard tool to visualize the transactions. To visualize the transactions you can use that.

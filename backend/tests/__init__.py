@@ -1,3 +1,3 @@
 """
-Test suite for AI Money backend.
+Test suite for Fireons backend.
 """

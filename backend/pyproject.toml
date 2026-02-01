@@ -1,5 +1,5 @@
 [project]
-name = "ai-money"
+name = "fireons"
 version = "0.1.0"
 description = ""
 authors = [
@@ -7,25 +7,10 @@ authors = [
 ]
 requires-python = ">=3.10.5"
 dependencies = [
-    "pandas>=2.2.3",
-    "jupyterlab>=4.2.5",
-    "notebook>=7.2.2",
-    "beancount==2.3.6",
-    "fava>=1.28",
-    "ollama>=0.3.3",
-    "streamlit>=1.40.1",
-    "langchain-anthropic>=0.3.0",
     "python-dotenv>=1.0.1",
-    "langgraph>=0.2.50",
-    "plotly>=5.24.1",
-    "numpy<2.0",
-    "torch",
-    "sentence-transformers",
-    "pymilvus>=2.4.9",
     "fastapi>=0.115.5",
     "uvicorn[standard]>=0.32.1",
     "python-multipart>=0.0.20",
-    "pypdf2>=3.0.1",
     "sqlalchemy[asyncio]>=2.0.0",
     "psycopg[binary,pool]>=3.1.0",
     "alembic>=1.13.0",
