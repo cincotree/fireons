@@ -19,7 +19,14 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Middleware to strip `/api` from the path
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:3020"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 @app.middleware("http")
 async def rewrite_api_path(request: Request, call_next: Callable[[Request], Awaitable[Response]]):
     if request.url.path.startswith("/api"):
@@ -34,11 +41,3 @@ app.include_router(flow_router)
 app.include_router(transactions_router)
 app.include_router(convert_router)
 app.include_router(networth_router)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3020"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
