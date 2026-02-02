@@ -369,8 +369,8 @@ async def update_account(
     )
 
 
-@router.delete("/accounts/{account_id}")
-async def delete_account(
+@router.post("/accounts/{account_id}/close")
+async def close_account(
     account_id: str,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
@@ -381,12 +381,12 @@ async def delete_account(
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
 
-    deleted = await account_repo.delete(account_id, current_user.id)
-    if not deleted:
+    closed_account = await account_repo.close_account(account_id, date_type.today())
+    if not closed_account:
         raise HTTPException(status_code=404, detail="Account not found")
 
     await session.commit()
-    return {"message": "Account deleted successfully"}
+    return {"message": "Account closed successfully", "close_date": closed_account.close_date}
 
 
 @router.delete("/balances/{balance_id}")

@@ -62,6 +62,8 @@ export function NetWorthDashboard() {
   const [newAccountCurrency, setNewAccountCurrency] = useState("USD");
   const [balanceAmount, setBalanceAmount] = useState("");
   const [originalBalance, setOriginalBalance] = useState<number | null>(null);
+  const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
+  const [accountToClose, setAccountToClose] = useState<Account | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -270,6 +272,40 @@ export function NetWorthDashboard() {
     }
   };
 
+  const handleRequestCloseAccount = (account: Account) => {
+    setAccountToClose(account);
+    setIsCloseConfirmOpen(true);
+  };
+
+  const handleConfirmCloseAccount = async () => {
+    if (!accountToClose) return;
+
+    try {
+      const baseUrl = await getBaseHttpUrl();
+      const token = localStorage.getItem("token");
+
+      const response = await fetch(
+        `${baseUrl}/api/networth/accounts/${accountToClose.id}/close`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Failed to close account");
+      }
+
+      setIsCloseConfirmOpen(false);
+      setAccountToClose(null);
+      await fetchData();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
 
   const formatCurrency = (amount: number, currency: string) => {
     return new Intl.NumberFormat("en-US", {
@@ -384,6 +420,7 @@ export function NetWorthDashboard() {
         <AccountHierarchyTree
           accounts={accounts}
           onAccountClick={openAccountModal}
+          onCloseAccount={handleRequestCloseAccount}
           currency={selectedCurrency}
         />
       </div>
@@ -527,6 +564,35 @@ export function NetWorthDashboard() {
                 className="bg-gray-200 text-gray-700 hover:bg-blue-100 hover:text-blue-700 transition-colors"
               >
                 {editingAccount ? "Save Changes" : "Create Account"}
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Modal>
+
+      <Modal open={isCloseConfirmOpen} onOpenChange={setIsCloseConfirmOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Close Account</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-gray-700">
+              Are you sure you want to close <span className="font-semibold">{accountToClose?.name}</span>?
+            </p>
+            <p className="text-sm text-gray-500 mt-2">
+              The account will be marked as closed and hidden from the dashboard, but all historical data will be preserved.
+            </p>
+          </div>
+          <DialogFooter>
+            <div className="flex gap-3 justify-end w-full">
+              <Button variant="outline" onClick={() => setIsCloseConfirmOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleConfirmCloseAccount}
+                className="bg-red-600 text-white hover:bg-red-700 transition-colors"
+              >
+                Close Account
               </Button>
             </div>
           </DialogFooter>

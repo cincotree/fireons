@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, ChevronDown, Pencil } from "lucide-react";
+import { ChevronRight, ChevronDown, Pencil, XCircle } from "lucide-react";
 
 interface Account {
   id: string;
@@ -23,12 +23,14 @@ interface TreeNode {
 interface AccountHierarchyTreeProps {
   accounts: Account[];
   onAccountClick?: (account: Account) => void;
+  onCloseAccount?: (account: Account) => void;
   currency?: string;
 }
 
 export function AccountHierarchyTree({
   accounts,
   onAccountClick,
+  onCloseAccount,
   currency = "USD",
 }: AccountHierarchyTreeProps) {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => {
@@ -167,9 +169,9 @@ export function AccountHierarchyTree({
           >
             {hasChildren ? (
               isExpanded ? (
-                <ChevronDown className="h-4 w-4 text-gray-500" />
+                <ChevronDown className="h-4 w-4 text-gray-500" strokeWidth={3} />
               ) : (
-                <ChevronRight className="h-4 w-4 text-gray-500" />
+                <ChevronRight className="h-4 w-4 text-gray-500" strokeWidth={3} />
               )
             ) : (
               <span className="w-4" />
@@ -188,7 +190,7 @@ export function AccountHierarchyTree({
             </span>
             {node.account && onAccountClick && (
               <button
-                className="p-1 bg-gray-200 text-gray-700 hover:bg-blue-100 hover:text-blue-700 rounded ml-2 transition-colors"
+                className="p-1 bg-gray-200 text-blue-600 hover:bg-blue-100 rounded ml-2 transition-colors"
                 onClick={(e) => {
                   e.stopPropagation();
                   onAccountClick(node.account!);
@@ -197,6 +199,19 @@ export function AccountHierarchyTree({
                 aria-label="Edit account"
               >
                 <Pencil className="h-3 w-3" />
+              </button>
+            )}
+            {node.account && onCloseAccount && (
+              <button
+                className="p-1 bg-gray-200 text-red-600 hover:bg-red-100 rounded ml-1 transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCloseAccount(node.account!);
+                }}
+                title="Close Account"
+                aria-label="Close account"
+              >
+                <XCircle className="h-3 w-3" />
               </button>
             )}
           </div>
@@ -236,7 +251,7 @@ export function AccountHierarchyTree({
 
   return (
     <div className="border rounded-lg overflow-hidden">
-      <div className="grid grid-cols-12 gap-4 px-3 py-2 bg-gray-50 border-b font-medium text-sm text-gray-700">
+      <div className="grid grid-cols-12 gap-4 px-3 py-2 bg-gray-50 border-b font-bold text-sm text-gray-700">
         <div className="col-span-6">Account</div>
         <div className="col-span-3 text-right">Balance</div>
         <div className="col-span-3 text-right">Total ({currency})</div>

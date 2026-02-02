@@ -6,27 +6,27 @@ import { Button } from "@/components/ui/button";
 type AccountType = "Assets" | "Liabilities";
 
 interface Category {
-  id: string;
+  slug: string;
   label: string;
 }
 
 const ASSET_CATEGORIES: Category[] = [
-  { id: "Cash", label: "Cash & Checking" },
-  { id: "Savings", label: "Savings" },
-  { id: "Retirement", label: "Retirement Accounts" },
-  { id: "Investment", label: "Investment & Brokerage" },
-  { id: "Deposit", label: "Fixed Deposits" },
-  { id: "RealEstate", label: "Real Estate" },
-  { id: "Vehicle", label: "Vehicles" },
-  { id: "Crypto", label: "Cryptocurrency" },
-  { id: "Other", label: "Other Assets" },
+  { slug: "cash", label: "Cash & Checking" },
+  { slug: "savings", label: "Savings" },
+  { slug: "retirement", label: "Retirement Accounts" },
+  { slug: "investment", label: "Investment & Brokerage" },
+  { slug: "deposit", label: "Fixed Deposits" },
+  { slug: "real_estate", label: "Real Estate" },
+  { slug: "vehicle", label: "Vehicles" },
+  { slug: "crypto", label: "Cryptocurrency" },
+  { slug: "other", label: "Other Assets" },
 ];
 
 const LIABILITY_CATEGORIES: Category[] = [
-  { id: "CreditCard", label: "Credit Cards" },
-  { id: "Loan", label: "Loans" },
-  { id: "Mortgage", label: "Mortgage" },
-  { id: "Other", label: "Other Debt" },
+  { slug: "credit_card", label: "Credit Cards" },
+  { slug: "loan", label: "Loans" },
+  { slug: "mortgage", label: "Mortgage" },
+  { slug: "other", label: "Other Debt" },
 ];
 
 interface AddAccountFlowProps {
@@ -117,8 +117,8 @@ export function AddAccountFlow({ onComplete, onCancel }: AddAccountFlowProps) {
         <div className="grid grid-cols-2 gap-3 max-h-96 overflow-y-auto">
           {(accountType === "Assets" ? ASSET_CATEGORIES : LIABILITY_CATEGORIES).map((cat) => (
             <button
-              key={cat.id}
-              onClick={() => handleCategorySelect(cat.id)}
+              key={cat.slug}
+              onClick={() => handleCategorySelect(cat.slug)}
               className="p-4 border rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all text-left"
             >
               <div className="font-medium">{cat.label}</div>
