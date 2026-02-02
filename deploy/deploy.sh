@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SERVER_IP="172.105.48.221"
-SERVER_USER="root"
+SERVER_USER="${SERVER_USER:-deploy}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/linode_key}"
 APP_DIR="/opt/fireons"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,6 +22,9 @@ echo "==> Saving Docker images..."
 mkdir -p "$SCRIPT_DIR/tmp"
 docker save fireons/backend:latest | gzip > "$SCRIPT_DIR/tmp/backend.tar.gz"
 docker save fireons/frontend:latest | gzip > "$SCRIPT_DIR/tmp/frontend.tar.gz"
+
+echo "==> Ensuring app directory exists on server..."
+ssh -i "$SSH_KEY" "$SERVER_USER@$SERVER_IP" "sudo mkdir -p $APP_DIR && sudo chown -R \$USER:\$USER $APP_DIR"
 
 echo "==> Transferring images to server..."
 scp -i "$SSH_KEY" "$SCRIPT_DIR/tmp/backend.tar.gz" "$SERVER_USER@$SERVER_IP:$APP_DIR/"
@@ -43,6 +46,7 @@ ENVFILE
 echo "==> Loading images and deploying on server..."
 ssh -i "$SSH_KEY" "$SERVER_USER@$SERVER_IP" bash << 'REMOTE_SCRIPT'
 set -euo pipefail
+export PATH="/usr/bin:/usr/local/bin:/usr/sbin:/sbin:$PATH"
 cd /opt/fireons
 
 echo "Loading backend image..."
