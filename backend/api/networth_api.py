@@ -29,8 +29,9 @@ class AccountResponse(BaseModel):
     open_date: date_type
     close_date: Optional[date_type]
     is_active: bool
-    current_balance: Optional[Decimal] = None
-    current_balance_converted: Optional[Decimal] = None  # Balance in display currency
+    balance: Optional[Decimal] = None
+    balance_in_display_currency: Optional[Decimal] = None
+    display_currency: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -117,13 +118,13 @@ async def list_networth_accounts(
 
     response = []
     for account in accounts:
-        current_balance = balance_map.get((account.id, account.currency))
+        balance = balance_map.get((account.id, account.currency))
 
         # Convert balance to display currency
-        current_balance_converted = None
-        if current_balance is not None:
-            current_balance_converted = await rate_repo.convert_amount(
-                amount=current_balance,
+        balance_in_display_currency = None
+        if balance is not None:
+            balance_in_display_currency = await rate_repo.convert_amount(
+                amount=balance,
                 from_currency=account.currency,
                 to_currency=display_currency,
             )
@@ -137,8 +138,9 @@ async def list_networth_accounts(
             "open_date": account.open_date,
             "close_date": account.close_date,
             "is_active": account.is_active,
-            "current_balance": current_balance,
-            "current_balance_converted": current_balance_converted,
+            "balance": balance,
+            "balance_in_display_currency": balance_in_display_currency,
+            "display_currency": display_currency,
         }
         response.append(AccountResponse(**account_dict))
 
@@ -179,7 +181,7 @@ async def create_networth_account(
             open_date=account.open_date,
             close_date=account.close_date,
             is_active=account.is_active,
-            current_balance=None,
+            balance=None,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -228,7 +230,7 @@ async def update_networth_account(
             open_date=account.open_date,
             close_date=account.close_date,
             is_active=account.is_active,
-            current_balance=balance_map.get((account.id, account.currency)),
+            balance=balance_map.get((account.id, account.currency)),
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -365,7 +367,7 @@ async def update_account(
         open_date=account.open_date,
         close_date=account.close_date,
         is_active=account.is_active,
-        current_balance=None,
+        balance=None,
     )
 
 

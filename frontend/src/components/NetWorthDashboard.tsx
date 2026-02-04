@@ -15,8 +15,9 @@ interface Account {
   currency: string;
   description: string | null;
   open_date: string;
-  current_balance: number | null;
-  current_balance_converted: number | null;
+  balance: number | null;
+  balance_in_display_currency: number | null;
+  display_currency: string | null;
   is_active: boolean;
 }
 
@@ -128,8 +129,8 @@ export function NetWorthDashboard() {
       setNewAccountName(account.name);
       setNewAccountDescription(account.description || "");
       setNewAccountCurrency(account.currency);
-      setBalanceAmount(account.current_balance?.toString() || "");
-      setOriginalBalance(account.current_balance ?? null);
+      setBalanceAmount(account.balance?.toString() || "");
+      setOriginalBalance(account.balance ?? null);
       setIsNewCategory(false);
     } else {
       setEditingAccount(null);

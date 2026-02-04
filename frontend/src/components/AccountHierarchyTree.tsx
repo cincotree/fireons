@@ -8,8 +8,8 @@ interface Account {
   name: string;
   account_type: string;
   currency: string;
-  current_balance: number | null;
-  current_balance_converted: number | null;
+  balance: number | null;
+  balance_in_display_currency: number | null;
 }
 
 interface TreeNode {
@@ -123,8 +123,7 @@ export function AccountHierarchyTree({
 
   const calculateNodeTotal = (node: TreeNode): number => {
     if (node.account) {
-      // Use converted balance for rollup totals
-      const balance = node.account.current_balance_converted;
+      const balance = node.account.balance_in_display_currency;
       if (balance === null || balance === undefined) {
         return 0;
       }
@@ -216,12 +215,12 @@ export function AccountHierarchyTree({
             )}
           </div>
           <div className="col-span-3 text-right text-sm text-gray-600">
-            {node.account && node.account.current_balance !== null
+            {node.account && node.account.balance !== null
               ? new Intl.NumberFormat("en-US", {
                   style: "currency",
                   currency: node.account.currency,
                   minimumFractionDigits: 2,
-                }).format(node.account.current_balance)
+                }).format(node.account.balance)
               : ""}
           </div>
           <div className="col-span-3 text-right text-sm font-semibold text-gray-700">
