@@ -10,7 +10,7 @@ from database.models import AccountType, User
 from database.repository import AccountRepository, BalanceRepository, ExchangeRateRepository
 from api.auth_api import get_current_user
 
-router = APIRouter(prefix="/networth", tags=["networth"])
+router = APIRouter(prefix="", tags=["accounts"])
 
 
 class AccountCreate(BaseModel):
@@ -38,7 +38,6 @@ class AccountResponse(BaseModel):
 
 
 class BalanceCreate(BaseModel):
-    account_id: str
     amount: Decimal
     currency: str
     date: date_type = Field(default_factory=date_type.today)
@@ -91,7 +90,7 @@ class ExchangeRateResponse(BaseModel):
 
 
 @router.get("/accounts", response_model=list[AccountResponse])
-async def list_networth_accounts(
+async def list_accounts(
     display_currency: str = "USD",
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
@@ -120,7 +119,6 @@ async def list_networth_accounts(
     for account in accounts:
         balance = balance_map.get((account.id, account.currency))
 
-        # Convert balance to display currency
         balance_in_display_currency = None
         if balance is not None:
             balance_in_display_currency = await rate_repo.convert_amount(
@@ -148,7 +146,7 @@ async def list_networth_accounts(
 
 
 @router.post("/accounts", response_model=AccountResponse)
-async def create_networth_account(
+async def create_account(
     account_data: AccountCreate,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
@@ -188,7 +186,7 @@ async def create_networth_account(
 
 
 @router.put("/accounts/{account_id}", response_model=AccountResponse)
-async def update_networth_account(
+async def update_account_full(
     account_id: str,
     account_data: AccountCreate,
     session: AsyncSession = Depends(get_session),
@@ -236,8 +234,9 @@ async def update_networth_account(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/balances", response_model=BalanceResponse)
+@router.post("/accounts/{account_id}/balance", response_model=BalanceResponse)
 async def create_balance(
+    account_id: str,
     balance_data: BalanceCreate,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
@@ -245,7 +244,7 @@ async def create_balance(
     account_repo = AccountRepository(session)
     balance_repo = BalanceRepository(session)
 
-    account = await account_repo.get_by_id(balance_data.account_id, current_user.id)
+    account = await account_repo.get_by_id(account_id, current_user.id)
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
 
@@ -256,7 +255,7 @@ async def create_balance(
         )
 
     balance = await balance_repo.create_or_update(
-        account_id=balance_data.account_id,
+        account_id=account_id,
         date=balance_data.date,
         amount=balance_data.amount,
         currency=balance_data.currency,
@@ -275,7 +274,7 @@ async def create_balance(
 
 
 @router.get("/summary", response_model=NetWorthResponse)
-async def get_networth_summary(
+async def get_summary(
     as_of_date: Optional[date_type] = None,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
@@ -391,13 +390,20 @@ async def close_account(
     return {"message": "Account closed successfully", "close_date": closed_account.close_date}
 
 
-@router.delete("/balances/{balance_id}")
+@router.delete("/accounts/{account_id}/balances/{balance_id}")
 async def delete_balance(
+    account_id: str,
     balance_id: str,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    account_repo = AccountRepository(session)
     balance_repo = BalanceRepository(session)
+
+    # Verify account exists and belongs to user
+    account = await account_repo.get_by_id(account_id, current_user.id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
 
     deleted = await balance_repo.delete(balance_id, current_user.id)
     if not deleted:
@@ -498,63 +504,91 @@ async def delete_exchange_rate(
     return {"message": "Exchange rate deleted successfully"}
 
 
-@router.get("/history")
+@router.get("/networth-history")
 async def get_networth_history(
     start_date: Optional[date_type] = None,
     end_date: Optional[date_type] = None,
     currency: str = "USD",
+    current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    from datetime import timedelta
+
     if end_date is None:
         end_date = date_type.today()
     if start_date is None:
-        from datetime import timedelta
         start_date = end_date - timedelta(days=365)
 
     balance_repo = BalanceRepository(session)
-    history = await balance_repo.get_networth_history(
-        start_date=start_date,
-        end_date=end_date,
-        currency=currency,
+    rate_repo = ExchangeRateRepository(session)
+
+    # Baseline: latest balance per account as of the day before start_date.
+    # This seeds the running state so balances recorded before the range carry forward.
+    baseline_date = start_date - timedelta(days=1)
+    baseline_balances = await balance_repo.get_latest_balances(
+        user_id=current_user.id,
+        as_of_date=baseline_date,
     )
+    # account_id -> (converted_amount_in_target_currency, account_type)
+    account_latest: dict[str, tuple[Decimal, AccountType]] = {}
+    for b in baseline_balances:
+        # Only include balance in the account's native currency (matches /accounts logic)
+        if b.currency != b.account.currency:
+            continue
+        converted = await rate_repo.convert_amount(
+            amount=b.amount,
+            from_currency=b.currency,
+            to_currency=currency,
+            as_of_date=baseline_date,
+        )
+        account_latest[b.account_id] = (converted, b.account.account_type)
 
-    return history
-
-
-@router.get("/balances/history", response_model=list[BalanceResponse])
-async def get_balance_history(
-    start_date: Optional[date_type] = None,
-    end_date: Optional[date_type] = None,
-    account_id: Optional[str] = None,
-    currency: Optional[str] = None,
-    session: AsyncSession = Depends(get_session),
-):
-    if end_date is None:
-        end_date = date_type.today()
-    if start_date is None:
-        from datetime import timedelta
-        start_date = end_date - timedelta(days=365)
-
-    balance_repo = BalanceRepository(session)
+    # All balance entries within the requested range (no currency filter)
     balances = await balance_repo.get_history(
         start_date=start_date,
         end_date=end_date,
-        account_id=account_id,
-        currency=currency,
+        user_id=current_user.id,
     )
 
-    return [
-        BalanceResponse(
-            id=balance.id,
-            account_id=balance.account.id,
-            account_name=balance.account.name,
-            account_type=balance.account.account_type.value,
-            amount=balance.amount,
-            currency=balance.currency,
-            date=balance.date,
-        )
-        for balance in balances
-    ]
+    # Group by date, filtering to account native currency only
+    date_entries: dict[str, list] = {}
+    for b in balances:
+        if b.currency != b.account.currency:
+            continue
+        date_key = b.date.isoformat()
+        if date_key not in date_entries:
+            date_entries[date_key] = []
+        date_entries[date_key].append(b)
+
+    # Walk dates in order; convert to target currency, update account state, snapshot totals
+    result = []
+    for date_str in sorted(date_entries.keys()):
+        balance_date = date_type.fromisoformat(date_str)
+        for b in date_entries[date_str]:
+            converted = await rate_repo.convert_amount(
+                amount=b.amount,
+                from_currency=b.currency,
+                to_currency=currency,
+                as_of_date=balance_date,
+            )
+            account_latest[b.account_id] = (converted, b.account.account_type)
+
+        total_assets = Decimal(0)
+        total_liabilities = Decimal(0)
+        for amount, account_type in account_latest.values():
+            if account_type == AccountType.ASSETS:
+                total_assets += amount
+            elif account_type == AccountType.LIABILITIES:
+                total_liabilities += amount
+
+        result.append({
+            "date": date_str,
+            "total_assets": float(total_assets),
+            "total_liabilities": float(total_liabilities),
+            "net_worth": float(total_assets - total_liabilities),
+        })
+
+    return result
 
 
 @router.get("/allocation")

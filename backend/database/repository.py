@@ -6,9 +6,8 @@ Provides clean abstractions for CRUD operations on accounting entities.
 
 from datetime import date
 from decimal import Decimal
-from typing import Any
 
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -17,10 +16,6 @@ from database.models import (
     AccountType,
     Balance,
     ExchangeRate,
-    Transaction,
-    Posting,
-    TransactionLink,
-    TransactionTag,
 )
 
 
@@ -82,32 +77,6 @@ class AccountRepository:
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_by_name(self, name: str) -> Account | None:
-        """Get an account by its full name."""
-        result = await self.session.execute(
-            select(Account).where(Account.name == name)
-        )
-        return result.scalar_one_or_none()
-
-    async def get_or_create(
-        self,
-        name: str,
-        open_date: date,
-        currency: str = "USD",
-        description: str | None = None,
-    ) -> tuple[Account, bool]:
-        """
-        Get an existing account or create a new one.
-
-        Returns:
-            Tuple of (account, created) where created is True if new
-        """
-        account = await self.get_by_name(name)
-        if account:
-            return account, False
-        account = await self.create(name, open_date, currency, description)
-        return account, True
-
     async def list_all(
         self,
         user_id: str | None = None,
@@ -137,23 +106,6 @@ class AccountRepository:
         result = await self.session.execute(query)
         return list(result.scalars().all())
 
-    async def list_by_prefix(self, prefix: str) -> list[Account]:
-        """
-        List accounts matching a name prefix.
-
-        Args:
-            prefix: Account name prefix (e.g., "Assets:Bank")
-
-        Returns:
-            List of Account instances
-        """
-        result = await self.session.execute(
-            select(Account)
-            .where(Account.name.startswith(prefix))
-            .order_by(Account.name)
-        )
-        return list(result.scalars().all())
-
     async def close_account(self, account_id: str, close_date: date) -> Account | None:
         """
         Close an account.
@@ -171,39 +123,6 @@ class AccountRepository:
             account.is_active = False
             await self.session.flush()
         return account
-
-    async def get_balance(
-        self,
-        account_id: str,
-        as_of_date: date | None = None,
-        currency: str = "USD",
-    ) -> Decimal:
-        """
-        Calculate account balance from postings.
-
-        Args:
-            account_id: Account ID
-            as_of_date: Calculate balance as of this date (default: today)
-            currency: Currency to sum
-
-        Returns:
-            Account balance as Decimal
-        """
-        if as_of_date is None:
-            as_of_date = date.today()
-
-        result = await self.session.execute(
-            select(func.coalesce(func.sum(Posting.amount), 0))
-            .join(Transaction)
-            .where(
-                and_(
-                    Posting.account_id == account_id,
-                    Posting.currency == currency,
-                    Transaction.date <= as_of_date,
-                )
-            )
-        )
-        return result.scalar() or Decimal(0)
 
     async def update(
         self,
@@ -243,367 +162,6 @@ class AccountRepository:
 
         await self.session.flush()
         return account
-
-    async def delete(self, account_id: str) -> bool:
-        """
-        Delete an account.
-
-        Args:
-            account_id: Account ID to delete
-
-        Returns:
-            True if deleted, False if not found
-        """
-        account = await self.get_by_id(account_id)
-        if account:
-            await self.session.delete(account)
-            await self.session.flush()
-            return True
-        return False
-
-
-class TransactionRepository:
-    """Repository for Transaction operations."""
-
-    def __init__(self, session: AsyncSession):
-        self.session = session
-
-    async def create(
-        self,
-        date: date,
-        narration: str,
-        postings: list[dict[str, Any]],
-        payee: str | None = None,
-        flag: str = "*",
-        tags: list[str] | None = None,
-        links: list[str] | None = None,
-        meta: dict | None = None,
-    ) -> Transaction:
-        """
-        Create a new transaction with postings.
-
-        Args:
-            date: Transaction date
-            narration: Transaction description
-            postings: List of posting dicts with keys:
-                - account_id: Account ID
-                - amount: Decimal amount (can be None for auto-balance)
-                - currency: Currency code (default: USD)
-            payee: Optional payee name
-            flag: Transaction flag (* or !)
-            tags: Optional list of tags
-            links: Optional list of links
-            meta: Optional metadata dictionary
-
-        Returns:
-            The created Transaction instance
-
-        Raises:
-            ValueError: If postings don't balance
-        """
-        transaction = Transaction(
-            date=date,
-            narration=narration,
-            payee=payee,
-            flag=flag,
-            meta=meta,
-        )
-        self.session.add(transaction)
-        await self.session.flush()
-
-
-        total = Decimal(0)
-        auto_balance_posting = None
-        for i, posting_data in enumerate(postings):
-            amount = posting_data.get("amount")
-            if amount is None:
-                if auto_balance_posting is not None:
-                    raise ValueError("Only one posting can have auto-balance (None amount)")
-                auto_balance_posting = i
-            else:
-                total += Decimal(str(amount))
-
-
-        for i, posting_data in enumerate(postings):
-            amount = posting_data.get("amount")
-            if i == auto_balance_posting:
-                amount = -total
-
-            posting = Posting(
-                transaction_id=transaction.id,
-                account_id=posting_data["account_id"],
-                amount=amount,
-                currency=posting_data.get("currency", "USD"),
-                position=i,
-            )
-            self.session.add(posting)
-
-
-        if auto_balance_posting is None and abs(total) >= Decimal("0.001"):
-            raise ValueError(f"Transaction postings do not balance: {total}")
-
-        if tags:
-            for tag in tags:
-                tag_obj = TransactionTag(transaction_id=transaction.id, tag=tag)
-                self.session.add(tag_obj)
-
-        if links:
-            for link in links:
-                link_obj = TransactionLink(transaction_id=transaction.id, link=link)
-                self.session.add(link_obj)
-
-        await self.session.flush()
-
-        return await self.get_by_id(transaction.id)
-
-    async def get_by_id(
-        self, transaction_id: str, include_postings: bool = True
-    ) -> Transaction | None:
-        """
-        Get a transaction by ID.
-
-        Args:
-            transaction_id: Transaction ID
-            include_postings: Whether to eagerly load postings
-
-        Returns:
-            Transaction or None if not found
-        """
-        query = select(Transaction).where(Transaction.id == transaction_id)
-
-        if include_postings:
-            query = query.options(
-                selectinload(Transaction.postings).selectinload(Posting.account),
-                selectinload(Transaction.tags),
-                selectinload(Transaction.links),
-            )
-
-        result = await self.session.execute(query)
-        return result.scalar_one_or_none()
-
-    async def get_by_link(self, link: str) -> list[Transaction]:
-        """
-        Get all transactions with a specific link.
-
-        Args:
-            link: Link value to search for
-
-        Returns:
-            List of Transaction instances
-        """
-        result = await self.session.execute(
-            select(Transaction)
-            .join(TransactionLink)
-            .where(TransactionLink.link == link)
-            .options(
-                selectinload(Transaction.postings).selectinload(Posting.account),
-                selectinload(Transaction.tags),
-                selectinload(Transaction.links),
-            )
-        )
-        return list(result.scalars().all())
-
-    async def list_by_date_range(
-        self,
-        start_date: date,
-        end_date: date,
-        account_id: str | None = None,
-    ) -> list[Transaction]:
-        """
-        List transactions in a date range.
-
-        Args:
-            start_date: Start date (inclusive)
-            end_date: End date (inclusive)
-            account_id: Optional filter by account
-
-        Returns:
-            List of Transaction instances ordered by date
-        """
-        query = (
-            select(Transaction)
-            .where(
-                and_(
-                    Transaction.date >= start_date,
-                    Transaction.date <= end_date,
-                )
-            )
-            .options(
-                selectinload(Transaction.postings).selectinload(Posting.account),
-                selectinload(Transaction.tags),
-                selectinload(Transaction.links),
-            )
-            .order_by(Transaction.date)
-        )
-
-        if account_id:
-            query = query.join(Posting).where(Posting.account_id == account_id)
-
-        result = await self.session.execute(query)
-        return list(result.scalars().unique().all())
-
-    async def search(
-        self,
-        query_text: str | None = None,
-        payee: str | None = None,
-        tag: str | None = None,
-        min_amount: Decimal | None = None,
-        max_amount: Decimal | None = None,
-        limit: int = 100,
-    ) -> list[Transaction]:
-        """
-        Search transactions with various filters.
-
-        Args:
-            query_text: Search in narration and payee
-            payee: Exact payee match
-            tag: Filter by tag
-            min_amount: Minimum absolute posting amount
-            max_amount: Maximum absolute posting amount
-            limit: Maximum results to return
-
-        Returns:
-            List of Transaction instances
-        """
-        query = (
-            select(Transaction)
-            .options(
-                selectinload(Transaction.postings).selectinload(Posting.account),
-                selectinload(Transaction.tags),
-                selectinload(Transaction.links),
-            )
-            .order_by(Transaction.date.desc())
-            .limit(limit)
-        )
-
-        if query_text:
-            query = query.where(
-                or_(
-                    Transaction.narration.ilike(f"%{query_text}%"),
-                    Transaction.payee.ilike(f"%{query_text}%"),
-                )
-            )
-
-        if payee:
-            query = query.where(Transaction.payee == payee)
-
-        if tag:
-            query = query.join(TransactionTag).where(TransactionTag.tag == tag)
-
-        if min_amount is not None or max_amount is not None:
-            query = query.join(Posting)
-            if min_amount is not None:
-                query = query.where(func.abs(Posting.amount) >= min_amount)
-            if max_amount is not None:
-                query = query.where(func.abs(Posting.amount) <= max_amount)
-
-        result = await self.session.execute(query)
-        return list(result.scalars().unique().all())
-
-    async def update_posting_account(
-        self,
-        transaction_id: str,
-        old_account_id: str,
-        new_account_id: str,
-    ) -> Transaction | None:
-        """
-        Update a posting's account (useful for recategorization).
-
-        Args:
-            transaction_id: Transaction ID
-            old_account_id: Current account ID
-            new_account_id: New account ID
-
-        Returns:
-            Updated Transaction or None if not found
-        """
-        transaction = await self.get_by_id(transaction_id)
-        if not transaction:
-            return None
-
-        for posting in transaction.postings:
-            if posting.account_id == old_account_id:
-                posting.account_id = new_account_id
-                break
-
-        await self.session.flush()
-        return transaction
-
-    async def delete(self, transaction_id: str) -> bool:
-        """
-        Delete a transaction and its postings.
-
-        Args:
-            transaction_id: Transaction ID to delete
-
-        Returns:
-            True if deleted, False if not found
-        """
-        transaction = await self.get_by_id(transaction_id, include_postings=False)
-        if transaction:
-            await self.session.delete(transaction)
-            await self.session.flush()
-            return True
-        return False
-
-    async def get_account_statement(
-        self,
-        account_id: str,
-        start_date: date,
-        end_date: date,
-    ) -> list[dict]:
-        """
-        Get account statement with running balance.
-
-        Args:
-            account_id: Account ID
-            start_date: Start date
-            end_date: End date
-
-        Returns:
-            List of statement entries with running balance
-        """
-        opening_balance = await self._calculate_balance_before_date(
-            account_id, start_date
-        )
-
-
-        transactions = await self.list_by_date_range(start_date, end_date, account_id)
-
-        statement = []
-        running_balance = opening_balance
-
-        for txn in transactions:
-            for posting in txn.postings:
-                if posting.account_id == account_id:
-                    running_balance += posting.amount or Decimal(0)
-                    statement.append({
-                        "date": txn.date,
-                        "narration": txn.narration,
-                        "payee": txn.payee,
-                        "amount": posting.amount,
-                        "currency": posting.currency,
-                        "balance": running_balance,
-                        "transaction_id": txn.id,
-                    })
-
-        return statement
-
-    async def _calculate_balance_before_date(
-        self, account_id: str, before_date: date
-    ) -> Decimal:
-        """Calculate account balance before a given date."""
-        result = await self.session.execute(
-            select(func.coalesce(func.sum(Posting.amount), 0))
-            .join(Transaction)
-            .where(
-                and_(
-                    Posting.account_id == account_id,
-                    Transaction.date < before_date,
-                )
-            )
-        )
-        return result.scalar() or Decimal(0)
 
 
 class BalanceRepository:
@@ -681,9 +239,16 @@ class BalanceRepository:
         result = await self.session.execute(query)
         return list(result.scalars().all())
 
-    async def delete(self, balance_id: str) -> bool:
+    async def delete(self, balance_id: str, user_id: str) -> bool:
         result = await self.session.execute(
-            select(Balance).where(Balance.id == balance_id)
+            select(Balance)
+            .join(Account, Balance.account_id == Account.id)
+            .where(
+                and_(
+                    Balance.id == balance_id,
+                    Account.user_id == user_id
+                )
+            )
         )
         balance = result.scalar_one_or_none()
         if balance:
@@ -696,11 +261,13 @@ class BalanceRepository:
         self,
         start_date: date,
         end_date: date,
+        user_id: str | None = None,
         account_id: str | None = None,
         currency: str | None = None,
     ) -> list[Balance]:
         query = (
             select(Balance)
+            .join(Account, Balance.account_id == Account.id)
             .where(
                 and_(
                     Balance.date >= start_date,
@@ -711,6 +278,8 @@ class BalanceRepository:
             .order_by(Balance.date)
         )
 
+        if user_id:
+            query = query.where(Account.user_id == user_id)
         if account_id:
             query = query.where(Balance.account_id == account_id)
         if currency:
@@ -718,54 +287,6 @@ class BalanceRepository:
 
         result = await self.session.execute(query)
         return list(result.scalars().all())
-
-    async def get_networth_history(
-        self,
-        start_date: date,
-        end_date: date,
-        currency: str = "USD",
-    ) -> list[dict]:
-        from sqlalchemy import case, distinct
-
-
-        dates_result = await self.session.execute(
-            select(distinct(Balance.date))
-            .where(
-                and_(
-                    Balance.date >= start_date,
-                    Balance.date <= end_date,
-                    Balance.currency == currency,
-                )
-            )
-            .order_by(Balance.date)
-        )
-        dates = [row[0] for row in dates_result]
-
-        history = []
-        for current_date in dates:
-            balances = await self.get_latest_balances(user_id=None, as_of_date=current_date)
-
-
-            total_assets = Decimal(0)
-            total_liabilities = Decimal(0)
-
-            for balance in balances:
-                if balance.currency != currency:
-                    continue
-
-                if balance.account.account_type == AccountType.ASSETS:
-                    total_assets += balance.amount
-                elif balance.account.account_type == AccountType.LIABILITIES:
-                    total_liabilities += balance.amount
-
-            history.append({
-                "date": current_date.isoformat(),
-                "total_assets": total_assets,
-                "total_liabilities": total_liabilities,
-                "net_worth": total_assets - total_liabilities,
-            })
-
-        return history
 
 
 class ExchangeRateRepository:

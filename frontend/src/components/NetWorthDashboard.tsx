@@ -21,32 +21,8 @@ interface Account {
   is_active: boolean;
 }
 
-interface BalanceEntry {
-  id: string;
-  account_id: string;
-  account_name: string;
-  account_type: string;
-  amount: number;
-  currency: string;
-  date: string;
-}
-
-interface NetWorthSummary {
-  currency: string;
-  total_assets: number;
-  total_liabilities: number;
-  net_worth: number;
-}
-
-interface NetWorthResponse {
-  as_of_date: string;
-  by_currency: NetWorthSummary[];
-  entries: BalanceEntry[];
-}
-
 export function NetWorthDashboard() {
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [netWorth, setNetWorth] = useState<NetWorthResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
@@ -77,28 +53,18 @@ export function NetWorthDashboard() {
       const baseUrl = await getBaseHttpUrl();
       const token = localStorage.getItem("token");
 
-      const [accountsRes, networthRes] = await Promise.all([
-        fetch(`${baseUrl}/api/networth/accounts?display_currency=${selectedCurrency}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }),
-        fetch(`${baseUrl}/api/networth/summary`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }),
-      ]);
+      const accountsRes = await fetch(`${baseUrl}/api/accounts?display_currency=${selectedCurrency}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-      if (!accountsRes.ok || !networthRes.ok) {
+      if (!accountsRes.ok) {
         throw new Error("Failed to fetch data");
       }
 
       const accountsData = await accountsRes.json();
-      const networthData = await networthRes.json();
-
       setAccounts(accountsData);
-      setNetWorth(networthData);
     } catch (err) {
       console.error("Error fetching data:", err);
       setError("Failed to load net worth data. Please try again.");
@@ -173,7 +139,7 @@ export function NetWorthDashboard() {
       const token = localStorage.getItem("token");
 
       if (editingAccount) {
-        const updateResponse = await fetch(`${baseUrl}/api/networth/accounts/${editingAccount.id}`, {
+        const updateResponse = await fetch(`${baseUrl}/api/accounts/${editingAccount.id}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
@@ -196,14 +162,13 @@ export function NetWorthDashboard() {
         const hasBalanceChanged = newBalance !== originalBalance;
 
         if (hasBalanceChanged && newBalance !== null && newBalance !== 0) {
-          const balanceResponse = await fetch(`${baseUrl}/api/networth/balances`, {
+          const balanceResponse = await fetch(`${baseUrl}/api/accounts/${editingAccount.id}/balance`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
-              account_id: editingAccount.id,
               amount: newBalance,
               currency: newAccountCurrency,
             }),
@@ -215,7 +180,7 @@ export function NetWorthDashboard() {
           }
         }
       } else {
-        const response = await fetch(`${baseUrl}/api/networth/accounts`, {
+        const response = await fetch(`${baseUrl}/api/accounts`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -236,14 +201,13 @@ export function NetWorthDashboard() {
         const newAccount = await response.json();
 
         if (balanceAmount && parseFloat(balanceAmount) !== 0) {
-          const balanceResponse = await fetch(`${baseUrl}/api/networth/balances`, {
+          const balanceResponse = await fetch(`${baseUrl}/api/accounts/${newAccount.id}/balance`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
-              account_id: newAccount.id,
               amount: parseFloat(balanceAmount),
               currency: newAccountCurrency,
             }),
@@ -286,7 +250,7 @@ export function NetWorthDashboard() {
       const token = localStorage.getItem("token");
 
       const response = await fetch(
-        `${baseUrl}/api/networth/accounts/${accountToClose.id}/close`,
+        `${baseUrl}/api/accounts/${accountToClose.id}/close`,
         {
           method: "POST",
           headers: {
@@ -348,46 +312,44 @@ export function NetWorthDashboard() {
 
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-xl font-semibold mb-4">Net Worth Summary ({selectedCurrency})</h2>
-        {netWorth && netWorth.by_currency.length > 0 ? (
-          (() => {
-            const currencySummary = netWorth.by_currency.find(s => s.currency === selectedCurrency);
-            if (!currencySummary) {
-              return (
-                <p className="text-gray-500">
-                  No data available for {selectedCurrency}. Add accounts in this currency to see your net worth.
-                </p>
-              );
-            }
-            return (
-              <div className="border rounded-lg p-4">
-                <div className="space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Assets:</span>
-                    <span className="font-medium text-green-600">
-                      {formatCurrency(currencySummary.total_assets, selectedCurrency)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Liabilities:</span>
-                    <span className="font-medium text-red-600">
-                      {formatCurrency(currencySummary.total_liabilities, selectedCurrency)}
-                    </span>
-                  </div>
-                  <div className="border-t pt-2 flex justify-between">
-                    <span className="font-semibold">Net Worth:</span>
-                    <span
-                      className={`font-bold ${
-                        currencySummary.net_worth >= 0 ? "text-green-600" : "text-red-600"
-                      }`}
-                    >
-                      {formatCurrency(currencySummary.net_worth, selectedCurrency)}
-                    </span>
-                  </div>
+        {accounts.length > 0 ? (() => {
+          const totalAssets = accounts
+            .filter(a => a.account_type === "Assets")
+            .reduce((sum, a) => sum + (a.balance_in_display_currency != null ? Number(a.balance_in_display_currency) : 0), 0);
+          const totalLiabilities = accounts
+            .filter(a => a.account_type === "Liabilities")
+            .reduce((sum, a) => sum + (a.balance_in_display_currency != null ? Number(a.balance_in_display_currency) : 0), 0);
+          const netWorthValue = totalAssets - totalLiabilities;
+
+          return (
+            <div className="border rounded-lg p-4">
+              <div className="space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Assets:</span>
+                  <span className="font-medium text-green-600">
+                    {formatCurrency(totalAssets, selectedCurrency)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Liabilities:</span>
+                  <span className="font-medium text-red-600">
+                    {formatCurrency(totalLiabilities, selectedCurrency)}
+                  </span>
+                </div>
+                <div className="border-t pt-2 flex justify-between">
+                  <span className="font-semibold">Net Worth:</span>
+                  <span
+                    className={`font-bold ${
+                      netWorthValue >= 0 ? "text-green-600" : "text-red-600"
+                    }`}
+                  >
+                    {formatCurrency(netWorthValue, selectedCurrency)}
+                  </span>
                 </div>
               </div>
-            );
-          })()
-        ) : (
+            </div>
+          );
+        })() : (
           <p className="text-gray-500">
             No net worth data available. Add accounts and set their balances to get started.
           </p>

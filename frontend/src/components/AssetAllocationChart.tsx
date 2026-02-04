@@ -50,7 +50,7 @@ export function AssetAllocationChart({ asOfDate, currency = "USD" }: AssetAlloca
       if (asOfDate) params.append("as_of_date", asOfDate);
 
       const response = await fetch(
-        `${baseUrl}/api/networth/allocation?${params.toString()}`,
+        `${baseUrl}/api/allocation?${params.toString()}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,

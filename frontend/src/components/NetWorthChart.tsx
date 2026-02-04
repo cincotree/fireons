@@ -50,7 +50,7 @@ export function NetWorthChart({
       if (endDate) params.append("end_date", endDate);
 
       const response = await fetch(
-        `${baseUrl}/api/networth/history?${params.toString()}`,
+        `${baseUrl}/api/networth-history?${params.toString()}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
