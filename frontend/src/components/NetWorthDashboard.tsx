@@ -381,7 +381,6 @@ export function NetWorthDashboard() {
         <AccountHierarchyTree
           accounts={accounts}
           onAccountClick={openAccountModal}
-          onCloseAccount={handleRequestCloseAccount}
           currency={selectedCurrency}
         />
       </div>
@@ -516,16 +515,30 @@ export function NetWorthDashboard() {
             </div>
           </div>
           <DialogFooter>
-            <div className="flex gap-3 justify-end w-full">
-              <Button variant="outline" onClick={() => setIsAccountModalOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSaveAccount}
-                className="bg-gray-200 text-gray-700 hover:bg-blue-100 hover:text-blue-700 transition-colors"
-              >
-                {editingAccount ? "Save Changes" : "Create Account"}
-              </Button>
+            <div className="flex items-center justify-between w-full">
+              {editingAccount ? (
+                <button
+                  type="button"
+                  className="text-sm text-red-500 hover:text-red-700 transition-colors"
+                  onClick={() => {
+                    setIsAccountModalOpen(false);
+                    handleRequestCloseAccount(editingAccount);
+                  }}
+                >
+                  Remove account? click here
+                </button>
+              ) : <span />}
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => setIsAccountModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSaveAccount}
+                  className="bg-gray-200 text-gray-700 hover:bg-blue-100 hover:text-blue-700 transition-colors"
+                >
+                  {editingAccount ? "Save Changes" : "Create Account"}
+                </Button>
+              </div>
             </div>
           </DialogFooter>
         </DialogContent>

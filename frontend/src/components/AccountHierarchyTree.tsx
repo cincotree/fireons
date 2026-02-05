@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, ChevronDown, Pencil, XCircle } from "lucide-react";
+import { ChevronRight, ChevronDown, Pencil } from "lucide-react";
 
 interface Account {
   id: string;
@@ -23,14 +23,12 @@ interface TreeNode {
 interface AccountHierarchyTreeProps {
   accounts: Account[];
   onAccountClick?: (account: Account) => void;
-  onCloseAccount?: (account: Account) => void;
   currency?: string;
 }
 
 export function AccountHierarchyTree({
   accounts,
   onAccountClick,
-  onCloseAccount,
   currency = "USD",
 }: AccountHierarchyTreeProps) {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => {
@@ -198,19 +196,6 @@ export function AccountHierarchyTree({
                 aria-label="Edit account"
               >
                 <Pencil className="h-3 w-3" />
-              </button>
-            )}
-            {node.account && onCloseAccount && (
-              <button
-                className="p-1 bg-gray-200 text-red-600 hover:bg-red-100 rounded ml-1 transition-colors"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onCloseAccount(node.account!);
-                }}
-                title="Close Account"
-                aria-label="Close account"
-              >
-                <XCircle className="h-3 w-3" />
               </button>
             )}
           </div>
