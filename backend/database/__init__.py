@@ -17,7 +17,7 @@ from database.models import (
     TransactionLink,
     TransactionTag,
 )
-from database.repository import AccountRepository, TransactionRepository
+from database.repository import AccountRepository
 from database.session import get_session, init_db, AsyncSessionLocal
 
 __all__ = [
@@ -38,5 +38,4 @@ __all__ = [
     "TransactionTag",
     # Repositories
     "AccountRepository",
-    "TransactionRepository",
 ]

@@ -1,8 +1,13 @@
+"""
+Repository pattern for database operations.
+
+Provides clean abstractions for CRUD operations on accounting entities.
+"""
+
 from datetime import date
 from decimal import Decimal
-from typing import Any
 
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -11,27 +16,37 @@ from database.models import (
     AccountType,
     Balance,
     ExchangeRate,
-    Transaction,
-    Posting,
-    TransactionLink,
-    TransactionTag,
 )
 
 
 class AccountRepository:
+    """Repository for Account operations."""
+
     def __init__(self, session: AsyncSession):
         self.session = session
 
     async def create(
         self,
-        user_id: str,
         name: str,
         open_date: date,
         currency: str = "USD",
         description: str | None = None,
         meta: dict | None = None,
+        user_id: str | None = None,
     ) -> Account:
+        """
+        Create a new account.
 
+        Args:
+            name: Full account name (e.g., "Assets:Bank:Checking")
+            open_date: Date the account was opened
+            currency: Default currency for the account
+            description: Optional description
+            meta: Optional metadata dictionary
+
+        Returns:
+            The created Account instance
+        """
         first_component = name.split(":")[0]
         try:
             account_type = AccountType(first_component)
@@ -42,60 +57,47 @@ class AccountRepository:
             )
 
         account = Account(
-            user_id=user_id,
             name=name,
             account_type=account_type,
             currency=currency,
             open_date=open_date,
             description=description,
             meta=meta,
+            user_id=user_id,
         )
         self.session.add(account)
         await self.session.flush()
         return account
 
-    async def get_by_id(self, account_id: str, user_id: str) -> Account | None:
-
-        result = await self.session.execute(
-            select(Account).where(
-                and_(Account.id == account_id, Account.user_id == user_id)
-            )
-        )
+    async def get_by_id(self, account_id: str, user_id: str | None = None) -> Account | None:
+        """Get an account by ID."""
+        query = select(Account).where(Account.id == account_id)
+        if user_id is not None:
+            query = query.where(Account.user_id == user_id)
+        result = await self.session.execute(query)
         return result.scalar_one_or_none()
-
-    async def get_by_name(self, name: str, user_id: str) -> Account | None:
-
-        result = await self.session.execute(
-            select(Account).where(
-                and_(Account.name == name, Account.user_id == user_id)
-            )
-        )
-        return result.scalar_one_or_none()
-
-    async def get_or_create(
-        self,
-        user_id: str,
-        name: str,
-        open_date: date,
-        currency: str = "USD",
-        description: str | None = None,
-    ) -> tuple[Account, bool]:
-
-        account = await self.get_by_name(name, user_id)
-        if account:
-            return account, False
-        account = await self.create(user_id, name, open_date, currency, description)
-        return account, True
 
     async def list_all(
         self,
-        user_id: str,
+        user_id: str | None = None,
         account_type: AccountType | None = None,
         is_active: bool | None = None,
     ) -> list[Account]:
+        """
+        List all accounts with optional filters.
 
-        query = select(Account).where(Account.user_id == user_id).order_by(Account.name)
+        Args:
+            user_id: Filter by user ID
+            account_type: Filter by account type
+            is_active: Filter by active status
 
+        Returns:
+            List of Account instances
+        """
+        query = select(Account).order_by(Account.name)
+
+        if user_id is not None:
+            query = query.where(Account.user_id == user_id)
         if account_type is not None:
             query = query.where(Account.account_type == account_type)
         if is_active is not None:
@@ -104,310 +106,62 @@ class AccountRepository:
         result = await self.session.execute(query)
         return list(result.scalars().all())
 
-    async def list_by_prefix(self, user_id: str, prefix: str) -> list[Account]:
+    async def close_account(self, account_id: str, close_date: date) -> Account | None:
+        """
+        Close an account.
 
-        result = await self.session.execute(
-            select(Account)
-            .where(
-                and_(
-                    Account.user_id == user_id,
-                    Account.name.startswith(prefix)
-                )
-            )
-            .order_by(Account.name)
-        )
-        return list(result.scalars().all())
+        Args:
+            account_id: Account ID to close
+            close_date: Date to close the account
 
-    async def close_account(self, account_id: str, user_id: str, close_date: date) -> Account | None:
-
-        account = await self.get_by_id(account_id, user_id)
+        Returns:
+            Updated Account or None if not found
+        """
+        account = await self.get_by_id(account_id)
         if account:
             account.close_date = close_date
             account.is_active = False
             await self.session.flush()
         return account
 
-    async def get_balance(
+    async def update(
         self,
         account_id: str,
-        as_of_date: date | None = None,
-        currency: str = "USD",
-    ) -> Decimal:
+        name: str | None = None,
+        description: str | None = None,
+    ) -> Account | None:
+        """
+        Update an account.
 
-        if as_of_date is None:
-            as_of_date = date.today()
+        Args:
+            account_id: Account ID to update
+            name: New account name (will update account_type automatically)
+            description: New description
 
-        result = await self.session.execute(
-            select(func.coalesce(func.sum(Posting.amount), 0))
-            .join(Transaction)
-            .where(
-                and_(
-                    Posting.account_id == account_id,
-                    Posting.currency == currency,
-                    Transaction.date <= as_of_date,
-                )
-            )
-        )
-        return result.scalar() or Decimal(0)
-
-    async def delete(self, account_id: str, user_id: str) -> bool:
-
-        account = await self.get_by_id(account_id, user_id)
-        if account:
-            await self.session.delete(account)
-            await self.session.flush()
-            return True
-        return False
-
-
-class TransactionRepository:
-
-    def __init__(self, session: AsyncSession):
-        self.session = session
-
-    async def create(
-        self,
-        date: date,
-        narration: str,
-        postings: list[dict[str, Any]],
-        payee: str | None = None,
-        flag: str = "*",
-        tags: list[str] | None = None,
-        links: list[str] | None = None,
-        meta: dict | None = None,
-    ) -> Transaction:
-
-        transaction = Transaction(
-            date=date,
-            narration=narration,
-            payee=payee,
-            flag=flag,
-            meta=meta,
-        )
-        self.session.add(transaction)
-        await self.session.flush()  # Get transaction ID
-
-        total = Decimal(0)
-        auto_balance_posting = None
-        for i, posting_data in enumerate(postings):
-            amount = posting_data.get("amount")
-            if amount is None:
-                if auto_balance_posting is not None:
-                    raise ValueError("Only one posting can have auto-balance (None amount)")
-                auto_balance_posting = i
-            else:
-                total += Decimal(str(amount))
-
-        for i, posting_data in enumerate(postings):
-            amount = posting_data.get("amount")
-            if i == auto_balance_posting:
-                amount = -total  # Auto-balance
-
-            posting = Posting(
-                transaction_id=transaction.id,
-                account_id=posting_data["account_id"],
-                amount=amount,
-                currency=posting_data.get("currency", "USD"),
-                position=i,
-            )
-            self.session.add(posting)
-
-        if auto_balance_posting is None and abs(total) >= Decimal("0.001"):
-            raise ValueError(f"Transaction postings do not balance: {total}")
-
-        if tags:
-            for tag in tags:
-                tag_obj = TransactionTag(transaction_id=transaction.id, tag=tag)
-                self.session.add(tag_obj)
-
-        if links:
-            for link in links:
-                link_obj = TransactionLink(transaction_id=transaction.id, link=link)
-                self.session.add(link_obj)
-
-        await self.session.flush()
-
-        return await self.get_by_id(transaction.id)
-
-    async def get_by_id(
-        self, transaction_id: str, include_postings: bool = True
-    ) -> Transaction | None:
-
-        query = select(Transaction).where(Transaction.id == transaction_id)
-
-        if include_postings:
-            query = query.options(
-                selectinload(Transaction.postings).selectinload(Posting.account),
-                selectinload(Transaction.tags),
-                selectinload(Transaction.links),
-            )
-
-        result = await self.session.execute(query)
-        return result.scalar_one_or_none()
-
-    async def get_by_link(self, link: str) -> list[Transaction]:
-
-        result = await self.session.execute(
-            select(Transaction)
-            .join(TransactionLink)
-            .where(TransactionLink.link == link)
-            .options(
-                selectinload(Transaction.postings).selectinload(Posting.account),
-                selectinload(Transaction.tags),
-                selectinload(Transaction.links),
-            )
-        )
-        return list(result.scalars().all())
-
-    async def list_by_date_range(
-        self,
-        start_date: date,
-        end_date: date,
-        account_id: str | None = None,
-    ) -> list[Transaction]:
-
-        query = (
-            select(Transaction)
-            .where(
-                and_(
-                    Transaction.date >= start_date,
-                    Transaction.date <= end_date,
-                )
-            )
-            .options(
-                selectinload(Transaction.postings).selectinload(Posting.account),
-                selectinload(Transaction.tags),
-                selectinload(Transaction.links),
-            )
-            .order_by(Transaction.date)
-        )
-
-        if account_id:
-            query = query.join(Posting).where(Posting.account_id == account_id)
-
-        result = await self.session.execute(query)
-        return list(result.scalars().unique().all())
-
-    async def search(
-        self,
-        query_text: str | None = None,
-        payee: str | None = None,
-        tag: str | None = None,
-        min_amount: Decimal | None = None,
-        max_amount: Decimal | None = None,
-        limit: int = 100,
-    ) -> list[Transaction]:
-
-        query = (
-            select(Transaction)
-            .options(
-                selectinload(Transaction.postings).selectinload(Posting.account),
-                selectinload(Transaction.tags),
-                selectinload(Transaction.links),
-            )
-            .order_by(Transaction.date.desc())
-            .limit(limit)
-        )
-
-        if query_text:
-            query = query.where(
-                or_(
-                    Transaction.narration.ilike(f"%{query_text}%"),
-                    Transaction.payee.ilike(f"%{query_text}%"),
-                )
-            )
-
-        if payee:
-            query = query.where(Transaction.payee == payee)
-
-        if tag:
-            query = query.join(TransactionTag).where(TransactionTag.tag == tag)
-
-        if min_amount is not None or max_amount is not None:
-            query = query.join(Posting)
-            if min_amount is not None:
-                query = query.where(func.abs(Posting.amount) >= min_amount)
-            if max_amount is not None:
-                query = query.where(func.abs(Posting.amount) <= max_amount)
-
-        result = await self.session.execute(query)
-        return list(result.scalars().unique().all())
-
-    async def update_posting_account(
-        self,
-        transaction_id: str,
-        old_account_id: str,
-        new_account_id: str,
-    ) -> Transaction | None:
-
-        transaction = await self.get_by_id(transaction_id)
-        if not transaction:
+        Returns:
+            Updated Account or None if not found
+        """
+        account = await self.get_by_id(account_id)
+        if not account:
             return None
 
-        for posting in transaction.postings:
-            if posting.account_id == old_account_id:
-                posting.account_id = new_account_id
-                break
+        if name is not None:
+            first_component = name.split(":")[0]
+            try:
+                account_type = AccountType(first_component)
+            except ValueError:
+                raise ValueError(
+                    f"Invalid account type '{first_component}'. "
+                    f"Must be one of: {[t.value for t in AccountType]}"
+                )
+            account.name = name
+            account.account_type = account_type
+
+        if description is not None:
+            account.description = description
 
         await self.session.flush()
-        return transaction
-
-    async def delete(self, transaction_id: str) -> bool:
-
-        transaction = await self.get_by_id(transaction_id, include_postings=False)
-        if transaction:
-            await self.session.delete(transaction)
-            await self.session.flush()
-            return True
-        return False
-
-    async def get_account_statement(
-        self,
-        account_id: str,
-        start_date: date,
-        end_date: date,
-    ) -> list[dict]:
-
-        opening_balance = await self._calculate_balance_before_date(
-            account_id, start_date
-        )
-
-        transactions = await self.list_by_date_range(start_date, end_date, account_id)
-
-        statement = []
-        running_balance = opening_balance
-
-        for txn in transactions:
-            for posting in txn.postings:
-                if posting.account_id == account_id:
-                    running_balance += posting.amount or Decimal(0)
-                    statement.append({
-                        "date": txn.date,
-                        "narration": txn.narration,
-                        "payee": txn.payee,
-                        "amount": posting.amount,
-                        "currency": posting.currency,
-                        "balance": running_balance,
-                        "transaction_id": txn.id,
-                    })
-
-        return statement
-
-    async def _calculate_balance_before_date(
-        self, account_id: str, before_date: date
-    ) -> Decimal:
-
-        result = await self.session.execute(
-            select(func.coalesce(func.sum(Posting.amount), 0))
-            .join(Transaction)
-            .where(
-                and_(
-                    Posting.account_id == account_id,
-                    Transaction.date < before_date,
-                )
-            )
-        )
-        return result.scalar() or Decimal(0)
+        return account
 
 
 class BalanceRepository:
@@ -416,18 +170,14 @@ class BalanceRepository:
 
     async def create_or_update(
         self,
-        user_id: str,
         account_id: str,
         date: date,
         amount: Decimal,
         currency: str,
     ) -> Balance:
         existing = await self.session.execute(
-            select(Balance)
-            .join(Account, Balance.account_id == Account.id)
-            .where(
+            select(Balance).where(
                 and_(
-                    Account.user_id == user_id,
                     Balance.account_id == account_id,
                     Balance.date == date,
                     Balance.currency == currency,
@@ -452,7 +202,7 @@ class BalanceRepository:
         return balance
 
     async def get_latest_balances(
-        self, user_id: str, as_of_date: date | None = None
+        self, user_id: str | None = None, as_of_date: date | None = None
     ) -> list[Balance]:
         if as_of_date is None:
             as_of_date = date.today()
@@ -463,18 +213,12 @@ class BalanceRepository:
                 Balance.currency,
                 func.max(Balance.date).label("max_date"),
             )
-            .join(Account, Balance.account_id == Account.id)
-            .where(
-                and_(
-                    Account.user_id == user_id,
-                    Balance.date <= as_of_date
-                )
-            )
+            .where(Balance.date <= as_of_date)
             .group_by(Balance.account_id, Balance.currency)
             .subquery()
         )
 
-        result = await self.session.execute(
+        query = (
             select(Balance)
             .join(
                 subquery,
@@ -484,10 +228,15 @@ class BalanceRepository:
                     Balance.date == subquery.c.max_date,
                 ),
             )
-            .join(Account, Balance.account_id == Account.id)
-            .where(Account.user_id == user_id)
             .options(selectinload(Balance.account))
         )
+
+        if user_id is not None:
+            query = query.join(Account, Balance.account_id == Account.id).where(
+                Account.user_id == user_id
+            )
+
+        result = await self.session.execute(query)
         return list(result.scalars().all())
 
     async def delete(self, balance_id: str, user_id: str) -> bool:
@@ -507,6 +256,37 @@ class BalanceRepository:
             await self.session.flush()
             return True
         return False
+
+    async def get_history(
+        self,
+        start_date: date,
+        end_date: date,
+        user_id: str | None = None,
+        account_id: str | None = None,
+        currency: str | None = None,
+    ) -> list[Balance]:
+        query = (
+            select(Balance)
+            .join(Account, Balance.account_id == Account.id)
+            .where(
+                and_(
+                    Balance.date >= start_date,
+                    Balance.date <= end_date,
+                )
+            )
+            .options(selectinload(Balance.account))
+            .order_by(Balance.date)
+        )
+
+        if user_id:
+            query = query.where(Account.user_id == user_id)
+        if account_id:
+            query = query.where(Balance.account_id == account_id)
+        if currency:
+            query = query.where(Balance.currency == currency)
+
+        result = await self.session.execute(query)
+        return list(result.scalars().all())
 
 
 class ExchangeRateRepository:
@@ -602,3 +382,32 @@ class ExchangeRateRepository:
             await self.session.flush()
             return True
         return False
+
+    async def convert_amount(
+        self,
+        amount: Decimal,
+        from_currency: str,
+        to_currency: str,
+        as_of_date: date | None = None,
+    ) -> Decimal:
+        """
+        Convert an amount from one currency to another using exchange rates.
+        Returns the amount unchanged if currencies are the same.
+        """
+        if from_currency == to_currency:
+            return amount
+
+        if as_of_date is None:
+            as_of_date = date.today()
+
+
+        rate = await self.get_rate(from_currency, to_currency, as_of_date)
+        if rate:
+            return amount * rate
+
+
+        inverse_rate = await self.get_rate(to_currency, from_currency, as_of_date)
+        if inverse_rate and inverse_rate != 0:
+            return amount / inverse_rate
+
+        return amount

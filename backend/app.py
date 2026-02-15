@@ -6,7 +6,7 @@ from typing import Callable, Awaitable
 from contextlib import asynccontextmanager
 
 from api.convert_currency_api import router as convert_router
-from api.networth_api import router as networth_router
+from api.account_api import router as account_router
 from api.auth_api import router as auth_router
 from database.session import init_db
 
@@ -19,7 +19,14 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Middleware to strip `/api` from the path
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:3020"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 @app.middleware("http")
 async def rewrite_api_path(request: Request, call_next: Callable[[Request], Awaitable[Response]]):
     if request.url.path.startswith("/api"):
@@ -31,13 +38,4 @@ async def rewrite_api_path(request: Request, call_next: Callable[[Request], Awai
 
 app.include_router(auth_router)
 app.include_router(convert_router)
-app.include_router(networth_router)
-
-cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:3020").split(",")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.include_router(account_router)
