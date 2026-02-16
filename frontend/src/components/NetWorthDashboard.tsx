@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/modal";
 import { getBaseHttpUrl } from "@/utils/api";
@@ -25,7 +25,6 @@ export function NetWorthDashboard() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
-  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [selectedCurrency, setSelectedCurrency] = useState("USD");
@@ -34,7 +33,6 @@ export function NetWorthDashboard() {
   const [newAccountCategory, setNewAccountCategory] = useState("");
   const [newAccountSubcategory, setNewAccountSubcategory] = useState("");
   const [isNewCategory, setIsNewCategory] = useState(false);
-  const [newAccountName, setNewAccountName] = useState("");
   const [newAccountDescription, setNewAccountDescription] = useState("");
   const [newAccountCurrency, setNewAccountCurrency] = useState("USD");
   const [balanceAmount, setBalanceAmount] = useState("");
@@ -42,11 +40,7 @@ export function NetWorthDashboard() {
   const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
   const [accountToClose, setAccountToClose] = useState<Account | null>(null);
 
-  useEffect(() => {
-    fetchData();
-  }, [selectedCurrency]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -71,7 +65,11 @@ export function NetWorthDashboard() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedCurrency]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const getExistingCategories = (type: "Assets" | "Liabilities") => {
     const categories = new Set<string>();
@@ -87,12 +85,10 @@ export function NetWorthDashboard() {
   const openAccountModal = (account?: Account) => {
     if (account) {
       setEditingAccount(account);
-      setSelectedAccount(account);
       const parts = account.name.split(":");
       setNewAccountType(parts[0] as "Assets" | "Liabilities");
       setNewAccountCategory(parts[1] || "");
       setNewAccountSubcategory(parts.slice(2).join(":"));
-      setNewAccountName(account.name);
       setNewAccountDescription(account.description || "");
       setNewAccountCurrency(account.currency);
       setBalanceAmount(account.balance?.toString() || "");
@@ -100,11 +96,9 @@ export function NetWorthDashboard() {
       setIsNewCategory(false);
     } else {
       setEditingAccount(null);
-      setSelectedAccount(null);
       setNewAccountType("Assets");
       setNewAccountCategory("");
       setNewAccountSubcategory("");
-      setNewAccountName("");
       setNewAccountDescription("");
       setNewAccountCurrency(selectedCurrency);
       setBalanceAmount("");
@@ -223,13 +217,11 @@ export function NetWorthDashboard() {
       setNewAccountType("Assets");
       setNewAccountCategory("");
       setNewAccountSubcategory("");
-      setNewAccountName("");
       setNewAccountDescription("");
       setNewAccountCurrency("USD");
       setBalanceAmount("");
       setIsNewCategory(false);
       setEditingAccount(null);
-      setSelectedAccount(null);
       setIsAccountModalOpen(false);
       await fetchData();
     } catch (err: unknown) {
@@ -382,7 +374,7 @@ export function NetWorthDashboard() {
         </div>
         <AccountHierarchyTree
           accounts={accounts}
-          onAccountClick={openAccountModal}
+          onAccountClick={(account) => openAccountModal(account)}
           currency={selectedCurrency}
         />
       </div>

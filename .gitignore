@@ -1,5 +1,6 @@
 .idea/
 .DS_Store
+**/tmp/
 
 # E2E test logs and results
 e2e-tests/*.log

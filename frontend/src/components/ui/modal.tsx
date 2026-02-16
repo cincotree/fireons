@@ -57,6 +57,7 @@ interface DialogProps {
 
 interface DialogContentProps {
     children: React.ReactNode;
+    className?: string;
 }
 
 export const Modal = ({ open, onOpenChange, children }: DialogProps) => {
@@ -76,8 +77,8 @@ export const Modal = ({ open, onOpenChange, children }: DialogProps) => {
     );
 };
 
-export const DialogContent = ({ children }: DialogContentProps) => (
-    <div style={styles.dialogContentInner}>{children}</div>
+export const DialogContent = ({ children, className }: DialogContentProps) => (
+    <div style={styles.dialogContentInner} className={className}>{children}</div>
 );
 
 export const DialogHeader = ({ children }: { children: React.ReactNode }) => (

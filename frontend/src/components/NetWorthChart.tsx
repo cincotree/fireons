@@ -36,41 +36,40 @@ export function NetWorthChart({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const fetchHistory = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const baseUrl = await getBaseHttpUrl();
+        const token = localStorage.getItem("token");
+        const params = new URLSearchParams({ currency });
+        if (startDate) params.append("start_date", startDate);
+        if (endDate) params.append("end_date", endDate);
+
+        const response = await fetch(
+          `${baseUrl}/api/networth-history?${params.toString()}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch net worth history");
+        }
+
+        const historyData = await response.json();
+        setData(historyData);
+      } catch (err) {
+        console.error("Error fetching net worth history:", err);
+        setError("Failed to load net worth history");
+      } finally {
+        setIsLoading(false);
+      }
+    };
     fetchHistory();
   }, [currency, startDate, endDate]);
-
-  const fetchHistory = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const baseUrl = await getBaseHttpUrl();
-      const token = localStorage.getItem("token");
-      const params = new URLSearchParams({ currency });
-      if (startDate) params.append("start_date", startDate);
-      if (endDate) params.append("end_date", endDate);
-
-      const response = await fetch(
-        `${baseUrl}/api/networth-history?${params.toString()}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch net worth history");
-      }
-
-      const historyData = await response.json();
-      setData(historyData);
-    } catch (err) {
-      console.error("Error fetching net worth history:", err);
-      setError("Failed to load net worth history");
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -142,8 +141,8 @@ export function NetWorthChart({
             stroke="#999"
           />
           <Tooltip
-            formatter={(value: number) => formatCurrency(value)}
-            labelFormatter={formatDate}
+            formatter={(value: number | undefined) => value !== undefined ? formatCurrency(value) : ""}
+            labelFormatter={(label) => formatDate(String(label))}
           />
           <Legend
             verticalAlign="top"

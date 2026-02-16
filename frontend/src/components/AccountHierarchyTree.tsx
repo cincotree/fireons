@@ -10,6 +10,10 @@ interface Account {
   currency: string;
   balance: number | null;
   balance_in_display_currency: number | null;
+  description: string | null;
+  open_date: string;
+  display_currency: string | null;
+  is_active: boolean;
 }
 
 interface TreeNode {

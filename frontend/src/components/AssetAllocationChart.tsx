@@ -37,40 +37,39 @@ export function AssetAllocationChart({ asOfDate, currency = "USD" }: AssetAlloca
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const fetchAllocation = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const baseUrl = await getBaseHttpUrl();
+        const token = localStorage.getItem("token");
+        const params = new URLSearchParams({ currency });
+        if (asOfDate) params.append("as_of_date", asOfDate);
+
+        const response = await fetch(
+          `${baseUrl}/api/allocation?${params.toString()}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch asset allocation");
+        }
+
+        const allocationData = await response.json();
+        setData(allocationData);
+      } catch (err) {
+        console.error("Error fetching asset allocation:", err);
+        setError("Failed to load asset allocation");
+      } finally {
+        setIsLoading(false);
+      }
+    };
     fetchAllocation();
   }, [asOfDate, currency]);
-
-  const fetchAllocation = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const baseUrl = await getBaseHttpUrl();
-      const token = localStorage.getItem("token");
-      const params = new URLSearchParams({ currency });
-      if (asOfDate) params.append("as_of_date", asOfDate);
-
-      const response = await fetch(
-        `${baseUrl}/api/allocation?${params.toString()}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch asset allocation");
-      }
-
-      const allocationData = await response.json();
-      setData(allocationData);
-    } catch (err) {
-      console.error("Error fetching asset allocation:", err);
-      setError("Failed to load asset allocation");
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const formatCurrency = (value: number, currency: string) => {
     return new Intl.NumberFormat("en-US", {

@@ -24,9 +24,15 @@ async function getBaseUrl(): Promise<string> {
 }
 
 export async function getBaseHttpUrl(): Promise<string> {
+    if (typeof window !== "undefined") {
+        return window.location.origin;
+    }
     return "http://" + await getBaseUrl();
 }
 
 export async function getBaseWsUrl(): Promise<string> {
+    if (typeof window !== "undefined") {
+        return window.location.origin.replace(/^http/, "ws");
+    }
     return "ws://" + await getBaseUrl();
 }
