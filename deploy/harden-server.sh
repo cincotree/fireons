@@ -1,11 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-SERVER_IP="172.105.48.221"
-SSH_KEY="${SSH_KEY:-$HOME/.ssh/linode_key}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/config.sh"
+INITIAL_USER="${INITIAL_USER:-ubuntu}"
 NEW_USER="${NEW_USER:-deploy}"
 TIMEZONE="${TIMEZONE:-UTC}"
-HOSTNAME="${HOSTNAME:-fireons-stage}"
 
 echo "==> Linode Server Hardening Script"
 echo "    Server: $SERVER_IP"
@@ -27,7 +27,7 @@ fi
 
 echo "==> Connecting to server and applying hardening..."
 
-ssh -i "$SSH_KEY" "root@$SERVER_IP" bash << REMOTE_SCRIPT
+ssh -i "$SSH_KEY" "$INITIAL_USER@$SERVER_IP" "sudo bash -s" << REMOTE_SCRIPT
 set -euo pipefail
 
 echo "==> Updating system packages..."
@@ -37,8 +37,8 @@ DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
 echo "==> Setting timezone to $TIMEZONE..."
 timedatectl set-timezone '$TIMEZONE'
 
-echo "==> Setting hostname to $HOSTNAME..."
-hostnamectl set-hostname '$HOSTNAME'
+echo "==> Setting hostname to $SERVER_HOSTNAME..."
+hostnamectl set-hostname '$SERVER_HOSTNAME'
 
 echo "==> Creating limited user account: $NEW_USER..."
 if id "$NEW_USER" &>/dev/null; then
@@ -53,9 +53,6 @@ fi
 echo "==> Creating application directory..."
 mkdir -p /opt/fireons
 chown -R $NEW_USER:$NEW_USER /opt/fireons
-
-echo "==> Adding $NEW_USER to docker group..."
-usermod -aG docker $NEW_USER
 
 echo "==> Setting up SSH key for $NEW_USER..."
 mkdir -p /home/$NEW_USER/.ssh
@@ -116,7 +113,7 @@ fi
 
 sshd -t && echo "SSH config syntax OK"
 
-systemctl restart sshd
+systemctl restart ssh
 
 echo "==> Installing automatic security updates..."
 apt-get install -y unattended-upgrades

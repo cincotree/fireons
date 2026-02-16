@@ -1,9 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-SERVER_IP="172.105.48.221"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/config.sh"
 SERVER_USER="${SERVER_USER:-deploy}"
-SSH_KEY="${SSH_KEY:-$HOME/.ssh/linode_key}"
 DOMAIN="stage.fireons.com"
 APP_DIR="/opt/fireons"
 
@@ -54,5 +54,5 @@ echo ""
 echo "Next steps:"
 echo "1. Point DNS A record for $DOMAIN to $SERVER_IP"
 echo "2. Run the following command to generate SSL certificate:"
-echo "   ssh -i $SSH_KEY $SERVER_USER@$SERVER_IP 'certbot certonly --standalone -d $DOMAIN'"
+echo "   ssh -i $SSH_KEY $SERVER_USER@$SERVER_IP 'sudo certbot certonly --standalone -d $DOMAIN'"
 echo "3. Run ./deploy.sh to deploy the application"

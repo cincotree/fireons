@@ -1,11 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-SERVER_IP="172.105.48.221"
-SERVER_USER="${SERVER_USER:-deploy}"
-SSH_KEY="${SSH_KEY:-$HOME/.ssh/linode_key}"
-APP_DIR="/opt/fireons"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/config.sh"
+SERVER_USER="${SERVER_USER:-deploy}"
+APP_DIR="/opt/fireons"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 SECRET_KEY="${SECRET_KEY:-$(openssl rand -hex 32)}"
