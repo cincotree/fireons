@@ -16,7 +16,7 @@ config = context.config
 database_url = os.getenv("DATABASE_URL")
 if not database_url:
     settings = get_settings()
-    database_url = settings.database_url
+    database_url = settings.sync_database_url
 
 config.set_main_option("sqlalchemy.url", database_url)
 

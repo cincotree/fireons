@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     postgres_port: int = 5432
     postgres_db: str = "fireons_development"
 
+    # Full database URL (overrides individual fields if set)
+    database_url: str | None = None
+
     # Connection pool settings
     pool_size: int = 5
     max_overflow: int = 10
@@ -28,7 +31,6 @@ class Settings(BaseSettings):
 
     @property
     def _effective_db_name(self) -> str:
-        """Get the effective database name (uses exact name from env in testing mode)."""
         if self.testing:
             if not self.postgres_db:
                 raise ValueError(
@@ -38,8 +40,9 @@ class Settings(BaseSettings):
         return self.postgres_db
 
     @property
-    def database_url(self) -> str:
-        """Get the async database URL for SQLAlchemy."""
+    def async_database_url(self) -> str:
+        if self.database_url:
+            return self.database_url.replace("postgresql://", "postgresql+psycopg://")
         if self.testing and self.test_database_url:
             return self.test_database_url
 
@@ -51,9 +54,9 @@ class Settings(BaseSettings):
 
     @property
     def sync_database_url(self) -> str:
-        """Get the sync database URL for Alembic migrations."""
+        if self.database_url:
+            return self.database_url
         if self.testing and self.test_database_url:
-            # Convert async URL to sync
             return self.test_database_url.replace("+psycopg", "")
 
         db_name = self._effective_db_name

@@ -25,7 +25,7 @@ def get_engine():
     if _engine is None:
         settings = get_settings()
         _engine = create_async_engine(
-            settings.database_url,
+            settings.async_database_url,
             echo=False,  # Set to True for SQL debugging
             pool_size=settings.pool_size,
             max_overflow=settings.max_overflow,
