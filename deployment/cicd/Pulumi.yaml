@@ -1,0 +1,3 @@
+name: fireons-cicd
+runtime: go
+description: Pulumi CI/CD infrastructure for Fireons

@@ -1,0 +1,3 @@
+name: fireons-infra
+runtime: go
+description: Pulumi infrastructure for Fireons application

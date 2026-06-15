@@ -1,0 +1,60 @@
+services:
+  backend:
+    image: ${ECR_BACKEND}:${TAG:-prod}
+    restart: always
+    env_file: .env
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: /fireons/backend
+        awslogs-region: ap-south-1
+        awslogs-create-group: "true"
+    networks:
+      - internal
+
+  frontend:
+    image: ${ECR_FRONTEND}:${TAG:-prod}
+    restart: always
+    env_file: .env
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: /fireons/frontend
+        awslogs-region: ap-south-1
+        awslogs-create-group: "true"
+    networks:
+      - internal
+
+  caddy:
+    image: ${ECR_CADDY}:${TAG:-prod}
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      - CADDY_HOST=${CADDY_HOST}
+      - BACKEND_HOST=backend
+      - FRONTEND_HOST=frontend
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+      - frontend
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: /fireons/caddy
+        awslogs-region: ap-south-1
+        awslogs-create-group: "true"
+    networks:
+      - internal
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  internal:
+    driver: bridge

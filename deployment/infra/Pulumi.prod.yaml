@@ -1,0 +1,14 @@
+encryptionsalt: v1:unused-placeholder=:
+config:
+  aws:region: ap-south-1
+  aws:profile: fireons-deploy
+  fireons-infra:domain: app.fireons.com
+  fireons-infra:admin_cidr: 0.0.0.0/0
+  fireons-infra:key_pair_name: fireons-key
+  fireons-infra:db_password:
+    secure: v1:placeholder:==
+  fireons-infra:jwt_secret:
+    secure: v1:placeholder:==
+  fireons-infra:secret_key:
+    secure: v1:placeholder:==
+  fireons-infra:alert_email: abhinaya.sukumar@gmail.com
