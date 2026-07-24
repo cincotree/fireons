@@ -27,6 +27,8 @@ psql postgres -c "CREATE ROLE postgres WITH LOGIN PASSWORD 'postgres' SUPERUSER 
 - Install [uv](https://docs.astral.sh/uv/) package manager
 - cd backend
 - uv sync
+- cp .env.sample .env
+- The defaults work out of the box for local development. `SECRET_KEY` signs auth JWTs, so set a real random value before deploying anywhere other than your machine.
 
 #### Frontend
 This is a [Next.js](https://nextjs.org) app bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
@@ -53,6 +55,8 @@ uv sync
 ```bash
 uv run uvicorn app:app --reload
 ```
+
+Verify it started by visiting `http://localhost:8000/health` (returns `{"status": "ok"}`) or `http://localhost:8000/docs` for the interactive API docs.
 
 Build and run using Docker:
 ```bash
