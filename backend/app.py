@@ -37,3 +37,8 @@ async def rewrite_api_path(request: Request, call_next: Callable[[Request], Awai
 app.include_router(auth_router)
 app.include_router(convert_router)
 app.include_router(account_router)
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
