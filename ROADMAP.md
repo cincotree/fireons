@@ -94,7 +94,7 @@ The site promises things that do not exist. Each row is either a Phase 1 build i
 
 ### Build order
 
-Dependency-ordered. A and B touch the same auth/user surface, so do them first and together. C is independent and can run in parallel with D. Recruiting (1.5) starts on day one and runs throughout.
+Dependency-ordered. A and B touch the same auth/user surface, so do them first and together. C is independent and can run in parallel with D. Recruiting (1.5) starts on day one and runs throughout. Each milestone is broken into PR-sized user stories in [BACKLOG.md](BACKLOG.md).
 
 - [ ] **A. Tracker hook (1.1):** user model migration for FIRE target, target API, dashboard progress UI, FIRE-type presets
 - [ ] **B. Anonymity and session (1.2):** registration changes, handle-first display, visibility model, JWT refresh
