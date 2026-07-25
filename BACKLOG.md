@@ -6,24 +6,26 @@ Status: `[ ]` not started, `[~]` in progress, `[x]` merged.
 
 ---
 
-## Milestone A: FIRE target and progress (roadmap 1.1)
+## Milestone A: Optional goal and progress (roadmap 1.1)
 
-### [ ] A1. Set a FIRE target
-As a user, I can set my FIRE target (amount, currency, optional target date) so my tracking has a goal.
-- Migration adds target fields to User; API to set/update/clear the target; validation (positive amount, supported currency)
-- Settings UI to enter the target
-- Touchpoints: `backend/database/models.py`, `backend/alembic`, new `backend/api/fire_target_api.py` or extend auth/me, `frontend/src/app/networth`
+Net worth tracking is the core and already works; the goal is an optional layer, and the FIRE number comes from a side calculator.
 
-### [ ] A2. Derive my target from expenses
-As a user, I can derive my FIRE number from annual expenses x 25 with Lean/Coast/Barista/Fat presets, so I do not need to know my number upfront.
-- Calculator in the target-setting UI; result prefills the A1 target; presets adjust the multiple/assumptions
-- Pure frontend on top of A1
+### [ ] A1. Set an optional net worth goal
+As a user, I can optionally set a goal (amount, currency, optional target date), FIRE or otherwise, so my tracking can have a target. The dashboard works fully without one.
+- Migration adds goal fields to User; API to set/update/clear the goal; validation (positive amount, supported currency)
+- Settings UI to enter or clear the goal
+- Touchpoints: `backend/database/models.py`, `backend/alembic`, new `backend/api/goal_api.py` or extend auth/me, `frontend/src/app/networth`
 
-### [ ] A3. See my progress to FI
-As a user, I see percent to target, trajectory, and projected FI date on my dashboard, so I know where I stand.
-- Progress computed from existing net worth history and the A1 target; new summary endpoint or extension of `/summary`
-- Dashboard progress module (headline percent, projected date, trajectory on the existing chart)
+### [ ] A2. See my progress when a goal is set
+As a user with a goal, I see percent to goal, trajectory, and projected date on my dashboard; without a goal the dashboard leads with net worth trend and allocation as it does today.
+- Progress computed from existing net worth history and the A1 goal; extend `/summary` or add a progress endpoint
+- Dashboard progress module renders only when a goal exists
 - Touchpoints: `backend/api/account_api.py` (summary), `frontend/src/components/NetWorthDashboard.tsx`
+
+### [ ] A3. FIRE number side calculator (public, launch calculator #1)
+As a visitor, I can calculate my FIRE number (annual expenses x 25, Lean/Coast/Barista/Fat presets, INR-first with USD toggle) without logging in; as a logged-in user, one click sets the result as my A1 goal.
+- Lives on the marketing site for SEO; shareable result link; "set as my goal" deep link into the app prefilling A1
+- Touchpoints: `website/app` (new calculator page), `frontend` goal prefill route
 
 ## Milestone B: Anonymity and session (roadmap 1.2)
 
@@ -94,10 +96,11 @@ As a visitor, the site describes only what the product actually does, in India/N
 - Fireons naming everywhere; copy rewritten per the roadmap gaps table; INR-first examples; Indian registration categories on For Professionals; NRI positioning
 - Touchpoints: all pages under `website/app`
 
-### [ ] E2. Analytics events
-As the founder, I can see the funnel, so Phase 2 validation has data.
-- Events: signup, target set, account added, balance updated, statement received, directory viewed, professional profile viewed, handoff clicked
-- Pick a lightweight provider (PostHog or similar); wire frontend and backend events
+### [ ] E2. User analytics
+As the founder, I can see the funnel and usage, so Phase 2 validation has data.
+- Pick and integrate a product analytics provider (PostHog recommended over GA: event-level funnels, self-serve, EU/India hosting options); wire frontend page/event tracking and backend events
+- Events: signup, account added, balance updated, statement received, goal set, calculator used, directory viewed, professional profile viewed, handoff clicked
+- Funnel and retention dashboards for the Phase 2 exit criteria
 
 ### [ ] E3. Production launch
 As a user, I can use Fireons at fireons.com securely.
@@ -114,7 +117,7 @@ As a user, I can use Fireons at fireons.com securely.
 ## Milestone F: Public journey pages
 
 ### [ ] F1. Publish my journey
-As a user, I can publish an opt-in public page at fireons.com/u/handle showing percent to target, trajectory, milestones, and allocation percentages, so I can share my progress.
+As a user, I can publish an opt-in public page at fireons.com/u/handle showing my net worth trend, milestones, allocation percentages, and percent to goal when I have one, so I can share my progress.
 - No login to view; no absolute amounts by default; publish/unpublish toggle with one-click unpublish
 - Builds on the B2 visibility model
 
@@ -142,3 +145,22 @@ As a user, my HDFC/ICICI/SBI/Axis statements update my bank balances automatical
 ### [ ] G3. Parse NRI brokerage exports
 As an NRI user, my foreign brokerage statements update my balances, so my whole net worth stays current.
 - Format order decided by early-user demand (roadmap open question 3)
+
+## Milestone H: Public calculator suite (growth front doors)
+
+All public and no-login, on the marketing site for SEO, each with a shareable result link and a quiet CTA into the app. The FIRE number calculator (A3) launches with Phase 1; these follow during Phase 2, one PR each.
+
+### [ ] H1. Time-to-goal calculator
+As a visitor, I enter current net worth, monthly savings, and expected return, and see when I reach a given target, so I can sanity-check my plan.
+- Signed-in follow-up: prefill from my actual numbers
+
+### [ ] H2. Net worth in INR today
+As an NRI visitor, I enter balances in multiple currencies and see my consolidated net worth in INR (or USD), so I get instant value before signing up.
+- Uses the existing exchange-rate/conversion backend via a public read-only endpoint
+
+### [ ] H3. Two-country FI target
+As an NRI visitor, I can model an FI target split across India and my resident country (different expense bases and inflation), so my number reflects where I will actually live.
+
+### [ ] H4. Returning-to-India cost model
+As an NRI visitor, I can model what my current corpus supports if I return to India, so I can evaluate the move.
+- Ship last; needs the most careful assumptions and disclaimers (educational tool, not advice)

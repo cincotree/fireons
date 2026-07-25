@@ -2,7 +2,9 @@
 
 ## Product Thesis
 
-Fireons (fireons.com) is a two-sided marketplace and community for people on a FIRE journey, focused on India and NRIs. Users create anonymous profiles to track their net worth against a FIRE target and to access a one-stop directory of verified finance professionals. The platform is a discovery, booking, and SaaS tool. It is never an adviser.
+Fireons (fireons.com) is an anonymous net worth tracker for India and NRIs, paired with a one-stop directory of verified finance professionals and, later, a community. Net worth tracking is the core product for anyone managing wealth across accounts and currencies. Setting a goal (a FIRE number or any other target) is an optional layer on top, and the FIRE number itself comes from a side calculator, not a required step.
+
+FIRE communities remain the first audience and the distribution wedge: they track obsessively, share publicly, and need exactly this tool. But the product works for anyone tracking net worth, and nothing in the core flow assumes a FIRE goal.
 
 The NRI angle fits what is already built: multi-currency accounts, USD/INR conversion, and exchange-rate history are exactly the pain of tracking wealth split across India and abroad.
 
@@ -29,7 +31,7 @@ The site promises things that do not exist. Each row is either a Phase 1 build i
 
 | Site claim | Status |
 |---|---|
-| FIRE target tracking | Not built. Build in 1.1. |
+| FIRE target tracking | Not built. Optional goal layer in 1.1; core is tracking itself. |
 | Anonymous profiles | Partial. Username exists but email and full_name are collected, no anonymity model. Build in 1.2. |
 | Directory of verified professionals | Not built. Build in 1.4. |
 | "Join as an Advisor" CTA (`/register?type=professional`) | Dead end. Wire to intake in 1.6. |
@@ -43,12 +45,14 @@ The site promises things that do not exist. Each row is either a Phase 1 build i
 
 ## Phase 1: Launchable v1
 
-**Goal:** a stranger from a FIRE community signs up anonymously, sets a FIRE target, tracks net worth against it, and finds a real verified professional in the directory on day one.
+**Goal:** a stranger from a FIRE or personal-finance community signs up anonymously, tracks their net worth with minimal friction, optionally sets a goal, and finds a real verified professional in the directory on day one.
 
-### 1.1 FIRE target and progress (the hook)
+### 1.1 Net worth goal and progress (optional layer)
 
-- FIRE target on the user: target amount, currency, optional target date. Optional derivation from annual expenses x 25, with Lean/Coast/Barista/Fat presets.
-- Dashboard progress: percent to target, trajectory from net worth history, projected FI date.
+- The dashboard leads with net worth: total, trend, allocation. This works fully with no goal set.
+- Optional goal on the user: target amount, currency, optional target date. Any goal, FIRE or otherwise.
+- When a goal is set, the dashboard adds percent to goal, trajectory, and projected date.
+- The FIRE number calculator (expenses x 25, Lean/Coast/Barista/Fat presets) is a side calculator, public and no-login, that can prefill the goal for logged-in users. It doubles as a growth front door (see growth workstream).
 
 ### 1.2 Anonymous profiles
 
@@ -82,28 +86,28 @@ The site promises things that do not exist. Each row is either a Phase 1 build i
 ### 1.6 Marketing site truth pass
 
 - Fix naming to Fireons everywhere.
-- Rewrite copy to what v1 does: track net worth against a FIRE target, anonymous by default, statement-forwarding automation, browse verified professionals.
+- Rewrite copy to what v1 does: anonymous net worth tracking with statement-forwarding automation, optional goals (FIRE or otherwise), browse verified professionals. Lead with tracking; FIRE is the featured use case, not the product definition.
 - Localize for India and NRIs: INR-first examples, Indian registration categories on For Professionals (replace CFP/CPA/RIA framing), NRI positioning (wealth across India and abroad in one place).
 - Wire the professional CTA to a real intake path (an external form is fine for v1).
 
 ### 1.7 Launch hygiene
 
 - Production deployment for backend, app, and site; real SECRET_KEY; database backups.
-- Analytics events: signup, target set, account added, balance updated, statement received, directory viewed, professional profile viewed, handoff clicked.
+- Analytics events: signup, account added, balance updated, statement received, goal set, directory viewed, professional profile viewed, handoff clicked.
 - Terms and privacy policy reflecting actual data practices and the not-an-adviser position.
 
 ### Build order
 
 Dependency-ordered. A and B touch the same auth/user surface, so do them first and together. C is independent and can run in parallel with D. Recruiting (1.5) starts on day one and runs throughout. Each milestone is broken into PR-sized user stories in [BACKLOG.md](BACKLOG.md).
 
-- [ ] **A. Tracker hook (1.1):** user model migration for FIRE target, target API, dashboard progress UI, FIRE-type presets
+- [ ] **A. Optional goal and progress (1.1):** user model migration for the goal, goal API, dashboard progress when set, side FIRE calculator that prefills it
 - [ ] **B. Anonymity and session (1.2):** registration changes, handle-first display, visibility model, JWT refresh
 - [ ] **C. Directory (1.4):** professional model and migration, admin verify flag, directory list and filters, profile page with disclosure, handoff event
 - [ ] **D. Statements (1.3):** inbound email provisioning and webhook, attachment storage, statements inbox UI, per-sender passwords, manual balance confirm
 - [ ] **E. Site and launch (1.6, 1.7):** truth pass, localization, professional intake, analytics, production deploy, terms and privacy
 - [ ] **Ops throughout (1.5):** recruit and verify 10 to 20 professionals
 
-**Exit criteria:** live product, 15+ verified professionals listed, and a user can complete the full loop: sign up, set target, add accounts, set up statement forwarding, browse the directory, click through to a professional.
+**Exit criteria:** live product, 15+ verified professionals listed, and a user can complete the full loop: sign up, add accounts, set up statement forwarding, optionally set a goal, browse the directory, click through to a professional.
 
 ---
 
@@ -113,7 +117,7 @@ Dependency-ordered. A and B touch the same auth/user surface, so do them first a
 
 ### Build (the only feature work of this phase)
 
-- **Public journey links (the growth loop).** Opt-in public page at fireons.com/u/handle: percent to target, trajectory chart, milestones, allocation in percentages. No absolute amounts unless separately toggled on. No login to view. Rich OG preview so links unfurl well on Reddit. Quiet "start your own journey" CTA on every page. Built for the r/FIRE_Ind progress-post genre: a live link with a chart beats a screenshot.
+- **Public journey links (the growth loop).** Opt-in public page at fireons.com/u/handle: net worth trend, milestones, allocation in percentages, and percent to goal when one is set. No absolute amounts unless separately toggled on. No login to view. Rich OG preview so links unfurl well on Reddit. Quiet "start your own journey" CTA on every page. Built for the r/FIRE_Ind progress-post genre: a live link with a chart beats a screenshot.
 - **Paste-your-post onboarding.** Public, no-login page: paste your Reddit progress post or numbers, get a live journey page in 60 seconds, claim it by signing up. Consent by construction: the user acts, not a bot.
 - **Automated statement parsing.** Turn the statements inbox into automatic balance updates. Format order: CAMS/KFintech CAS first (MF and demat in one statement), then top banks (HDFC, ICICI, SBI, Axis), then NRI brokerage exports. Parsed balances flow through the existing balance-snapshot pipeline with a user confirm step.
 - Small friction fixes only, beyond these three.
@@ -121,7 +125,7 @@ Dependency-ordered. A and B touch the same auth/user surface, so do them first a
 ### Learn
 
 - **Distribution is the main work of this phase.** Founder shows up daily in FIRE India and NRI communities (see growth workstream).
-- Watch the funnel: signup, target set, second net worth update (the retention signal), statement forwarding set up, directory view, handoff click.
+- Watch the funnel: signup, account added, second net worth update (the retention signal), statement forwarding set up, goal set, directory view, handoff click.
 - Talk to every early professional: are handoffs real, are users qualified, would they pay a flat listing fee later.
 - Talk to early users: is the tracker sticky weekly, did the directory influence signup, what blocks booking.
 
@@ -187,10 +191,10 @@ Runs through every phase, and is explicitly the hard part. Every idea here passe
 - Paste-your-post onboarding collapses the gap between "I posted my update" and "I have a Fireons page."
 - The directory is the differentiator in every pitch: the one place with only registered, verified professionals.
 
-### Free tools as front doors (no login, shareable results; build alongside Phase 2)
+### Free tools as front doors (no login, shareable results)
 
-- FIRE number calculator: expenses x 25, Lean/Coast/Barista/Fat presets, INR-first with USD toggle.
-- NRI calculators: FI target across two countries, net worth in INR today, returning-to-India cost modeling. Underserved niche, high shareability.
+- FIRE number calculator (the 1.1 side calculator): expenses x 25, Lean/Coast/Barista/Fat presets, INR-first with USD toggle; prefills the in-app goal for logged-in users. Ships with Phase 1 (backlog A3).
+- Phase 2 suite (backlog H1-H4): time-to-goal, net worth in INR today (reuses the conversion backend), two-country FI target, returning-to-India cost model. Underserved NRI niche, high shareability.
 - Every tool output is a shareable card and link with a quiet "track this for real" CTA. These pages are also the SEO surface.
 
 ### Content engine: blog (from Phase 1-2, compounds forever)
