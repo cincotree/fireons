@@ -92,9 +92,23 @@ The site promises things that do not exist. Each row is either a Phase 1 build i
 
 ### 1.7 Launch hygiene
 
-- Production deployment for backend, app, and site; real SECRET_KEY; database backups.
+- Production deployment for backend, app, and site; real SECRET_KEY; database backups with a tested restore.
 - Analytics events: signup, account added, balance updated, statement received, goal set, directory viewed, professional profile viewed, handoff clicked.
 - Terms and privacy policy reflecting actual data practices and the not-an-adviser position.
+
+### 1.8 Horizontal foundations (launch blockers, backlog milestone X)
+
+Cross-cutting basics the feature milestones assume but nobody scheduled:
+
+- **Account lifecycle:** password reset (does not exist today), account deletion with data export. Deletion and export are non-negotiable for a privacy-branded product and required under India's DPDP Act.
+- **Transactional email:** outbound provider for reset/welcome mail (separate concern from the inbound statements pipeline).
+- **India-correct display:** lakh/crore number formatting with the Indian digit grouping (1,00,00,000), INR-first currency display.
+- **Mobile:** responsive pass across app and site; the audience is mobile-first and journey links will mostly be opened from Reddit on phones.
+- **Operability:** error monitoring (Sentry or similar), uptime checks, structured logging.
+- **Security hardening:** rate limiting on auth and inbound-email endpoints, standard security headers, dependency audit.
+- **Engineering workflow:** CI running backend tests and frontend lint/build on every PR (the PR-by-PR plan depends on this), staging environment, migration discipline.
+
+Deliberately deferred past launch: 2FA, additional languages, native/PWA app, SSO.
 
 ### Build order
 
@@ -105,6 +119,7 @@ Dependency-ordered. A and B touch the same auth/user surface, so do them first a
 - [ ] **C. Directory (1.4):** professional model and migration, admin verify flag, directory list and filters, profile page with disclosure, handoff event
 - [ ] **D. Statements (1.3):** inbound email provisioning and webhook, attachment storage, statements inbox UI, per-sender passwords, manual balance confirm
 - [ ] **E. Site and launch (1.6, 1.7):** truth pass, localization, professional intake, analytics, production deploy, terms and privacy
+- [ ] **X. Horizontal foundations (1.8):** CI first (everything else lands PR by PR on top of it), then password reset, account deletion/export, lakh/crore formatting, mobile pass, monitoring, rate limiting
 - [ ] **Ops throughout (1.5):** recruit and verify 10 to 20 professionals
 
 **Exit criteria:** live product, 15+ verified professionals listed, and a user can complete the full loop: sign up, add accounts, set up statement forwarding, optionally set a goal, browse the directory, click through to a professional.
@@ -239,6 +254,7 @@ Runs through every phase, and is explicitly the hard part. Every idea here passe
 | Risk | Phase | Mitigation |
 |---|---|---|
 | Empty directory at launch | 1 | Supply seeding is a launch blocker, not a fast follow |
+| DPDP/privacy obligations unmet at launch | 1 | Deletion and export ship in milestone X; privacy policy states practices accurately |
 | Marketing site overpromises | 1 | Truth pass before any distribution push |
 | Statement inbox holds sensitive documents | 1 | Encrypted storage, strict access controls, clear privacy policy, delete on request |
 | Tracker retention weak (manual entry fatigue) | 1-2 | Forwarding address in Phase 1, automated parsing in Phase 2 |

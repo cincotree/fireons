@@ -106,6 +106,37 @@ As the founder, I can see the funnel and usage, so Phase 2 validation has data.
 As a user, I can use Fireons at fireons.com securely.
 - Production deploy of backend, app, site; real SECRET_KEY; database backups; terms and privacy policy reflecting actual practices and the not-an-adviser position
 
+## Milestone X: Horizontal foundations (roadmap 1.8, launch blockers)
+
+X1 comes first so every other story lands through CI. The rest can interleave with milestones A through E.
+
+### [ ] X1. CI pipeline
+As a developer, every PR runs backend tests and frontend lint/build automatically, so the PR-by-PR plan stays safe.
+- GitHub Actions: backend pytest, frontend and website lint plus build; required checks on main
+- Touchpoints: `.github/workflows`, existing `backend/tests`, `e2e-tests`
+
+### [ ] X2. Password reset
+As a user, I can reset my password by email, so a forgotten password does not lock me out of my financial data forever.
+- Outbound transactional email provider (separate from inbound statements); reset token flow; rate limited
+- Touchpoints: `backend/api/auth_api.py`, `backend/auth_utils.py`, new frontend reset pages
+
+### [ ] X3. Delete my account and export my data
+As a user, I can export my data (accounts, balances, statements) and permanently delete my account, so I stay in control.
+- Export as CSV/JSON bundle; hard delete of user data including stored statements; required for the privacy positioning and India DPDP Act
+- Touchpoints: `backend/api/auth_api.py`, account/statement repositories, settings UI
+
+### [ ] X4. Indian number formatting
+As an Indian user, I see amounts in lakh/crore with Indian digit grouping (1,00,00,000) wherever INR is displayed, so numbers read naturally.
+- Shared formatting utility across dashboard, charts, calculators, and journey pages; USD keeps western grouping
+
+### [ ] X5. Mobile responsiveness pass
+As a mobile user, the app, site, and public journey pages work well on a phone, since most traffic arrives from Reddit on mobile.
+- Audit and fix dashboard, charts, tables, directory, and calculators at small breakpoints
+
+### [ ] X6. Monitoring and hardening
+As the founder, I know when production breaks and the obvious abuse paths are closed.
+- Error monitoring (Sentry or similar) on backend and frontends; uptime check; rate limiting on auth and inbound-email endpoints; security headers; dependency audit
+
 ## Ops throughout (roadmap 1.5, no PRs)
 
 - Recruit 10 to 20 CA/tax professionals; pipeline tracked as contacted, interested, verified, live. Launch blocker: 15+ live before announcing.
