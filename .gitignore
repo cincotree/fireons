@@ -22,3 +22,13 @@ out/
 # E2E test logs and results
 e2e-tests/*.log
 frontend/test-results/
+
+# AI tool configs/local state
+.claude/
+.codex/
+.cursor/
+.entire/
+.factory/
+.gemini/
+.github/hooks/
+backend/vendors.db
