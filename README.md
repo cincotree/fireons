@@ -1,11 +1,25 @@
 ## Fireons
 
-A personal finance tracker for managing net worth and accounts.
+An anonymous net worth tracker for India and NRIs, with a directory of verified finance professionals. [fireons.com](https://fireons.com)
 
 ### Features
 - **User authentication** - Secure login and registration
 - **Net worth tracking** - Track your assets and liabilities over time
 - **Multi-currency support** - Handles accounts in different currencies
+
+### Planning and Tasks
+
+- [ROADMAP.md](ROADMAP.md) - product phases, guardrails, and build order
+- [BACKLOG.md](BACKLOG.md) - milestone map and task workflow
+- [`backlog/`](backlog/) - PR-sized tasks managed with the [Backlog.md](https://github.com/MrLesk/Backlog.md) CLI
+
+```bash
+npm install -g backlog.md
+backlog board     # kanban in the terminal
+backlog browser   # web UI on localhost:6420
+```
+
+Each task is one PR; acceptance criteria in the task are the definition of done.
 
 ### Setup
 

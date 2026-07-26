@@ -123,7 +123,7 @@ Full substantive DPDP compliance is required by May 2027; building it in now is 
 
 ### Build order
 
-Dependency-ordered. A and B touch the same auth/user surface, so do them first and together. C is independent and can run in parallel with D. Recruiting (1.5) starts on day one and runs throughout. Each milestone is broken into PR-sized user stories in [BACKLOG.md](BACKLOG.md).
+Dependency-ordered. A and B touch the same auth/user surface, so do them first and together. C is independent and can run in parallel with D. Recruiting (1.5) starts on day one and runs throughout. Each milestone is broken into PR-sized tasks in [`backlog/`](backlog/) (Backlog.md CLI; see [BACKLOG.md](BACKLOG.md) for the milestone map and commands).
 
 - [ ] **A. Optional goal and progress (1.1):** user model migration for the goal, goal API, dashboard progress when set, side FIRE calculator that prefills it
 - [ ] **B. Anonymity and session (1.2):** registration changes, handle-first display, visibility model, JWT refresh
