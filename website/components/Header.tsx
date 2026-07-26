@@ -13,7 +13,17 @@ export default function Header() {
         <div className="flex justify-between items-center h-18">
           {/* Logo */}
           <div className="flex-shrink-0 py-4">
-            <Link href="/" className="flex items-center group">
+            <Link href="/" className="flex items-center gap-1 group">
+              <svg viewBox="0 0 24 24" className="h-7 w-7 flex-shrink-0" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="logoFlameGrad" x1="0" y1="1" x2="0" y2="0">
+                    <stop offset="0" stopColor="#0f172a" />
+                    <stop offset="0.55" stopColor="#0891b2" />
+                    <stop offset="1" stopColor="#67e8f9" />
+                  </linearGradient>
+                </defs>
+                <polygon points="12,2 16,7 14,10 18,14 15,19 12,22 9,19 6,14 10,10 8,7" fill="url(#logoFlameGrad)" />
+              </svg>
               <span className="text-2xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent group-hover:from-cyan-600 group-hover:to-cyan-700 transition-all">
                 Fireons
               </span>
