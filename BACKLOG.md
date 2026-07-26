@@ -137,6 +137,39 @@ As a mobile user, the app, site, and public journey pages work well on a phone, 
 As the founder, I know when production breaks and the obvious abuse paths are closed.
 - Error monitoring (Sentry or similar) on backend and frontends; uptime check; rate limiting on auth and inbound-email endpoints; security headers; dependency audit
 
+## Milestone L: DPDP and legal compliance (roadmap 1.9, launch blockers except L5)
+
+Engineering side of DPDP readiness; the lawyer pass blesses the words. X3 (deletion/export) and X6 (security safeguards) already carry the heavy items.
+
+### [ ] L1. Consent and notice at signup
+As a new user, I see a plain-language, itemized notice of what data is collected and for which purpose, and I consent by clear affirmative action, so processing is lawful under DPDP.
+- Separate consent per purpose: tracking, statement ingestion, analytics; no bundling; consent records stored with timestamp and notice version; withdrawal toggles in settings as easy as granting
+- Touchpoints: `backend/api/auth_api.py`, User consent fields and migration, `frontend/src/app/register`, settings UI
+
+### [ ] L2. 18+ age gate
+As the platform, registration requires confirming 18+, so verifiable parental consent obligations never apply.
+- Age confirmation at signup, terms clause, block under-18 declarations
+
+### [ ] L3. Grievance contact and response timelines
+As a user, I can find a published grievance contact and stated response timelines, so I know how to exercise my DPDP rights.
+- Grievance page on the site, contact routing, documented internal SLA; doubles as the IT Rules grievance surface when Phase 3 community ships
+
+### [ ] L4. Statement retention policy
+As a user, raw statement files are deleted automatically after a defined window once balances are confirmed, and X3 account deletion reaches stored PDFs and per-sender passwords, so my most sensitive documents are not retained indefinitely.
+- Configurable retention window, scheduled purge job, retention stated in the privacy policy
+- Touchpoints: statement storage layer, X3 deletion flow
+
+### [ ] L5. Nominee (post-launch, pairs well with Phase 2)
+As a user, I can name a nominee who can exercise my rights if I die or am incapacitated, so my family is not locked out of my financial records.
+- DPDP nomination right turned into a product feature; nominee details, verification flow on claim
+
+## Compliance ops (no PRs)
+
+- Breach incident runbook before launch: who assesses, who notifies affected users without delay, who files to the Data Protection Board within 72 hours.
+- Processor contracts (DPAs) collected as vendors are chosen: hosting, inbound/outbound email, analytics, error monitoring.
+- Lawyer pass before launch: consent notice text, terms, privacy policy, professional listing agreement, calculator disclaimers.
+- Data map kept current: what personal data lives where, including cross-border locations.
+
 ## Ops throughout (roadmap 1.5, no PRs)
 
 - Recruit 10 to 20 CA/tax professionals; pipeline tracked as contacted, interested, verified, live. Launch blocker: 15+ live before announcing.

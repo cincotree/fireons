@@ -110,6 +110,17 @@ Cross-cutting basics the feature milestones assume but nobody scheduled:
 
 Deliberately deferred past launch: 2FA, additional languages, native/PWA app, SSO.
 
+### 1.9 DPDP and legal compliance (backlog milestone L)
+
+Full substantive DPDP compliance is required by May 2027; building it in now is cheap, retrofitting is not.
+
+- Consent and notice at signup: itemized purposes, affirmative consent, consent records, withdrawal as easy as granting.
+- 18+ age gate, so parental-consent obligations never apply.
+- Published grievance contact and response timelines.
+- Statement retention policy: raw files purged after confirmation, deletion reaches PDFs and stored passwords.
+- Ops, no PRs: breach runbook (users without delay, Board within 72 hours), processor DPAs per vendor, lawyer pass on all user-facing legal text, current data map.
+- Post-launch feature from a DPDP right: nominee access (L5), a genuinely loved feature in Indian finance apps.
+
 ### Build order
 
 Dependency-ordered. A and B touch the same auth/user surface, so do them first and together. C is independent and can run in parallel with D. Recruiting (1.5) starts on day one and runs throughout. Each milestone is broken into PR-sized user stories in [BACKLOG.md](BACKLOG.md).
@@ -120,6 +131,7 @@ Dependency-ordered. A and B touch the same auth/user surface, so do them first a
 - [ ] **D. Statements (1.3):** inbound email provisioning and webhook, attachment storage, statements inbox UI, per-sender passwords, manual balance confirm
 - [ ] **E. Site and launch (1.6, 1.7):** truth pass, localization, professional intake, analytics, production deploy, terms and privacy
 - [ ] **X. Horizontal foundations (1.8):** CI first (everything else lands PR by PR on top of it), then password reset, account deletion/export, lakh/crore formatting, mobile pass, monitoring, rate limiting
+- [ ] **L. Compliance (1.9):** consent and notice at signup, 18+ gate, grievance page, statement retention; breach runbook and lawyer pass as ops
 - [ ] **Ops throughout (1.5):** recruit and verify 10 to 20 professionals
 
 **Exit criteria:** live product, 15+ verified professionals listed, and a user can complete the full loop: sign up, add accounts, set up statement forwarding, optionally set a goal, browse the directory, click through to a professional.
@@ -159,6 +171,7 @@ Dependency-ordered. A and B touch the same auth/user surface, so do them first a
 - **Professionals participate in public threads** under their real, badged identity, responding to anonymously posted questions with general guidance that doubles as their pitch. Discovery earned through useful answers, not paid placement.
 - The safety line, stated on every thread a professional joins and enforced: public responses stay general and educational; anything personalized to an individual's financials moves to the professional's registered channel (KYC, risk profiling, formal advice all live there).
 - Moderation from day one of this phase: no unregistered users giving investment advice, spam and shill controls, report flow.
+- IT Rules 2021 intermediary duties arrive with user content: published community rules, grievance officer with 24-hour acknowledgment and 15-day resolution, takedown process. The L3 grievance surface extends to cover this.
 - Cohort views, opt-in and aggregated: compare progress against similar targets without exposing individuals.
 
 **Exit criteria:** sharing and discussion happen weekly without founder prompting; moderation load is understood.
@@ -189,7 +202,7 @@ Dependency-ordered. A and B touch the same auth/user surface, so do them first a
 2. **User booking fee**: flat, user-side, per structured handoff (requires Phase 4 handoff flow).
 3. **User verified-profile fee**: optional paid verification of the user's own profile for community credibility.
 
-Pricing validated in the Phase 2/4 professional conversations before any billing is built.
+Pricing validated in the Phase 2/4 professional conversations before any billing is built. Fees collected through a licensed payment aggregator (Fireons never handles the flow directly); GST registration for platform fees.
 
 **Exit criteria:** paying professionals renew; fees do not distort directory neutrality.
 
@@ -254,7 +267,7 @@ Runs through every phase, and is explicitly the hard part. Every idea here passe
 | Risk | Phase | Mitigation |
 |---|---|---|
 | Empty directory at launch | 1 | Supply seeding is a launch blocker, not a fast follow |
-| DPDP/privacy obligations unmet at launch | 1 | Deletion and export ship in milestone X; privacy policy states practices accurately |
+| DPDP/privacy obligations unmet at launch | 1 | Milestone L (consent, age gate, grievance, retention) plus X3 deletion/export; full compliance deadline May 2027 |
 | Marketing site overpromises | 1 | Truth pass before any distribution push |
 | Statement inbox holds sensitive documents | 1 | Encrypted storage, strict access controls, clear privacy policy, delete on request |
 | Tracker retention weak (manual entry fatigue) | 1-2 | Forwarding address in Phase 1, automated parsing in Phase 2 |
