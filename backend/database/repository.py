@@ -164,6 +164,18 @@ class AccountRepository:
         return account
 
 
+class TransactionRepository:
+    """Repository for Transaction operations.
+
+    Minimal stub: transaction/posting import is out of scope for now.
+    Exists so `database.repository` exposes the name tests/conftest.py
+    already imports.
+    """
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+
 class BalanceRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -202,7 +214,10 @@ class BalanceRepository:
         return balance
 
     async def get_latest_balances(
-        self, user_id: str | None = None, as_of_date: date | None = None
+        self,
+        user_id: str | None = None,
+        as_of_date: date | None = None,
+        include_inactive: bool = False,
     ) -> list[Balance]:
         if as_of_date is None:
             as_of_date = date.today()
@@ -228,13 +243,14 @@ class BalanceRepository:
                     Balance.date == subquery.c.max_date,
                 ),
             )
+            .join(Account, Balance.account_id == Account.id)
             .options(selectinload(Balance.account))
         )
 
         if user_id is not None:
-            query = query.join(Account, Balance.account_id == Account.id).where(
-                Account.user_id == user_id
-            )
+            query = query.where(Account.user_id == user_id)
+        if not include_inactive:
+            query = query.where(Account.is_active == True)
 
         result = await self.session.execute(query)
         return list(result.scalars().all())
@@ -264,6 +280,7 @@ class BalanceRepository:
         user_id: str | None = None,
         account_id: str | None = None,
         currency: str | None = None,
+        include_inactive: bool = False,
     ) -> list[Balance]:
         query = (
             select(Balance)
@@ -284,6 +301,8 @@ class BalanceRepository:
             query = query.where(Balance.account_id == account_id)
         if currency:
             query = query.where(Balance.currency == currency)
+        if not include_inactive:
+            query = query.where(Account.is_active == True)
 
         result = await self.session.execute(query)
         return list(result.scalars().all())
