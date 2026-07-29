@@ -37,6 +37,12 @@ made by the community.
 2. Fork the repository and create a branch for your change.
 3. Keep pull requests focused on a single change.
 4. Ensure the backend and frontend build and pass linting before submitting.
+5. Include tests for new functionality: backend unit/API tests under
+   `backend/tests/`, and a Playwright e2e spec under `e2e-tests/tests/` for
+   any new user-facing flow. Run them and make sure they pass.
+6. Never include real personal, financial, or otherwise sensitive data in a
+   contribution, not even as a test fixture or in a commit message. Test
+   fixtures must use synthetic, made-up data only.
 
 ## Personal Use
 
