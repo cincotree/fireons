@@ -7,7 +7,7 @@ import { getBaseHttpUrl } from "@/utils/api";
 import { NetWorthChart } from "@/components/NetWorthChart";
 import { AssetAllocationChart } from "@/components/AssetAllocationChart";
 import { AccountHierarchyTree } from "@/components/AccountHierarchyTree";
-import { UploadStatementFlow } from "@/components/UploadStatementFlow";
+import { ImportStatementFlow } from "@/components/ImportStatementFlow";
 
 interface Account {
   id: string;
@@ -583,7 +583,7 @@ export function NetWorthDashboard() {
         </DialogContent>
       </Modal>
 
-      <UploadStatementFlow
+      <ImportStatementFlow
         open={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         onImported={fetchData}

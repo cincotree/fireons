@@ -7,6 +7,7 @@ from api.convert_currency_api import router as convert_router
 from api.account_api import router as account_router
 from api.auth_api import router as auth_router
 from api.statements_api import router as statements_router
+from api.cas_statements_api import router as cas_statements_router
 from database.session import init_db
 
 
@@ -39,6 +40,7 @@ app.include_router(auth_router)
 app.include_router(convert_router)
 app.include_router(account_router)
 app.include_router(statements_router)
+app.include_router(cas_statements_router)
 
 
 @app.get("/health")
