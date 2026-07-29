@@ -143,12 +143,13 @@ class TestConfirmCASEndpoint:
         accounts = await account_repo.list_all(user_id=test_user.id)
         assert len(accounts) == 4
         alpha = await account_repo.get_by_name(
-            "Assets:Investment:MutualFund:Alpha Mutual Fund:1122334:Alpha Bluechip Growth Fund",
+            "Assets:Investment:MutualFund:Aditya Birla Sun Life:1234567:"
+            "T001 - Test Bluechip Fund - Growth-Direct Plan (Non-Demat)",
             test_user.id,
         )
         assert alpha is not None
-        assert alpha.meta["amc"] == "Alpha Mutual Fund"
-        assert alpha.meta["folio_number"] == "1122334"
+        assert alpha.meta["amc"] == "Aditya Birla Sun Life"
+        assert alpha.meta["folio_number"] == "1234567"
 
     async def test_partial_selection_only_creates_selected_subset(
         self, client: AsyncClient, auth_headers: dict, test_user: User, session: AsyncSession

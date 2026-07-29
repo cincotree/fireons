@@ -25,6 +25,7 @@ test.describe('Bank Statement Import - HDFC', () => {
 
   test('upload HDFC statement, preview extracted data, edit, and confirm creates account with balance', async ({ page }) => {
     await page.getByRole('button', { name: 'Import Statement' }).click();
+    await page.getByRole('button', { name: /Bank Statement/i }).click();
 
     await page.locator('input[type="file"]').setInputFiles(VALID_FIXTURE);
     await page.getByPlaceholder('Password used to open the PDF').fill(HDFC_TEST_PASSWORD);
@@ -55,6 +56,7 @@ test.describe('Bank Statement Import - HDFC', () => {
 
   test('wrong password shows an inline error and allows retry', async ({ page }) => {
     await page.getByRole('button', { name: 'Import Statement' }).click();
+    await page.getByRole('button', { name: /Bank Statement/i }).click();
 
     await page.locator('input[type="file"]').setInputFiles(VALID_FIXTURE);
     await page.getByPlaceholder('Password used to open the PDF').fill('wrong-password');
@@ -73,6 +75,7 @@ test.describe('Bank Statement Import - HDFC', () => {
 
   test('non-PDF file upload surfaces an inline error instead of crashing', async ({ page }) => {
     await page.getByRole('button', { name: 'Import Statement' }).click();
+    await page.getByRole('button', { name: /Bank Statement/i }).click();
 
     await page.locator('input[type="file"]').setInputFiles(NON_PDF_FIXTURE);
     await page.getByPlaceholder('Password used to open the PDF').fill('irrelevant');
@@ -84,6 +87,7 @@ test.describe('Bank Statement Import - HDFC', () => {
 
   test('editing the closing balance and statement date before confirming persists the edited values', async ({ page }) => {
     await page.getByRole('button', { name: 'Import Statement' }).click();
+    await page.getByRole('button', { name: /Bank Statement/i }).click();
 
     await page.locator('input[type="file"]').setInputFiles(VALID_FIXTURE);
     await page.getByPlaceholder('Password used to open the PDF').fill(HDFC_TEST_PASSWORD);

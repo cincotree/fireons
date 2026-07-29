@@ -26,38 +26,47 @@ class TestCASParser:
 
         by_folio = {h.folio_number: h for h in result.holdings}
 
-        alpha = by_folio["1122334"]
-        assert alpha.amc == "Alpha Mutual Fund"
-        assert alpha.scheme_name == "Alpha Bluechip Growth Fund"
-        assert alpha.isin == "INF111A01234"
-        assert alpha.units == Decimal("1234.567")
-        assert alpha.nav == Decimal("45.6789")
-        assert alpha.market_value == Decimal("56391.23")
+        aditya = by_folio["1234567"]
+        assert aditya.amc == "Aditya Birla Sun Life"
+        assert aditya.scheme_name == "T001 - Test Bluechip Fund - Growth-Direct Plan (Non-Demat)"
+        assert aditya.isin == "INF999A01111"
+        assert aditya.units == Decimal("1234.567")
+        assert aditya.nav == Decimal("45.6789")
+        assert aditya.market_value == Decimal("56391.23")
+        assert aditya.source == "CAMS"
 
-        beta = by_folio["9988776"]
-        assert beta.amc == "Beta Mutual Fund"
-        assert beta.market_value == Decimal("125061.70")
+        sbi = by_folio["9988776"]
+        assert sbi.amc == "SBI"
+        assert sbi.market_value == Decimal("125061.70")
 
     def test_zero_balance_scheme_still_parsed(self, parser: CASParser):
         result = parser.parse(_fixture_bytes("cas_valid.pdf"), TEST_CAS_PDF_PASSWORD)
-        redeemed = next(h for h in result.holdings if h.folio_number == "9988777")
+        redeemed = next(h for h in result.holdings if h.folio_number == "7654321/0")
+        assert redeemed.amc == "HDFC"
         assert redeemed.units == Decimal("0.000")
         assert redeemed.market_value == Decimal("0.00")
+        assert redeemed.source == "KFINTECH"
 
-    def test_missing_isin_still_parses(self, parser: CASParser):
+    def test_scheme_wrapping_across_multiple_lines(self, parser: CASParser):
         result = parser.parse(_fixture_bytes("cas_valid.pdf"), TEST_CAS_PDF_PASSWORD)
-        no_isin = next(h for h in result.holdings if h.folio_number == "1122335")
-        assert no_isin.isin is None
-        assert no_isin.units == Decimal("500.000")
+        sbi = next(h for h in result.holdings if h.folio_number == "9988776")
+        assert sbi.scheme_name == "T003 - Test Small Cap Fund - Regular Plan - Growth (Demat)"
 
-    def test_unparseable_scheme_is_skipped_with_warning(self, parser: CASParser):
+    def test_unknown_amc_falls_back_to_guess_with_warning(self, parser: CASParser):
+        result = parser.parse(_fixture_bytes("cas_valid.pdf"), TEST_CAS_PDF_PASSWORD)
+        zephyr = next(h for h in result.holdings if h.folio_number == "5551111")
+        assert zephyr.amc == "Zephyr Capital"
+        assert len(zephyr.warnings) == 1
+        assert "Zephyr Capital" in zephyr.warnings[0]
+
+    def test_dangling_incomplete_scheme_is_skipped_with_warning(self, parser: CASParser):
         result = parser.parse(
             _fixture_bytes("cas_with_unparseable_scheme.pdf"), TEST_CAS_PDF_PASSWORD
         )
         assert len(result.holdings) == 4
         assert len(result.warnings) == 1
-        assert "Gamma Unparseable Fund" in result.warnings[0]
-        assert not any(h.scheme_name == "Gamma Unparseable Fund" for h in result.holdings)
+        assert "9999999" in result.warnings[0]
+        assert not any(h.folio_number == "9999999" for h in result.holdings)
 
     def test_wrong_password_raises(self, parser: CASParser):
         with pytest.raises(IncorrectPasswordError):
@@ -66,21 +75,6 @@ class TestCASParser:
     def test_no_recognizable_holdings_raises(self, parser: CASParser):
         with pytest.raises(UnrecognizedStatementFormatError):
             parser.parse(_fixture_bytes("cas_no_holdings.pdf"), TEST_CAS_PDF_PASSWORD)
-
-    def test_combined_summary_line_variant(self, parser: CASParser):
-        result = parser.parse(_fixture_bytes("cas_combined_variant.pdf"), TEST_CAS_PDF_PASSWORD)
-        assert len(result.holdings) == 1
-        assert result.holdings[0].market_value == Decimal("56391.23")
-
-    def test_three_labeled_lines_variant(self, parser: CASParser):
-        result = parser.parse(_fixture_bytes("cas_labeled_variant.pdf"), TEST_CAS_PDF_PASSWORD)
-        assert len(result.holdings) == 1
-        assert result.holdings[0].market_value == Decimal("44561.70")
-
-    def test_columnar_variant(self, parser: CASParser):
-        result = parser.parse(_fixture_bytes("cas_columnar_variant.pdf"), TEST_CAS_PDF_PASSWORD)
-        assert len(result.holdings) == 1
-        assert result.holdings[0].market_value == Decimal("125061.70")
 
     def test_reupload_fixtures_share_folio_and_scheme_but_differ_in_value(
         self, parser: CASParser

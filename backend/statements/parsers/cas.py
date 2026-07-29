@@ -13,31 +13,90 @@ _MONTHS = {
     "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
 }
 
-_NUMERIC_DATE_RE = re.compile(r"(\d{1,2})[/-](\d{1,2})[/-](\d{4})")
-_TEXT_DATE_RE = re.compile(r"(\d{1,2})[-/]([A-Za-z]{3,9})[-/](\d{4})", re.IGNORECASE)
+# A holding's first line: folio number (plain digits, or "digits/digits" for
+# sub-accounts), then its market value (always 2 decimals, a currency
+# amount), then the scheme code + name glued on with no separating
+# whitespace (a text-extraction artifact of adjacent PDF table cells).
+_HOLDING_START_RE = re.compile(r"^(\d+(?:/\d+)?)\s+([\d,]+\.\d{2})(\D.*)$")
 
-_AMC_LABEL_RE = re.compile(r"^\s*AMC\s*:\s*(.+?)\s*$", re.IGNORECASE)
-_AMC_BARE_RE = re.compile(r"^\s*(.+?\bMutual Fund)\s*$", re.IGNORECASE)
-_FOLIO_RE = re.compile(r"Folio\s*No\.?\s*:?\s*([\w/\-]+)", re.IGNORECASE)
-_CAS_AS_ON_RE = re.compile(r"CAS\s+as\s+on\s*:?\s*(.+?)\s*$", re.IGNORECASE)
-_ISIN_RE = re.compile(r"^\s*(?:ISIN\s*:?\s*)?([A-Z]{2}[A-Z0-9]{9}[0-9])\s*$")
+# A holding's closing line: unit balance, NAV date, NAV, then the registrar
+# name glued directly onto the ISIN (e.g. "CAMSINF209K01108",
+# "KFINTECHINF846K01131"), then cost value. Units/NAV/cost value have a
+# variable number of decimals; only the market value above is fixed at 2.
+_HOLDING_DETAIL_RE = re.compile(
+    r"^([\d,]+\.\d+)\s+"
+    r"(\d{1,2}-[A-Za-z]{3,9}-\d{4})\s+"
+    r"([\d,]+\.\d+)\s+"
+    r"(\S*?(INF[0-9A-Z]{9}))\s+"
+    r"([\d,]+\.\d+)\s*$"
+)
 
-_COMBINED_RE = re.compile(
-    r"Closing\s*Balance\s*:?\s*([\d,]+\.\d+)\s*"
-    r"NAV\s*:?\s*(?:Rs\.?)?\s*([\d,]+\.\d+).*?"
-    r"Market\s*Value\s*:?\s*(?:Rs\.?)?\s*([\d,]+\.\d+)",
-    re.IGNORECASE,
-)
-_CLOSING_UNIT_RE = re.compile(r"Closing\s*Unit\s*Balance\s*:?\s*([\d,]+\.\d+)", re.IGNORECASE)
-_NAV_RE = re.compile(
-    r"NAV(?:\s*as\s*on\s*(.+?))?\s*:?\s*(?:Rs\.?)?\s*([\d,]+\.\d+)", re.IGNORECASE
-)
-_MARKET_VALUE_RE = re.compile(r"Market\s*Value\s*:?\s*(?:Rs\.?)?\s*([\d,]+\.\d+)", re.IGNORECASE)
-_DECIMAL_TOKEN_RE = re.compile(r"-?[\d,]+\.\d+")
+_STATEMENT_DATE_RE = re.compile(r"^\s*As\s+on\s*:?\s*(.+?)\s*$", re.IGNORECASE)
+
+# Known SEBI-registered AMC name prefixes, as they appear in scheme text
+# (without the "Mutual Fund" suffix), mapped to a canonical display name so
+# variants (different sub-brands, or casing like "BARODA BNP PARIBAS" vs
+# "Baroda BNP Paribas") all group under one AMC. Matched case-insensitively,
+# longest prefix first, so a more specific prefix (e.g. "Aditya Birla Sun
+# Life") wins over a shorter one that happens to also match.
+_AMC_ALIASES: list[tuple[str, str]] = [
+    ("Aditya Birla Sun Life", "Aditya Birla Sun Life"),
+    ("Bajaj Finserv", "Bajaj Finserv"),
+    ("Bandhan", "Bandhan"),
+    ("Bank of India", "Bank of India"),
+    ("Baroda BNP Paribas", "Baroda BNP Paribas"),
+    ("Canara Robeco", "Canara Robeco"),
+    ("DSP", "DSP"),
+    ("Edelweiss", "Edelweiss"),
+    ("Franklin Templeton", "Franklin Templeton"),
+    ("Franklin India", "Franklin Templeton"),
+    ("Franklin", "Franklin Templeton"),
+    ("Groww", "Groww"),
+    ("HDFC", "HDFC"),
+    ("HSBC", "HSBC"),
+    ("Helios", "Helios"),
+    ("ICICI Prudential", "ICICI Prudential"),
+    ("IDBI", "IDBI"),
+    ("IIFL", "IIFL"),
+    ("ITI", "ITI"),
+    ("Invesco India", "Invesco"),
+    ("Invesco", "Invesco"),
+    ("JM Financial", "JM Financial"),
+    ("JM", "JM Financial"),
+    ("Kotak Mahindra", "Kotak Mahindra"),
+    ("Kotak", "Kotak Mahindra"),
+    ("LIC", "LIC"),
+    ("Mahindra Manulife", "Mahindra Manulife"),
+    ("Mirae Asset", "Mirae Asset"),
+    ("Motilal Oswal", "Motilal Oswal"),
+    ("Navi", "Navi"),
+    ("Nippon India", "Nippon India"),
+    ("NJ", "NJ"),
+    ("Old Bridge", "Old Bridge"),
+    ("PGIM India", "PGIM India"),
+    ("Parag Parikh", "PPFAS (Parag Parikh)"),
+    ("PPFAS", "PPFAS (Parag Parikh)"),
+    ("Quantum", "Quantum"),
+    ("Quant", "Quant"),
+    ("SBI", "SBI"),
+    ("Samco", "Samco"),
+    ("Shriram", "Shriram"),
+    ("Sundaram", "Sundaram"),
+    ("Tata", "Tata"),
+    ("Taurus", "Taurus"),
+    ("Trust", "Trust"),
+    ("UTI", "UTI"),
+    ("Union", "Union"),
+    ("WhiteOak Capital", "WhiteOak Capital"),
+    ("Zerodha", "Zerodha"),
+    ("360 ONE", "360 ONE"),
+    ("Axis", "Axis"),
+]
+_AMC_ALIASES_BY_LENGTH = sorted(_AMC_ALIASES, key=lambda pair: len(pair[0]), reverse=True)
 
 
 def _parse_date(raw: str) -> Optional[date]:
-    match = _NUMERIC_DATE_RE.search(raw)
+    match = re.search(r"(\d{1,2})[/-](\d{1,2})[/-](\d{4})", raw)
     if match:
         day, month, year = match.groups()
         try:
@@ -45,7 +104,7 @@ def _parse_date(raw: str) -> Optional[date]:
         except ValueError:
             return None
 
-    match = _TEXT_DATE_RE.search(raw)
+    match = re.search(r"(\d{1,2})[-/]([A-Za-z]{3,9})[-/](\d{4})", raw)
     if match:
         day, month_name, year = match.groups()
         month = _MONTHS.get(month_name[:3].lower())
@@ -59,16 +118,6 @@ def _parse_date(raw: str) -> Optional[date]:
     return None
 
 
-def _is_boundary_line(line: str) -> bool:
-    return bool(
-        not line
-        or _FOLIO_RE.search(line)
-        or _AMC_LABEL_RE.match(line)
-        or _AMC_BARE_RE.match(line)
-        or _CAS_AS_ON_RE.search(line)
-    )
-
-
 def _to_decimal(raw: str) -> Optional[Decimal]:
     try:
         return Decimal(raw.replace(",", ""))
@@ -76,80 +125,51 @@ def _to_decimal(raw: str) -> Optional[Decimal]:
         return None
 
 
-def _try_combined(line: str) -> Optional[tuple[Decimal, Decimal, Decimal, Optional[date]]]:
-    match = _COMBINED_RE.search(line)
+def _split_registrar_isin(token: str) -> tuple[Optional[str], Optional[str]]:
+    match = re.search(r"INF[0-9A-Z]{9}", token)
     if not match:
-        return None
-    units, nav, market_value = (_to_decimal(g) for g in match.groups())
-    if units is None or nav is None or market_value is None:
-        return None
-    return units, nav, market_value, None
+        return None, None
+    isin = match.group(0)
+    registrar = token[: match.start()].strip() or None
+    return registrar, isin
 
 
-def _try_labeled_lines(
-    lines: list[str],
-) -> Optional[tuple[Decimal, Decimal, Decimal, Optional[date]]]:
-    units: Optional[Decimal] = None
-    nav: Optional[Decimal] = None
-    market_value: Optional[Decimal] = None
-    valuation_date: Optional[date] = None
+def _split_amc_and_scheme(raw_scheme_text: str) -> tuple[str, str, list[str]]:
+    """Split "<code> - <AMC name><scheme descriptor>" into (amc, scheme_name, warnings).
 
-    for line in lines:
-        if units is None:
-            match = _CLOSING_UNIT_RE.search(line)
-            if match:
-                units = _to_decimal(match.group(1))
-                continue
-        if nav is None:
-            match = _NAV_RE.search(line)
-            if match:
-                nav = _to_decimal(match.group(2))
-                if match.group(1):
-                    valuation_date = _parse_date(match.group(1))
-                continue
-        if market_value is None:
-            match = _MARKET_VALUE_RE.search(line)
-            if match:
-                market_value = _to_decimal(match.group(1))
-                continue
+    scheme_name keeps the leading scheme code (useful to disambiguate very
+    similar plans) but drops the AMC name, since the account naming
+    convention already puts AMC in its own path segment.
+    """
+    warnings: list[str] = []
+    text = re.sub(r"\s+", " ", raw_scheme_text).strip()
 
-    if units is None or nav is None or market_value is None:
-        return None
-    return units, nav, market_value, valuation_date
+    if " - " in text:
+        code, descriptor = text.split(" - ", 1)
+    else:
+        code, descriptor = "", text
+    code = code.strip()
+    descriptor = descriptor.strip()
 
+    amc: Optional[str] = None
+    remainder = descriptor
+    for prefix, canonical in _AMC_ALIASES_BY_LENGTH:
+        if descriptor.lower().startswith(prefix.lower()):
+            amc = canonical
+            remainder = descriptor[len(prefix):].strip(" -")
+            break
 
-def _try_columnar(lines: list[str]) -> Optional[tuple[Decimal, Decimal, Decimal, Optional[date]]]:
-    for line in lines:
-        if "value" not in line.lower():
-            continue
-        tokens = _DECIMAL_TOKEN_RE.findall(line)
-        if len(tokens) not in (2, 3):
-            continue
-        numbers = [_to_decimal(t) for t in tokens]
-        if any(n is None for n in numbers):
-            continue
-        if len(numbers) == 3:
-            units, nav, market_value = numbers
-        else:
-            units, market_value = numbers
-            nav = market_value / units if units else Decimal("0")
-        return units, nav, market_value, None
-    return None
+    if amc is None:
+        words = descriptor.split(" ")
+        amc = " ".join(words[:2]) if len(words) >= 2 else (words[0] if words else "Unknown")
+        remainder = " ".join(words[2:]).strip(" -") if len(words) > 2 else descriptor
+        warnings.append(
+            f"Could not confidently identify the AMC for '{descriptor}' "
+            f"— guessed '{amc}', please verify."
+        )
 
-
-def _parse_summary(
-    lines: list[str],
-) -> Optional[tuple[Decimal, Decimal, Decimal, Optional[date]]]:
-    for line in lines:
-        result = _try_combined(line)
-        if result:
-            return result
-
-    result = _try_labeled_lines(lines)
-    if result:
-        return result
-
-    return _try_columnar(lines)
+    scheme_name = f"{code} - {remainder}" if code and remainder else (remainder or code or descriptor)
+    return amc, scheme_name, warnings
 
 
 class CASParser(CASStatementParser):
@@ -157,92 +177,88 @@ class CASParser(CASStatementParser):
         text = decrypt_and_extract_text(pdf_bytes, password)
         lines = [line.strip() for line in text.splitlines()]
 
-        current_amc: Optional[str] = None
-        current_folio: Optional[str] = None
         statement_date: Optional[date] = None
         warnings: list[str] = []
         pending: list[tuple[dict, Optional[date]]] = []
 
-        i = 0
-        n = len(lines)
-        while i < n:
-            line = lines[i]
+        pending_start: Optional[re.Match] = None
+        scheme_text_lines: list[str] = []
+
+        for line in lines:
             if not line:
-                i += 1
                 continue
 
-            cas_date_match = _CAS_AS_ON_RE.search(line)
-            if cas_date_match:
-                statement_date = _parse_date(cas_date_match.group(1))
-                i += 1
+            if statement_date is None:
+                date_match = _STATEMENT_DATE_RE.match(line)
+                if date_match:
+                    statement_date = _parse_date(date_match.group(1))
+                    continue
+
+            start_match = _HOLDING_START_RE.match(line)
+            if start_match:
+                # A new holding started before the previous one's detail
+                # line was found (shouldn't normally happen) — drop the
+                # incomplete one rather than silently merging it into this
+                # one's data.
+                if pending_start is not None:
+                    warnings.append(
+                        "Could not find balance details for a scheme before the "
+                        "next one started — skipped."
+                    )
+                pending_start = start_match
+                scheme_text_lines = [start_match.group(3)]
                 continue
 
-            amc_match = _AMC_LABEL_RE.match(line)
-            if amc_match:
-                current_amc = amc_match.group(1)
-                i += 1
-                continue
-            amc_match = _AMC_BARE_RE.match(line)
-            if amc_match:
-                current_amc = amc_match.group(1)
-                i += 1
+            if pending_start is None:
                 continue
 
-            folio_match = _FOLIO_RE.search(line)
-            if folio_match:
-                current_folio = folio_match.group(1)
-                i += 1
+            detail_match = _HOLDING_DETAIL_RE.match(line)
+            if not detail_match:
+                scheme_text_lines.append(line)
                 continue
 
-            if current_amc is None or current_folio is None:
-                i += 1
-                continue
+            folio_number = pending_start.group(1)
+            market_value = _to_decimal(pending_start.group(2))
+            raw_scheme_text = " ".join(scheme_text_lines)
+            amc, scheme_name, split_warnings = _split_amc_and_scheme(raw_scheme_text)
 
-            # A scheme block runs from here up to the next recognized
-            # boundary line (a new Folio No/AMC/CAS-as-on line, or a blank
-            # line) — pypdf's extracted text doesn't reliably keep blank
-            # lines between scheme entries, so boundary lines are the only
-            # dependable separator until this is checked against a real
-            # CAS PDF (see the parser's real-sample validation gate).
-            block_end = i + 1
-            while block_end < n and not _is_boundary_line(lines[block_end]):
-                block_end += 1
-            block = lines[i:block_end]
-            i = block_end
+            units = _to_decimal(detail_match.group(1))
+            local_date = _parse_date(detail_match.group(2))
+            nav = _to_decimal(detail_match.group(3))
+            registrar, isin = _split_registrar_isin(detail_match.group(4))
+            cost_value = _to_decimal(detail_match.group(6))
 
-            scheme_name = block[0]
-            remaining = block[1:]
+            pending_start = None
+            scheme_text_lines = []
 
-            isin: Optional[str] = None
-            if remaining:
-                isin_match = _ISIN_RE.match(remaining[0])
-                if isin_match:
-                    isin = isin_match.group(1)
-                    remaining = remaining[1:]
-
-            summary = _parse_summary(remaining)
-            if summary is None:
+            if market_value is None or units is None or nav is None or cost_value is None:
                 warnings.append(
                     f"Could not parse balance for scheme '{scheme_name}' "
-                    f"(folio {current_folio}) — skipped."
+                    f"(folio {folio_number}) — skipped."
                 )
                 continue
 
-            units, nav, market_value, local_date = summary
             pending.append(
                 (
                     {
-                        "amc": current_amc,
+                        "amc": amc,
                         "scheme_name": scheme_name,
-                        "folio_number": current_folio,
+                        "folio_number": folio_number,
                         "isin": isin,
                         "units": units,
                         "nav": nav,
                         "market_value": market_value,
-                        "source": None,
+                        "source": registrar,
+                        "warnings": split_warnings,
                     },
                     local_date,
                 )
+            )
+
+        if pending_start is not None:
+            warnings.append(
+                f"Could not find balance details for the scheme starting at "
+                f"folio {pending_start.group(1)} — skipped."
             )
 
         if not pending:

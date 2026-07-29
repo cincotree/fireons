@@ -3,12 +3,17 @@
 Run directly to regenerate all fixture files:
     uv run python tests/fixtures/generate_cas_fixture.py
 
-These are NOT real CAS statements — no real folio, scheme, or holding data
-is used anywhere in this repo. The layout (a "CAS as on" header line, then
-AMC / Folio No blocks each followed by a scheme name, optional ISIN line,
-and a units/NAV/market-value summary, with blank lines separating scheme
-entries) has not yet been checked against a real CAMS/KFintech/MFCentral
-CAS PDF — see the real-sample validation gate in statements/parsers/cas.py.
+These are NOT real CAS statements — no real folio, scheme, holding, or
+investor data is used anywhere in this repo. The layout (a "Consolidated
+Account Summary" / "As on <date>" header, then one row per holding: folio
+number + market value + scheme code/name on one or more lines, followed by a
+closing line of unit balance / NAV date / NAV / registrar+ISIN / cost value)
+mirrors the structure of a real CAMS-issued "Consolidated Account Summary"
+PDF, confirmed by manually inspecting one (outside this repo, never
+committed) while fixing this parser. AMC names used below (HDFC, SBI,
+Aditya Birla Sun Life, Tata) are real, publicly known fund-house names —
+matching the parser's actual AMC-alias list is the point — but every folio
+number, scheme code, unit balance, NAV, and rupee amount is made up.
 """
 
 from io import BytesIO
@@ -21,95 +26,93 @@ TEST_CAS_PDF_PASSWORD = "Fireons-CAS-Test-1234"
 
 FIXTURES_DIR = Path(__file__).parent
 
-HEADER_LINES = [
-    "CAMS CONSOLIDATED ACCOUNT STATEMENT",
-    "",
-    "CAS as on: 31-Mar-2025",
-    "",
-]
 
-# Combined "Closing Balance / NAV / Market Value" summary line, with ISIN.
+def _header_lines(as_on: str, doc_id: str = "TEST0001") -> list[str]:
+    return [
+        f"CAMSCASWS-{doc_id} Version:V1.0 Test",
+        "Consolidated Account Summary",
+        f"As on {as_on}",
+        "Page 1 of 1",
+        "Market ValueFolio No.",
+        "(INR)",
+        "Scheme Name Unit Balance",
+        "NAV Date NAV Registrar",
+        "(INR)",
+        "ISIN Cost Value",
+        "(INR)",
+    ]
+
+
+# Known AMC (Aditya Birla Sun Life), CAMS registrar, scheme text wraps
+# across two lines.
 SCHEME_A_LINES = [
-    "AMC: Alpha Mutual Fund",
-    "Folio No: 1122334 / 0",
-    "Alpha Bluechip Growth Fund",
-    "ISIN: INF111A01234",
-    "Closing Balance: 1234.567 NAV: 45.6789 Market Value: 56391.23",
-    "",
+    "1234567 56,391.23T001 - Aditya Birla Sun Life Test Bluechip",
+    "Fund - Growth-Direct Plan (Non-Demat)",
+    "1,234.567 31-Mar-2025 45.6789 CAMSINF999A01111 50,000.000",
 ]
 
-# Three separate labeled lines, no ISIN (missing-ISIN case).
+# Known AMC (HDFC), KFintech registrar, zero-balance holding (fully
+# redeemed, folio retained), single-line scheme text.
 SCHEME_B_LINES = [
-    "Folio No: 1122335 / 0",
-    "Alpha Small Cap Fund - Direct Growth",
-    "Closing Unit Balance: 500.000",
-    "NAV as on 31-Mar-2025: 89.1234",
-    "Market Value: 44561.70",
-    "",
+    "7654321/0 0.00T002 - HDFC Test Liquid Fund - Direct Plan - Growth (Non-Demat)",
+    "0.000 31-Mar-2025 350.1234 KFINTECHINF999B02222 0.000",
 ]
 
-# Bare AMC header (no "AMC:" label) + columnar summary line.
+# Known AMC (SBI), CAMS registrar, Indian-style comma grouping, scheme text
+# wraps across three lines to stress multi-line accumulation.
 SCHEME_C_LINES = [
-    "Beta Mutual Fund",
-    "Folio No: 9988776 / 0",
-    "Beta Liquid Fund - Direct Growth",
-    "ISIN: INF222B05678",
-    "500.000000 250.1234 125061.70 (Value)",
-    "",
+    "9988776 1,25,061.70T003 - SBI Test Small Cap",
+    "Fund - Regular",
+    "Plan - Growth (Demat)",
+    "500.000 31-Mar-2025 250.1234 CAMSINF999C03333 1,00,000.000",
 ]
 
-# Zero-unit holding (fully redeemed, folio retained), combined summary line.
+# AMC not in the parser's known-alias list — exercises the "guess from the
+# first two words, flag a per-holding warning" fallback path.
 SCHEME_D_LINES = [
-    "Folio No: 9988777 / 0",
-    "Beta Redeemed Scheme - Growth",
-    "ISIN: INF222B09999",
-    "Closing Balance: 0.000 NAV: 10.0000 Market Value: 0.00",
-    "",
+    "5551111 12,345.60T004 - Zephyr Capital Test",
+    "Fund - Growth (Non-Demat)",
+    "100.000 31-Mar-2025 123.456 CAMSINF999D04444 10,000.000",
 ]
 
-# One scheme whose balance line is unparseable by any of the three summary
-# variants — should be skipped with a warning, not fail the whole document.
+# Starts a holding but never provides a valid closing line before EOF —
+# should be skipped with a warning, not fail the whole document.
 UNPARSEABLE_SCHEME_LINES = [
-    "Folio No: 5555555 / 0",
-    "Gamma Unparseable Fund",
-    "ISIN: INF333C01234",
-    "This line has no recognizable balance data at all.",
-    "",
+    "9999999 1,000.00T005 - Broken Test Fund - This scheme has no",
+    "recognizable balance detail line at all, just prose.",
 ]
 
 VALID_CAS_LINES = (
-    HEADER_LINES + SCHEME_A_LINES + SCHEME_B_LINES + SCHEME_C_LINES + SCHEME_D_LINES
+    _header_lines("31-Mar-2025")
+    + SCHEME_A_LINES
+    + SCHEME_B_LINES
+    + SCHEME_C_LINES
+    + SCHEME_D_LINES
 )
 
 CAS_WITH_UNPARSEABLE_SCHEME_LINES = VALID_CAS_LINES + UNPARSEABLE_SCHEME_LINES
 
-COMBINED_VARIANT_ONLY_LINES = HEADER_LINES + SCHEME_A_LINES
-LABELED_VARIANT_ONLY_LINES = HEADER_LINES + ["AMC: Alpha Mutual Fund"] + SCHEME_B_LINES
-COLUMNAR_VARIANT_ONLY_LINES = HEADER_LINES + SCHEME_C_LINES
-
 NO_HOLDINGS_LINES = [
     "SOME UNRELATED DOCUMENT",
     "This file is not a CAS statement.",
-    "It has no AMC, folio, or scheme information at all.",
+    "It has no folio or scheme holding information at all.",
 ]
 
-_REUPLOAD_SCHEME_LINES = [
-    "AMC: Gamma Mutual Fund",
-    "Folio No: 7777777 / 0",
-    "Gamma Growth Fund",
-    "ISIN: INF444D01234",
+_REUPLOAD_SCHEME_DESCRIPTOR = [
+    "T006 - Tata Test Growth Fund - Direct Plan -",
+    "Growth (Non-Demat)",
 ]
 
 CAS_REUPLOAD_BEFORE_LINES = (
-    ["CAMS CONSOLIDATED ACCOUNT STATEMENT", "", "CAS as on: 31-Mar-2025", ""]
-    + _REUPLOAD_SCHEME_LINES
-    + ["Closing Balance: 1000.000 NAV: 50.0000 Market Value: 50000.00", ""]
+    _header_lines("31-Mar-2025", "TEST0002")
+    + [f"5551234 50,000.00{_REUPLOAD_SCHEME_DESCRIPTOR[0]}"] + _REUPLOAD_SCHEME_DESCRIPTOR[1:]
+    + ["1,000.000 31-Mar-2025 50.0000 CAMSINF999E05555 45,000.000"]
 )
 
 CAS_REUPLOAD_AFTER_LINES = (
-    ["CAMS CONSOLIDATED ACCOUNT STATEMENT", "", "CAS as on: 30-Apr-2025", ""]
-    + _REUPLOAD_SCHEME_LINES
-    + ["Closing Balance: 1100.000 NAV: 55.0000 Market Value: 60500.00", ""]
+    _header_lines("30-Apr-2025", "TEST0002")
+    + [f"5551234 60,500.00{_REUPLOAD_SCHEME_DESCRIPTOR[0]}"] + _REUPLOAD_SCHEME_DESCRIPTOR[1:]
+    + ["1,100.000 30-Apr-2025 55.0000 CAMSINF999E05555 49,500.000"]
 )
 
 
@@ -141,21 +144,6 @@ def generate_all() -> None:
         CAS_WITH_UNPARSEABLE_SCHEME_LINES,
         TEST_CAS_PDF_PASSWORD,
         FIXTURES_DIR / "cas_with_unparseable_scheme.pdf",
-    )
-    _write_encrypted(
-        COMBINED_VARIANT_ONLY_LINES,
-        TEST_CAS_PDF_PASSWORD,
-        FIXTURES_DIR / "cas_combined_variant.pdf",
-    )
-    _write_encrypted(
-        LABELED_VARIANT_ONLY_LINES,
-        TEST_CAS_PDF_PASSWORD,
-        FIXTURES_DIR / "cas_labeled_variant.pdf",
-    )
-    _write_encrypted(
-        COLUMNAR_VARIANT_ONLY_LINES,
-        TEST_CAS_PDF_PASSWORD,
-        FIXTURES_DIR / "cas_columnar_variant.pdf",
     )
     _write_encrypted(
         NO_HOLDINGS_LINES, TEST_CAS_PDF_PASSWORD, FIXTURES_DIR / "cas_no_holdings.pdf"
