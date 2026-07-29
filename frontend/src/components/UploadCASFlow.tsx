@@ -73,6 +73,7 @@ export function UploadCASFlow({ open, onClose, onImported }: UploadCASFlowProps)
   const [documentWarnings, setDocumentWarnings] = useState<string[]>([]);
   const [rows, setRows] = useState<HoldingRow[]>([]);
   const [resultSummary, setResultSummary] = useState<string | null>(null);
+  const [importSucceeded, setImportSucceeded] = useState(false);
 
   const reset = () => {
     setStep(1);
@@ -83,11 +84,16 @@ export function UploadCASFlow({ open, onClose, onImported }: UploadCASFlowProps)
     setDocumentWarnings([]);
     setRows([]);
     setResultSummary(null);
+    setImportSucceeded(false);
   };
 
   const handleClose = () => {
+    const shouldRefresh = importSucceeded;
     reset();
     onClose();
+    if (shouldRefresh) {
+      onImported();
+    }
   };
 
   const handleParse = async () => {
@@ -198,8 +204,7 @@ export function UploadCASFlow({ open, onClose, onImported }: UploadCASFlowProps)
       }
 
       setResultSummary(`Created ${data.created_count}, updated ${data.updated_count}`);
-      onImported();
-      setTimeout(handleClose, 1200);
+      setImportSucceeded(true);
     } catch (err: any) {
       setError(err.message);
     } finally {
