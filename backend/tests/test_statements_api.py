@@ -198,3 +198,37 @@ class TestConfirmStatementEndpoint:
             },
         )
         assert response.status_code == 400
+
+    async def test_reimporting_same_statement_updates_instead_of_duplicating(
+        self, client: AsyncClient, auth_headers: dict, test_user: User, session: AsyncSession
+    ):
+        payload = {
+            "bank": "HDFC",
+            "account_name": "Assets:Bank:HDFC:6789",
+            "currency": "INR",
+            "closing_balance": "123456.78",
+            "statement_date": "2025-03-31",
+            "account_number": "50100123456789",
+            "account_holder_name": "TEST USER",
+        }
+
+        first = await client.post(
+            "/api/statements/confirm", headers=auth_headers, json=payload
+        )
+        assert first.status_code == 200
+
+        # Re-importing the same statement (same suggested account name) must
+        # update the existing account's balance, not raise a duplicate-key
+        # IntegrityError from the DB's unique (user_id, name) constraint.
+        second = await client.post(
+            "/api/statements/confirm",
+            headers=auth_headers,
+            json={**payload, "closing_balance": "150000.00", "statement_date": "2025-04-30"},
+        )
+        assert second.status_code == 200
+        assert Decimal(second.json()["amount"]) == Decimal("150000.00")
+        assert second.json()["account_id"] == first.json()["account_id"]
+
+        account_repo = AccountRepository(session)
+        accounts = await account_repo.list_all(user_id=test_user.id)
+        assert len(accounts) == 1
