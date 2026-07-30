@@ -7,6 +7,7 @@ import { getBaseHttpUrl } from "@/utils/api";
 import { NetWorthChart } from "@/components/NetWorthChart";
 import { AssetAllocationChart } from "@/components/AssetAllocationChart";
 import { AccountHierarchyTree } from "@/components/AccountHierarchyTree";
+import { UploadStatementFlow } from "@/components/UploadStatementFlow";
 
 interface Account {
   id: string;
@@ -42,6 +43,7 @@ export function NetWorthDashboard() {
   const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
   const [accountToClose, setAccountToClose] = useState<Account | null>(null);
   const [chartsRefreshKey, setChartsRefreshKey] = useState(0);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -376,12 +378,20 @@ export function NetWorthDashboard() {
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold">Account Hierarchy</h2>
-          <Button
-            onClick={() => openAccountModal()}
-            className="bg-gray-200 text-gray-700 hover:bg-blue-100 hover:text-blue-700 transition-colors"
-          >
-            Add Account
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => setIsImportModalOpen(true)}
+              variant="outline"
+            >
+              Import Statement
+            </Button>
+            <Button
+              onClick={() => openAccountModal()}
+              className="bg-gray-200 text-gray-700 hover:bg-blue-100 hover:text-blue-700 transition-colors"
+            >
+              Add Account
+            </Button>
+          </div>
         </div>
         <AccountHierarchyTree
           accounts={accounts}
@@ -577,6 +587,12 @@ export function NetWorthDashboard() {
           </DialogFooter>
         </DialogContent>
       </Modal>
+
+      <UploadStatementFlow
+        open={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImported={fetchData}
+      />
     </div>
   );
 }

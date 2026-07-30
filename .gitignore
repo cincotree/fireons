@@ -32,3 +32,10 @@ frontend/test-results/
 .gemini/
 .github/hooks/
 backend/vendors.db
+
+# Personal / sensitive data safety net (see "Handling Personal Data" in
+# CLAUDE.md / AGENTS.md). Real bank statements and other personal documents
+# must never be committed, even for local debugging. Test fixtures are
+# synthetic and live in committed fixtures/ directories, unaffected by this.
+**/local-samples/
+Acct_Statement_*.pdf

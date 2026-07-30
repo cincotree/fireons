@@ -167,9 +167,9 @@ class AccountRepository:
 class TransactionRepository:
     """Repository for Transaction operations.
 
-    Minimal stub: transaction/posting import is out of scope for now.
-    Exists so `database.repository` exposes the name tests/conftest.py
-    already imports.
+    Minimal stub: transaction/posting import is out of scope for now
+    (see BACKLOG milestone G). Exists so `database.repository` exposes
+    the name tests/conftest.py already imports.
     """
 
     def __init__(self, session: AsyncSession):
