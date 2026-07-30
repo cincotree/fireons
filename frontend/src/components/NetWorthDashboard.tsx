@@ -42,6 +42,7 @@ export function NetWorthDashboard() {
   const [originalBalance, setOriginalBalance] = useState<number | null>(null);
   const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
   const [accountToClose, setAccountToClose] = useState<Account | null>(null);
+  const [chartsRefreshKey, setChartsRefreshKey] = useState(0);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   useEffect(() => {
@@ -67,6 +68,10 @@ export function NetWorthDashboard() {
 
       const accountsData = await accountsRes.json();
       setAccounts(accountsData);
+      // NetWorthChart/AssetAllocationChart fetch their own data independently
+      // of `accounts`, so bump their key to force a remount+refetch whenever
+      // account data changes (create/edit/close/balance update).
+      setChartsRefreshKey((key) => key + 1);
     } catch (err) {
       console.error("Error fetching data:", err);
       setError("Failed to load net worth data. Please try again.");
@@ -361,12 +366,12 @@ export function NetWorthDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white rounded-lg shadow p-6 md:col-span-2">
           <h2 className="text-xl font-semibold mb-4">Growth trend</h2>
-          <NetWorthChart currency={selectedCurrency} />
+          <NetWorthChart key={chartsRefreshKey} currency={selectedCurrency} />
         </div>
 
         <div className="bg-white rounded-lg shadow p-6 md:col-span-1">
           <h2 className="text-xl font-semibold mb-4">Asset Allocation</h2>
-          <AssetAllocationChart currency={selectedCurrency} />
+          <AssetAllocationChart key={chartsRefreshKey} currency={selectedCurrency} />
         </div>
       </div>
 
