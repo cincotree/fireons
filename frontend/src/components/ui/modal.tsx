@@ -32,6 +32,9 @@ const styles = {
         maxHeight: '90vh',
         overflow: 'auto',
     },
+    dialogContentWide: {
+        maxWidth: '960px',
+    },
     dialogContentInner: {
         padding: '10px',
     },
@@ -53,13 +56,14 @@ interface DialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     children: React.ReactNode;
+    size?: 'default' | 'wide';
 }
 
 interface DialogContentProps {
     children: React.ReactNode;
 }
 
-export const Modal = ({ open, onOpenChange, children }: DialogProps) => {
+export const Modal = ({ open, onOpenChange, children, size = 'default' }: DialogProps) => {
     if (!open) return null;
 
     const handleOverlayClick = (e: React.MouseEvent) => {
@@ -68,10 +72,14 @@ export const Modal = ({ open, onOpenChange, children }: DialogProps) => {
         }
     };
 
+    const contentStyle = size === 'wide'
+        ? { ...styles.dialogContent, ...styles.dialogContentWide }
+        : styles.dialogContent;
+
     return (
         <div style={styles.dialog} onClick={handleOverlayClick}>
             <div style={styles.dialogOverlay} />
-            <div style={styles.dialogContent}>{children}</div>
+            <div style={contentStyle}>{children}</div>
         </div>
     );
 };

@@ -1,4 +1,5 @@
-from statements.parsers.base import BankStatementParser
+from statements.parsers.base import BankStatementParser, CASStatementParser
+from statements.parsers.cas import CASParser
 from statements.parsers.exceptions import UnsupportedBankError
 from statements.parsers.hdfc import HDFCStatementParser
 
@@ -16,3 +17,7 @@ def get_parser(bank_code: str) -> BankStatementParser:
 
 def list_supported_banks() -> list[str]:
     return sorted(_PARSERS.keys())
+
+
+def get_cas_parser() -> CASStatementParser:
+    return CASParser()

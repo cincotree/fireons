@@ -28,3 +28,33 @@ class BankStatementParser(ABC):
         UnrecognizedStatementFormatError from statements.parsers.exceptions.
         """
         raise NotImplementedError
+
+
+class ParsedCASHolding(BaseModel):
+    amc: str
+    scheme_name: str
+    folio_number: str
+    isin: Optional[str] = None
+    units: Decimal
+    nav: Decimal
+    market_value: Decimal
+    valuation_date: date
+    source: Optional[str] = None
+    warnings: list[str] = []
+
+
+class ParsedCASData(BaseModel):
+    statement_date: date
+    holdings: list[ParsedCASHolding]
+    warnings: list[str] = []
+
+
+class CASStatementParser(ABC):
+    @abstractmethod
+    def parse(self, pdf_bytes: bytes, password: str) -> ParsedCASData:
+        """Decrypt and parse a mutual fund CAS PDF into ParsedCASData.
+
+        Raises IncorrectPasswordError, InvalidPDFError, or
+        UnrecognizedStatementFormatError from statements.parsers.exceptions.
+        """
+        raise NotImplementedError
