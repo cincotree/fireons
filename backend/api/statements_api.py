@@ -116,20 +116,26 @@ async def confirm_statement(
     account_repo = AccountRepository(session)
     balance_repo = BalanceRepository(session)
 
+    meta = {
+        "bank": confirm_data.bank,
+        "account_number": confirm_data.account_number,
+        "account_holder_name": confirm_data.account_holder_name,
+        "source": "statement_upload",
+    }
+
     try:
-        account = await account_repo.create(
-            user_id=current_user.id,
-            name=confirm_data.account_name,
-            open_date=confirm_data.statement_date,
-            currency=confirm_data.currency,
-            description=confirm_data.description,
-            meta={
-                "bank": confirm_data.bank,
-                "account_number": confirm_data.account_number,
-                "account_holder_name": confirm_data.account_holder_name,
-                "source": "statement_upload",
-            },
-        )
+        existing = await account_repo.get_by_name(confirm_data.account_name, current_user.id)
+        if existing is not None:
+            account = await account_repo.update(existing.id, meta=meta)
+        else:
+            account = await account_repo.create(
+                user_id=current_user.id,
+                name=confirm_data.account_name,
+                open_date=confirm_data.statement_date,
+                currency=confirm_data.currency,
+                description=confirm_data.description,
+                meta=meta,
+            )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
