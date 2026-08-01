@@ -19,12 +19,12 @@ export default function ForProfessionals() {
           <p className="text-xl text-blue-100 mb-8">
             Connect with FIRE enthusiasts who are serious about achieving financial independence
           </p>
-          <a
-            href={appRoutes.registerProfessional}
+          <Link
+            href={appRoutes.waitlistProfessional}
             className="inline-block bg-amber-500 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-amber-600 transition-colors shadow-lg"
           >
-            Join as an Advisor
-          </a>
+            Join the Waitlist
+          </Link>
         </div>
       </section>
 
@@ -250,12 +250,12 @@ export default function ForProfessionals() {
             Start connecting with motivated clients today
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a
-              href={appRoutes.registerProfessional}
+            <Link
+              href={appRoutes.waitlistProfessional}
               className="inline-block bg-amber-500 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-amber-600 transition-colors shadow-lg"
             >
-              Create Professional Profile
-            </a>
+              Join the Waitlist
+            </Link>
             <Link
               href="/features"
               className="inline-block bg-white text-teal-700 px-8 py-4 rounded-lg text-lg font-semibold hover:bg-gray-100 transition-colors shadow-lg"
