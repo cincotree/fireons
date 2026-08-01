@@ -22,15 +22,15 @@ export default function Home() {
               Track your net worth across currencies, connect with the FIRE community, and get guidance from financial professionals.
             </p>
             <div className="mt-12 flex flex-col sm:flex-row gap-4 justify-center">
-              <a
-                href={appRoutes.register}
+              <Link
+                href={appRoutes.waitlist}
                 className="group bg-cyan-600 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-cyan-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
               >
-                Get Started
+                Join the Waitlist
                 <svg className="inline-block ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                 </svg>
-              </a>
+              </Link>
               <Link
                 href="/about"
                 className="border-2 border-slate-300 text-slate-700 px-8 py-4 rounded-lg text-lg font-semibold hover:border-cyan-600 hover:text-cyan-600 hover:bg-cyan-50 transition-all"
@@ -213,15 +213,15 @@ export default function Home() {
             <p className="text-xl text-slate-600 mb-10 max-w-2xl mx-auto">
               Join thousands of Fireons working towards financial independence
             </p>
-            <a
-              href={appRoutes.register}
+            <Link
+              href={appRoutes.waitlist}
               className="inline-flex items-center gap-2 bg-cyan-600 text-white px-10 py-5 rounded-xl text-lg font-semibold hover:bg-cyan-700 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
             >
-              Get Started for Free
+              Join the Waitlist
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
               </svg>
-            </a>
+            </Link>
           </div>
         </div>
       </section>

@@ -43,14 +43,9 @@ export default function Footer() {
             <h4 className="font-semibold mb-4">For Fireons</h4>
             <ul className="space-y-2 text-sm">
               <li>
-                <a href={appRoutes.register} className="text-gray-400 hover:text-white transition-colors">
-                  Join Community
-                </a>
-              </li>
-              <li>
-                <a href={appRoutes.login} className="text-gray-400 hover:text-white transition-colors">
-                  Login
-                </a>
+                <Link href={appRoutes.waitlist} className="text-gray-400 hover:text-white transition-colors">
+                  Join the Waitlist
+                </Link>
               </li>
             </ul>
           </div>
@@ -65,9 +60,9 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <a href={appRoutes.registerProfessional} className="text-gray-400 hover:text-white transition-colors">
-                  Join as Advisor
-                </a>
+                <Link href={appRoutes.waitlistProfessional} className="text-gray-400 hover:text-white transition-colors">
+                  Join the Waitlist
+                </Link>
               </li>
             </ul>
           </div>

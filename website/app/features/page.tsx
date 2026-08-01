@@ -280,12 +280,12 @@ export default function Features() {
           <p className="text-xl text-blue-100 mb-8">
             Join Fireones today and start your journey to financial independence
           </p>
-          <a
-            href={appRoutes.register}
+          <Link
+            href={appRoutes.waitlist}
             className="inline-block bg-amber-500 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-amber-600 transition-colors shadow-lg"
           >
-            Get Started for Free
-          </a>
+            Join the Waitlist
+          </Link>
         </div>
       </section>
     </div>
