@@ -1,0 +1,25 @@
+{
+  "as_of": "2026-07-31",
+  "reporting_currency": "INR",
+  "positions": {
+    "Assets:Investment:MutualFund:SampleAMC1:FOLIO001:SchemeAlpha": {
+      "account_name": "Assets:Investment:MutualFund:SampleAMC1:FOLIO001:SchemeAlpha",
+      "units": "100.000",
+      "nav": "50.5000",
+      "value": "5050.00",
+      "currency": "INR",
+      "as_of": "2026-07-31",
+      "doc_issued_at": "2026-08-05T00:00:00"
+    },
+    "Assets:Investment:MutualFund:SampleAMC2:FOLIO002:SchemeBeta": {
+      "account_name": "Assets:Investment:MutualFund:SampleAMC2:FOLIO002:SchemeBeta",
+      "units": "200.000",
+      "nav": "25.2500",
+      "value": "5050.00",
+      "currency": "INR",
+      "as_of": "2026-07-31",
+      "doc_issued_at": "2026-08-05T00:00:00"
+    }
+  },
+  "total": "10100.00"
+}

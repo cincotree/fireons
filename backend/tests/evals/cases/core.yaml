@@ -1,0 +1,455 @@
+- id: fresh
+  description: >
+    Ingesting into an empty ledger creates positions from nothing —
+    the baseline every other case is compared against.
+  layer: L1
+  tags: [baseline]
+  current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
+  files: [fixtures/hdfc_2026_07.pdf, fixtures/cams_2026_07.pdf]
+  expected_nw: !include expected/fresh.json
+  permute: true
+
+- id: replay
+  description: >
+    Ingesting the same file twice must be idempotent — identical to
+    ingesting it once.
+  layer: L1
+  tags: [idempotency]
+  current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
+  files: [fixtures/hdfc_2026_07.pdf, fixtures/hdfc_2026_07.pdf]
+  expected_nw: !include expected/hdfc_2026_07_only.json
+  permute: false
+
+- id: stale_after_fresh
+  description: >
+    A May CAS ingested alongside a July CAS must not roll positions back,
+    regardless of which order they arrive in. This is the core staleness
+    guarantee (as_of supersession).
+  layer: L1
+  tags: [staleness, cams, supersession]
+  current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
+  files: [fixtures/cams_2026_07.pdf, fixtures/cams_2026_05.pdf]
+  expected_nw: !include expected/cams_2026_07_only.json
+  permute: true
+
+- id: restatement
+  description: >
+    Same as_of, corrected figures, later doc_issued_at — the correction
+    must win regardless of arrival order (the (as_of, doc_issued_at)
+    tie-break, not ingestion order, decides).
+  layer: L1
+  tags: [restatement, supersession]
+  current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
+  files: [fixtures/cams_2026_07.pdf, fixtures/cams_2026_07_rev2.pdf]
+  expected_nw: !include expected/cams_2026_07_rev2_only.json
+  permute: true
+
+- id: redemption
+  description: >
+    An exhaustive CAS listing only 2 of 3 previously-known folios means
+    the 3rd was genuinely redeemed and must be removed, not left stale.
+  layer: L1
+  tags: [completeness, redemption, cams]
+  current_nw:
+    as_of: "2026-06-30"
+    reporting_currency: INR
+    positions:
+      "Assets:Investment:MutualFund:SampleAMC1:FOLIO001:SchemeAlpha":
+        account_name: "Assets:Investment:MutualFund:SampleAMC1:FOLIO001:SchemeAlpha"
+        units: "95.000"
+        nav: "48.0000"
+        value: "4560.00"
+        currency: INR
+        as_of: "2026-06-30"
+      "Assets:Investment:MutualFund:SampleAMC2:FOLIO002:SchemeBeta":
+        account_name: "Assets:Investment:MutualFund:SampleAMC2:FOLIO002:SchemeBeta"
+        units: "200.000"
+        nav: "24.0000"
+        value: "4800.00"
+        currency: INR
+        as_of: "2026-06-30"
+      "Assets:Investment:MutualFund:SampleAMC1:FOLIO003:SchemeGamma":
+        account_name: "Assets:Investment:MutualFund:SampleAMC1:FOLIO003:SchemeGamma"
+        units: "50.000"
+        nav: "40.0000"
+        value: "2000.00"
+        currency: INR
+        as_of: "2026-06-30"
+    total: "11360.00"
+  files: [fixtures/cams_2026_07.pdf]
+  expected_nw: !include expected/redemption.json
+  permute: false
+
+- id: partial_omission
+  description: >
+    An HDFC-only statement is inherently partial — it says nothing about
+    ICICI. The ICICI position must survive untouched, not be zeroed just
+    because it's absent from this document.
+  layer: L1
+  tags: [completeness, partial]
+  current_nw:
+    as_of: "2026-06-30"
+    reporting_currency: INR
+    positions:
+      "Assets:Bank:HDFC:6789":
+        account_name: "Assets:Bank:HDFC:6789"
+        value: "145000.00"
+        currency: INR
+        as_of: "2026-06-30"
+      "Assets:Bank:ICICI:4321":
+        account_name: "Assets:Bank:ICICI:4321"
+        value: "78000.00"
+        currency: INR
+        as_of: "2026-06-15"
+    total: "223000.00"
+  files: [fixtures/hdfc_2026_07.pdf]
+  expected_nw: !include expected/partial_omission.json
+  permute: false
+
+- id: mixed_sources
+  description: >
+    Two bank statements and one CAS ingested together produce a single
+    correct cross-source total, regardless of arrival order.
+  layer: L1
+  tags: [mixed_sources]
+  current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
+  files: [fixtures/hdfc_2026_07.pdf, fixtures/icici_2026_07.pdf, fixtures/cams_2026_07.pdf]
+  expected_nw: !include expected/mixed_sources.json
+  permute: true
+
+- id: unknown_format
+  description: >
+    A document that isn't a financial statement at all (a fund factsheet)
+    must not be force-classified into the nearest schema variant — zero
+    positions and an explicit warning, not a guess.
+  layer: L1
+  tags: [classification, safety]
+  current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
+  files: [fixtures/unknown_document.pdf]
+  expected_nw: !include expected/unknown_format.json
+  permute: false
+
+- id: stale_exhaustive_does_not_zero
+  description: >
+    An exhaustive CAS that is also STALE (older as_of than current data)
+    must not zero out positions it doesn't mention. Completeness-driven
+    zeroing must respect the staleness/supersession rule, not override it —
+    this is the exact interaction the three-timestamp design exists to
+    protect against.
+  layer: L1
+  tags: [staleness, completeness, supersession]
+  current_nw:
+    as_of: "2026-07-31"
+    reporting_currency: INR
+    positions:
+      "Assets:Investment:MutualFund:SampleAMC1:FOLIO001:SchemeAlpha":
+        account_name: "Assets:Investment:MutualFund:SampleAMC1:FOLIO001:SchemeAlpha"
+        units: "100.000"
+        nav: "50.0000"
+        value: "5000.00"
+        currency: INR
+        as_of: "2026-07-31"
+      "Assets:Investment:MutualFund:SampleAMC2:FOLIO002:SchemeBeta":
+        account_name: "Assets:Investment:MutualFund:SampleAMC2:FOLIO002:SchemeBeta"
+        units: "200.000"
+        nav: "25.0000"
+        value: "5000.00"
+        currency: INR
+        as_of: "2026-07-31"
+      "Assets:Investment:MutualFund:SampleAMC1:FOLIO003:SchemeGamma":
+        account_name: "Assets:Investment:MutualFund:SampleAMC1:FOLIO003:SchemeGamma"
+        units: "50.000"
+        nav: "40.0000"
+        value: "2000.00"
+        currency: INR
+        as_of: "2026-07-31"
+    total: "12000.00"
+  files: [fixtures/cams_2026_05.pdf]
+  expected_nw: !include expected/stale_exhaustive_does_not_zero.json
+  permute: false
+
+- id: mixed_currency_totals
+  description: >
+    A USD account alongside INR accounts must not be silently summed into
+    the INR total — it should be skipped and flagged, not converted or
+    ignored, regardless of arrival order.
+  layer: L1
+  tags: [currency]
+  current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
+  files: [fixtures/hdfc_2026_07.pdf, fixtures/chase_2026_07.pdf]
+  expected_nw: !include expected/mixed_currency_totals.json
+  permute: true
+
+- id: partial_stale
+  description: >
+    A partial document (HDFC-only) that is ALSO stale (older as_of than
+    the current HDFC position) must touch nothing at all — not partially
+    apply the partial-scope rule while ignoring staleness, or vice versa.
+  layer: L1
+  tags: [staleness, completeness, partial]
+  current_nw:
+    as_of: "2026-07-31"
+    reporting_currency: INR
+    positions:
+      "Assets:Bank:HDFC:6789":
+        account_name: "Assets:Bank:HDFC:6789"
+        value: "150000.00"
+        currency: INR
+        as_of: "2026-07-31"
+      "Assets:Bank:ICICI:4321":
+        account_name: "Assets:Bank:ICICI:4321"
+        value: "78000.00"
+        currency: INR
+        as_of: "2026-06-15"
+    total: "228000.00"
+  files: [fixtures/hdfc_2026_05.pdf]
+  expected_nw: !include expected/partial_stale.json
+  permute: false
+
+- id: same_content_different_file
+  description: >
+    Two files with identical visible statement content but different
+    underlying bytes (a re-download-and-re-upload of the same statement,
+    not a literal re-submission of the same file) must still be
+    idempotent — dedup has to work at the fact level, not the file-hash
+    level.
+  layer: L1
+  tags: [idempotency]
+  current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
+  files: [fixtures/hdfc_2026_07.pdf, fixtures/hdfc_2026_07_reupload.pdf]
+  expected_nw: !include expected/hdfc_2026_07_only.json
+  permute: true
+
+- id: corrupt_pdf
+  description: >
+    A malformed/truncated PDF must be quarantined with the ledger left
+    completely unchanged — not partially written.
+  layer: L1
+  tags: [safety, quarantine]
+  current_nw:
+    as_of: "2026-07-31"
+    reporting_currency: INR
+    positions:
+      "Assets:Bank:HDFC:6789":
+        account_name: "Assets:Bank:HDFC:6789"
+        value: "150000.00"
+        currency: INR
+        as_of: "2026-07-31"
+    total: "150000.00"
+  files: [fixtures/truncated.pdf]
+  expected_nw: !include expected/corrupt_pdf.json
+  permute: false
+
+- id: demat_holdings_fresh
+  description: >
+    Ingesting an NSDL/CDSL demat CAS into an empty ledger creates
+    equity, SGB, REIT, and InvIT positions from a single consolidated
+    statement — one document schema covering multiple instrument types,
+    the same way a CAMS CAS covers multiple AMCs.
+  layer: L1
+  tags: [baseline, equity, sgb, reit, invit, demat]
+  current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
+  files: [fixtures/nsdl_cdsl_2026_07.pdf]
+  expected_nw: !include expected/demat_holdings_fresh.json
+  permute: false
+
+- id: rsu_vested_only
+  description: >
+    RSU ingestion counts only vested shares toward net worth, valued in
+    native currency (USD) — unvested shares must be excluded entirely,
+    not shown even as an informational line.
+  layer: L1
+  tags: [rsu, currency, vesting]
+  current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
+  files: [fixtures/morgan_stanley_rsu_2026_07.pdf]
+  expected_nw: !include expected/rsu_vested_only.json
+  permute: false
+
+- id: retirement_funds_fresh
+  description: >
+    EPF, PPF, and NPS are three genuinely different document formats
+    (EPFO passbook, bank-held PPF passbook, NPS CRA statement) from
+    three different institutions, ingested together. Unlike unvested
+    RSU, retirement balances count toward net worth despite being
+    illiquid — this money is earned and owned, just locked up, not
+    conditional/unearned the way unvested equity is.
+  layer: L1
+  tags: [baseline, retirement, epf, ppf, nps]
+  current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
+  files: [fixtures/epfo_2026_07.pdf, fixtures/ppf_2026_07.pdf, fixtures/nps_2026_07.pdf]
+  expected_nw: !include expected/retirement_funds_fresh.json
+  permute: true
+
+- id: fd_rd_fresh
+  description: >
+    Fixed and recurring deposits are ingested the same way as any other
+    document snapshot — take the value as stated in the document as of
+    its date. The deterministic-accrual question (value growing between
+    statements with no new document) is deliberately out of scope here,
+    same reasoning as keeping live stock pricing out of core.yaml.
+  layer: L1
+  tags: [baseline, fd, rd, deposit]
+  current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
+  files: [fixtures/fd_2026_07.pdf, fixtures/rd_2026_07.pdf]
+  expected_nw: !include expected/fd_rd_fresh.json
+  permute: true
+
+- id: insurance_classification
+  description: >
+    ULIP/endowment policies carry a real surrender value and must be
+    counted; term insurance has no cash value and must contribute
+    nothing — even though its statement prominently displays a large
+    "Sum Assured" figure that a naive parser could mistake for owned
+    money. Only the ULIP's surrender value (not its larger fund value,
+    which isn't what you'd actually get) should appear. Correctly
+    excluding the term policy is expected, successful behavior, not an
+    error — no warning should be raised.
+  layer: L1
+  tags: [insurance, classification, ulip, term]
+  current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
+  files: [fixtures/ulip_2026_07.pdf, fixtures/term_insurance_2026_07.pdf]
+  expected_nw: !include expected/insurance_classification.json
+  permute: true
+
+- id: cas_and_amc_statement_no_double_count
+  description: >
+    A CAMS CAS and a standalone AMC-issued statement for one of the same
+    folios, describing the same July snapshot, must be reconciled into
+    the same position — not double-counted just because the two
+    documents come from different sources/schemas.
+  layer: L1
+  tags: [idempotency, mixed_sources, mutual_fund]
+  current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
+  files: [fixtures/cams_2026_07.pdf, fixtures/sampleamc1_folio001_2026_07.pdf]
+  expected_nw: !include expected/cams_2026_07_only.json
+  permute: true
+
+- id: identity_mismatch_rejected
+  description: >
+    A CAS whose PAN/investor name does not match the account owner at
+    all (e.g. a spouse's statement uploaded by mistake) must be
+    quarantined — the ledger stays completely unchanged, same as a
+    corrupt file, and a warning is raised.
+  layer: L1
+  tags: [safety, identity, quarantine]
+  current_nw:
+    as_of: "2026-07-31"
+    reporting_currency: INR
+    positions:
+      "Assets:Bank:HDFC:6789":
+        account_name: "Assets:Bank:HDFC:6789"
+        value: "150000.00"
+        currency: INR
+        as_of: "2026-07-31"
+    total: "150000.00"
+  files: [fixtures/mismatched_identity_cas.pdf]
+  expected_nw: !include expected/identity_mismatch_rejected.json
+  permute: false
+
+- id: joint_account_not_rejected
+  description: >
+    A joint account statement (owner's name present alongside a second
+    holder's) must NOT trip the identity-mismatch rejection from
+    identity_mismatch_rejected — the owner's identity is present, just
+    not alone. Counted in full, not split by ownership share (no
+    ownership-percentage concept exists in this model) — flagged as an
+    assumption, not a settled product decision.
+  layer: L1
+  tags: [identity, joint]
+  current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
+  files: [fixtures/hdfc_joint_2026_07.pdf]
+  expected_nw: !include expected/joint_account_not_rejected.json
+  permute: false
+
+- id: multiple_accounts_same_institution
+  description: >
+    Two distinct HDFC accounts, different account numbers, ingested
+    together — must remain two separate positions keyed by account
+    number, not merged or overwritten just because they share a bank.
+  layer: L1
+  tags: [baseline, bank]
+  current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
+  files: [fixtures/hdfc_2026_07.pdf, fixtures/hdfc_second_2026_07.pdf]
+  expected_nw: !include expected/multiple_accounts_same_institution.json
+  permute: true
+
+- id: bulk_historical_backfill
+  description: >
+    Five files across two accounts and multiple periods/revisions,
+    ingested in one deliberately non-chronological batch — the same
+    supersession logic proven pairwise elsewhere must generalize past
+    two files. Not permuted (5! orderings is impractical once ingest()
+    is real, not stubbed) — pairwise order-invariance is already
+    thoroughly covered by other cases; this case's job is proving scale,
+    not re-proving order-invariance.
+  layer: L1
+  tags: [staleness, supersession, scale]
+  current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
+  files:
+    [
+      fixtures/cams_2026_07_rev2.pdf,
+      fixtures/hdfc_2026_05.pdf,
+      fixtures/cams_2026_05.pdf,
+      fixtures/hdfc_2026_07.pdf,
+      fixtures/cams_2026_07.pdf,
+    ]
+  expected_nw: !include expected/bulk_historical_backfill.json
+  permute: false
+
+- id: composite_real_world_portfolio
+  description: >
+    A realistic diversified portfolio ingested in one batch: bank, a
+    CAMS mutual fund CAS, an NSDL/CDSL demat CAS (equity + SGB + REIT +
+    InvIT), RSU, EPF/PPF/NPS, FD/RD, a ULIP, a term policy (must
+    contribute nothing), and a loan liability — proving the aggregate
+    total is correct across every asset class built so far, the same
+    way mixed_sources proved it for just bank+CAS. Not permuted (12!
+    orderings is not a thing) — sequenced after every asset-class case
+    it draws on was already individually proven correct and
+    order-invariant on its own.
+  layer: L1
+  tags: [mixed_sources, composite]
+  current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
+  files:
+    [
+      fixtures/hdfc_2026_07.pdf,
+      fixtures/cams_2026_07.pdf,
+      fixtures/nsdl_cdsl_2026_07.pdf,
+      fixtures/morgan_stanley_rsu_2026_07.pdf,
+      fixtures/epfo_2026_07.pdf,
+      fixtures/ppf_2026_07.pdf,
+      fixtures/nps_2026_07.pdf,
+      fixtures/fd_2026_07.pdf,
+      fixtures/rd_2026_07.pdf,
+      fixtures/ulip_2026_07.pdf,
+      fixtures/term_insurance_2026_07.pdf,
+      fixtures/hdfc_loan_2026_07.pdf,
+    ]
+  expected_nw: !include expected/composite_real_world_portfolio.json
+  permute: false
+
+- id: liabilities_fresh
+  description: >
+    A liability is represented as a negative-valued position under a
+    Liabilities: prefix — ingesting a bank asset and a loan statement
+    together must net them correctly, dragging total net worth down
+    rather than summing the loan as if it were more money.
+  layer: L1
+  tags: [baseline, liabilities]
+  current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
+  files: [fixtures/hdfc_2026_07.pdf, fixtures/hdfc_loan_2026_07.pdf]
+  expected_nw: !include expected/liabilities_fresh.json
+  permute: true
+
+- id: international_stock_fresh
+  description: >
+    A US brokerage statement for a single stock holding is ingested in
+    its native currency (USD) — added to positions but excluded from the
+    INR total, the same currency-handling contract already proven for
+    bank accounts by mixed_currency_totals.
+  layer: L1
+  tags: [equity, currency, international]
+  current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
+  files: [fixtures/fidelity_2026_07.pdf]
+  expected_nw: !include expected/international_stock_fresh.json
+  permute: false

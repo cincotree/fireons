@@ -1,0 +1,15 @@
+{
+  "as_of": "2026-07-31",
+  "reporting_currency": "INR",
+  "positions": {
+    "Assets:Investment:RSU:AcmeCorp:ACME": {
+      "account_name": "Assets:Investment:RSU:AcmeCorp:ACME",
+      "units": "25.000",
+      "nav": "180.0000",
+      "value": "4500.00",
+      "currency": "USD",
+      "as_of": "2026-07-31"
+    }
+  },
+  "total": "0.00"
+}

@@ -1,0 +1,19 @@
+{
+  "as_of": "2026-07-31",
+  "reporting_currency": "INR",
+  "positions": {
+    "Assets:Bank:HDFC:6789": {
+      "account_name": "Assets:Bank:HDFC:6789",
+      "value": "150000.00",
+      "currency": "INR",
+      "as_of": "2026-07-31"
+    },
+    "Assets:Bank:Chase:1234": {
+      "account_name": "Assets:Bank:Chase:1234",
+      "value": "1000.00",
+      "currency": "USD",
+      "as_of": "2026-07-31"
+    }
+  },
+  "total": "150000.00"
+}
