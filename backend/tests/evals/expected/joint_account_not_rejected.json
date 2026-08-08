@@ -1,0 +1,13 @@
+{
+  "as_of": "2026-07-31",
+  "reporting_currency": "INR",
+  "positions": {
+    "Assets:Bank:HDFC:8877": {
+      "account_name": "Assets:Bank:HDFC:8877",
+      "value": "105000.00",
+      "currency": "INR",
+      "as_of": "2026-07-31"
+    }
+  },
+  "total": "105000.00"
+}

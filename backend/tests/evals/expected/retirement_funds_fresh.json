@@ -1,0 +1,27 @@
+{
+  "as_of": "2026-07-31",
+  "reporting_currency": "INR",
+  "positions": {
+    "Assets:Retirement:EPF:100123456789": {
+      "account_name": "Assets:Retirement:EPF:100123456789",
+      "value": "400000.00",
+      "currency": "INR",
+      "as_of": "2026-07-31"
+    },
+    "Assets:Retirement:PPF:SBI:1122334455": {
+      "account_name": "Assets:Retirement:PPF:SBI:1122334455",
+      "value": "192600.00",
+      "currency": "INR",
+      "as_of": "2026-07-31"
+    },
+    "Assets:Retirement:NPS:110022334455:SchemeE": {
+      "account_name": "Assets:Retirement:NPS:110022334455:SchemeE",
+      "units": "5000.000",
+      "nav": "32.5000",
+      "value": "162500.00",
+      "currency": "INR",
+      "as_of": "2026-07-31"
+    }
+  },
+  "total": "755100.00"
+}
