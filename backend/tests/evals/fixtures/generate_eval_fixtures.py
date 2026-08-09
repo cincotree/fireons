@@ -323,6 +323,17 @@ SAMPLEAMC1_FOLIO001_2026_07_LINES = [
     "Statement Generated On: 03-Aug-2026",
 ]
 
+SAMPLEAMC1_FOLIO001_2026_05_LINES = [
+    "SAMPLE AMC 1 ASSET MANAGEMENT COMPANY LIMITED",
+    "Account Statement",
+    "PAN : SAMPLEPAN1Z",
+    "Folio No : FOLIO001",
+    "Scheme : SchemeAlpha - Growth",
+    "Closing Units : 95.000 NAV : 48.0000 Market Value : 4560.00",
+    "Statement Period : 01-May-2026 to 31-May-2026",
+    "Statement Generated On: 03-Jun-2026",
+]
+
 MISMATCHED_IDENTITY_CAS_LINES = [
     "CONSOLIDATED ACCOUNT STATEMENT",
     "Statement Period : 01-Jul-2026 to 31-Jul-2026",
@@ -451,6 +462,11 @@ def generate_all() -> None:
         SAMPLEAMC1_FOLIO001_2026_07_LINES,
         TEST_PDF_PASSWORD,
         FIXTURES_DIR / "sampleamc1_folio001_2026_07.pdf",
+    )
+    _write_encrypted(
+        SAMPLEAMC1_FOLIO001_2026_05_LINES,
+        TEST_PDF_PASSWORD,
+        FIXTURES_DIR / "sampleamc1_folio001_2026_05.pdf",
     )
     _write_encrypted(
         MISMATCHED_IDENTITY_CAS_LINES,

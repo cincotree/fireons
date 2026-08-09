@@ -324,6 +324,21 @@
   expected_nw: !include expected/cams_2026_07_only.json
   permute: true
 
+- id: stale_amc_statement_after_cas
+  description: >
+    A recent CAS alongside a stale standalone AMC statement for the same
+    folio, in either arrival order — the CAS's fresher July data must
+    win and the stale AMC document must contribute nothing, the same
+    (as_of, doc_issued_at) supersession rule stale_after_fresh proves
+    within a single document type, now proven across two different
+    document schemas describing the same folio.
+  layer: L1
+  tags: [staleness, supersession, mutual_fund, mixed_sources]
+  current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
+  files: [fixtures/cams_2026_07.pdf, fixtures/sampleamc1_folio001_2026_05.pdf]
+  expected_nw: !include expected/cams_2026_07_only.json
+  permute: true
+
 - id: identity_mismatch_rejected
   description: >
     A CAS whose PAN/investor name does not match the account owner at
