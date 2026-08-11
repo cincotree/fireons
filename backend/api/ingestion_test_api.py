@@ -20,11 +20,11 @@ async def test_ingest_upload(
     password: str = Form(""),
     current_user: User = Depends(get_current_user),
 ):
-    check_rate_limit(current_user.id)
-
     content = await file.read()
     if len(content) > MAX_STATEMENT_SIZE_BYTES:
         raise HTTPException(status_code=413, detail="File is too large")
+
+    check_rate_limit(current_user.id, len(content))
 
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
         tmp.write(content)
