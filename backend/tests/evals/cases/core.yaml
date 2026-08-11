@@ -243,23 +243,51 @@
 - id: demat_holdings_fresh
   description: >
     Ingesting an NSDL/CDSL demat CAS into an empty ledger creates
-    equity, SGB, REIT, and InvIT positions from a single consolidated
+    equity, REIT, and InvIT positions from a single consolidated
     statement — one document schema covering multiple instrument types,
-    the same way a CAMS CAS covers multiple AMCs.
+    the same way a CAMS CAS covers multiple AMCs. SGB deliberately does
+    NOT appear here — see sgb_purchase_confirmation_fresh — a real CDSL
+    CAS was checked page by page and never mentions SGB at all; RBI
+    Retail Direct holdings live entirely outside the depository CAS
+    ecosystem.
   layer: L1
-  tags: [baseline, equity, sgb, reit, invit, demat]
+  tags: [baseline, equity, reit, invit, demat]
   current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
   files: [fixtures/nsdl_cdsl_2026_07.pdf]
   expected_nw: !include expected/demat_holdings_fresh.json
+  permute: false
+
+- id: sgb_purchase_confirmation_fresh
+  description: >
+    An SGB bought via RBI Retail Direct has no periodic statement at
+    all — its only document is a one-time RBI e-Kuber purchase
+    confirmation (units, issue price, consideration amount, maturity
+    date), with no current-value field. The value captured here is the
+    issue-time consideration amount, not a live price — an ongoing gold
+    spot-price feed is a separate concern from document ingestion, the
+    same reasoning that keeps live stock pricing out of core.yaml
+    (international_stock_fresh).
+  layer: L1
+  tags: [baseline, sgb]
+  current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
+  files: [fixtures/sgb_confirmation_2026_07.pdf]
+  expected_nw: !include expected/sgb_purchase_confirmation_fresh.json
   permute: false
 
 - id: rsu_vested_only
   description: >
     RSU ingestion counts only vested shares toward net worth, valued in
     native currency (USD) — unvested shares must be excluded entirely,
-    not shown even as an informational line.
+    not shown even as an informational line. A real Morgan Stanley/
+    E*TRADE statement was checked: vested shares surface as an ordinary
+    equity holding in the plain HOLDINGS section — indistinguishable
+    from any other stock, filed as Assets:Investment:Equity:US:... , not
+    a distinct RSU-namespaced account. Unvested shares live in a wholly
+    separate "STOCK PLAN SUMMARY/DETAILS" section under "Potential
+    Value" — excluding them means never turning that section into a
+    position at all, not filtering rows out of one shared table.
   layer: L1
-  tags: [rsu, currency, vesting]
+  tags: [rsu, currency, vesting, equity]
   current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
   files: [fixtures/morgan_stanley_rsu_2026_07.pdf]
   expected_nw: !include expected/rsu_vested_only.json
@@ -268,17 +296,45 @@
 - id: retirement_funds_fresh
   description: >
     EPF, PPF, and NPS are three genuinely different document formats
-    (EPFO passbook, bank-held PPF passbook, NPS CRA statement) from
-    three different institutions, ingested together. Unlike unvested
-    RSU, retirement balances count toward net worth despite being
-    illiquid — this money is earned and owned, just locked up, not
-    conditional/unearned the way unvested equity is.
+    from three different institutions, ingested together. Unlike
+    unvested RSU, retirement balances count toward net worth despite
+    being illiquid — this money is earned and owned, just locked up,
+    not conditional/unearned the way unvested equity is. Two real-
+    document corrections baked in here: EPF's Pension (EPS) balance is
+    tracked as its own position, separate from the withdrawable PF
+    corpus, since a real EPFO passbook shows three balance columns
+    (Employee/Employer/Pension) with no summed total at all — EPS is a
+    formula-based annuity entitlement, not a bankable lump sum, so it's
+    kept visible but distinct rather than silently merged in. And PPF
+    is not a separate document schema — a real HDFC-issued PPF account
+    uses the exact same statement template as a regular savings
+    account, distinguished only by a Product field, so the fixture
+    reuses the HDFC layout rather than inventing a standalone passbook.
   layer: L1
-  tags: [baseline, retirement, epf, ppf, nps]
+  tags: [baseline, retirement, epf, eps, ppf, nps]
   current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
   files: [fixtures/epfo_2026_07.pdf, fixtures/ppf_2026_07.pdf, fixtures/nps_2026_07.pdf]
   expected_nw: !include expected/retirement_funds_fresh.json
   permute: true
+
+- id: cas_positions_independent_nav_dates
+  description: >
+    as_of belongs to the position, not the document. A real CAMS CAS
+    states each holding's own "NAV on <date>" independent of the
+    statement's overall period, and a real KFinTech CAS literally has a
+    per-row NAV Date column — two holdings in one document commonly
+    carry different dates, because the underlying schemes' latest
+    available NAVs simply land on different days. Every other CAS-based
+    case in this file happens to use uniform dates across positions,
+    which never exercised this. Here one CAS has two folios on two
+    different NAV dates; each resulting position must carry its own
+    as_of, not the document's period-end date forced onto both.
+  layer: L1
+  tags: [staleness, as_of, mutual_fund]
+  current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
+  files: [fixtures/cams_2026_07_mixed_nav.pdf]
+  expected_nw: !include expected/cas_positions_independent_nav_dates.json
+  permute: false
 
 - id: fd_rd_fresh
   description: >
@@ -321,6 +377,27 @@
   tags: [idempotency, mixed_sources, mutual_fund]
   current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
   files: [fixtures/cams_2026_07.pdf, fixtures/sampleamc1_folio001_2026_07.pdf]
+  expected_nw: !include expected/cams_2026_07_only.json
+  permute: true
+
+- id: cdsl_cas_and_cams_cas_no_double_count
+  description: >
+    Unlike cas_and_amc_statement_no_double_count (a full CAS vs. an
+    obviously-partial single-AMC statement), this pairs two documents
+    that BOTH present themselves as complete, authoritative consolidated
+    statements — a CAMS CAS and a CDSL CAS — confirmed via real
+    documents to genuinely overlap: the same folio, with an identical
+    Folio Number in both, but differently phrased scheme-name text
+    (CDSL adds a Scheme Code field CAMS doesn't have). Dedup can't
+    assume two "full consolidated statement" documents are mutually
+    exclusive just because neither looks partial. Must reconcile to one
+    position, not two, the same as the CAS-vs-partial case, proving the
+    same general mechanism (keyed by stable identity, not document
+    type) handles both.
+  layer: L1
+  tags: [idempotency, mixed_sources, mutual_fund]
+  current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
+  files: [fixtures/cams_2026_07.pdf, fixtures/cdsl_cas_2026_07.pdf]
   expected_nw: !include expected/cams_2026_07_only.json
   permute: true
 
@@ -414,14 +491,14 @@
 - id: composite_real_world_portfolio
   description: >
     A realistic diversified portfolio ingested in one batch: bank, a
-    CAMS mutual fund CAS, an NSDL/CDSL demat CAS (equity + SGB + REIT +
-    InvIT), RSU, EPF/PPF/NPS, FD/RD, a ULIP, a term policy (must
-    contribute nothing), and a loan liability — proving the aggregate
-    total is correct across every asset class built so far, the same
-    way mixed_sources proved it for just bank+CAS. Not permuted (12!
-    orderings is not a thing) — sequenced after every asset-class case
-    it draws on was already individually proven correct and
-    order-invariant on its own.
+    CAMS mutual fund CAS, an NSDL/CDSL demat CAS (equity + REIT +
+    InvIT), a standalone SGB purchase confirmation, RSU, EPF (+EPS)/
+    PPF/NPS, FD/RD, a ULIP, a term policy (must contribute nothing), and
+    a loan liability — proving the aggregate total is correct across
+    every asset class built so far, the same way mixed_sources proved
+    it for just bank+CAS. 13 files now, still not permuted (13! is not
+    a thing) — sequenced after every asset-class case it draws on was
+    already individually proven correct and order-invariant on its own.
   layer: L1
   tags: [mixed_sources, composite]
   current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
@@ -430,6 +507,7 @@
       fixtures/hdfc_2026_07.pdf,
       fixtures/cams_2026_07.pdf,
       fixtures/nsdl_cdsl_2026_07.pdf,
+      fixtures/sgb_confirmation_2026_07.pdf,
       fixtures/morgan_stanley_rsu_2026_07.pdf,
       fixtures/epfo_2026_07.pdf,
       fixtures/ppf_2026_07.pdf,

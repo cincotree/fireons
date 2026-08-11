@@ -8,8 +8,14 @@
       "currency": "INR",
       "as_of": "2026-07-31"
     },
-    "Assets:Retirement:PPF:SBI:1122334455": {
-      "account_name": "Assets:Retirement:PPF:SBI:1122334455",
+    "Assets:Retirement:EPS:100123456789": {
+      "account_name": "Assets:Retirement:EPS:100123456789",
+      "value": "26000.00",
+      "currency": "INR",
+      "as_of": "2026-07-31"
+    },
+    "Assets:Retirement:PPF:HDFC:8776": {
+      "account_name": "Assets:Retirement:PPF:HDFC:8776",
       "value": "192600.00",
       "currency": "INR",
       "as_of": "2026-07-31"
@@ -23,5 +29,5 @@
       "as_of": "2026-07-31"
     }
   },
-  "total": "755100.00"
+  "total": "781100.00"
 }

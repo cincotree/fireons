@@ -93,9 +93,11 @@ def _cams_lines(
     alpha_units: str,
     alpha_nav: str,
     alpha_value: str,
+    alpha_nav_date: str,
     beta_units: str,
     beta_nav: str,
     beta_value: str,
+    beta_nav_date: str,
 ) -> list[str]:
     return [
         "CONSOLIDATED ACCOUNT STATEMENT",
@@ -104,11 +106,13 @@ def _cams_lines(
         "SAMPLE AMC 1 - SampleAMC1",
         "Folio No : FOLIO001",
         "Scheme : SchemeAlpha - Growth",
-        f"Closing Units : {alpha_units} NAV : {alpha_nav} Market Value : {alpha_value}",
+        f"Closing Units : {alpha_units}",
+        f"NAV on {alpha_nav_date}: INR {alpha_nav} Market Value on {alpha_nav_date}: INR {alpha_value}",
         "SAMPLE AMC 2 - SampleAMC2",
         "Folio No : FOLIO002",
         "Scheme : SchemeBeta - Growth",
-        f"Closing Units : {beta_units} NAV : {beta_nav} Market Value : {beta_value}",
+        f"Closing Units : {beta_units}",
+        f"NAV on {beta_nav_date}: INR {beta_nav} Market Value on {beta_nav_date}: INR {beta_value}",
         f"Statement Generated On: {generated_on}",
     ]
 
@@ -119,9 +123,11 @@ CAMS_2026_07_LINES = _cams_lines(
     alpha_units="100.000",
     alpha_nav="50.0000",
     alpha_value="5000.00",
+    alpha_nav_date="31-Jul-2026",
     beta_units="200.000",
     beta_nav="25.0000",
     beta_value="5000.00",
+    beta_nav_date="31-Jul-2026",
 )
 
 CAMS_2026_05_LINES = _cams_lines(
@@ -130,9 +136,11 @@ CAMS_2026_05_LINES = _cams_lines(
     alpha_units="95.000",
     alpha_nav="48.0000",
     alpha_value="4560.00",
+    alpha_nav_date="31-May-2026",
     beta_units="200.000",
     beta_nav="24.0000",
     beta_value="4800.00",
+    beta_nav_date="31-May-2026",
 )
 
 CAMS_2026_07_REV2_LINES = _cams_lines(
@@ -141,9 +149,27 @@ CAMS_2026_07_REV2_LINES = _cams_lines(
     alpha_units="100.000",
     alpha_nav="50.5000",
     alpha_value="5050.00",
+    alpha_nav_date="31-Jul-2026",
     beta_units="200.000",
     beta_nav="25.2500",
     beta_value="5050.00",
+    beta_nav_date="31-Jul-2026",
+)
+
+# Proves as_of is per-position, not per-document — a real CAMS/KFinTech CAS can (and
+# routinely does) show two holdings with different NAV dates in the same statement,
+# because the underlying schemes' latest available NAVs simply land on different days.
+CAMS_2026_07_MIXED_NAV_LINES = _cams_lines(
+    generated_on="02-Aug-2026",
+    as_of_label="01-Jul-2026 to 31-Jul-2026",
+    alpha_units="100.000",
+    alpha_nav="49.5000",
+    alpha_value="4950.00",
+    alpha_nav_date="29-Jul-2026",
+    beta_units="200.000",
+    beta_nav="25.0000",
+    beta_value="5000.00",
+    beta_nav_date="31-Jul-2026",
 )
 
 def _demat_cas_lines(
@@ -152,9 +178,6 @@ def _demat_cas_lines(
     stock_units: str,
     stock_price: str,
     stock_value: str,
-    sgb_units: str,
-    sgb_price: str,
-    sgb_value: str,
     reit_units: str,
     reit_price: str,
     reit_value: str,
@@ -172,9 +195,6 @@ def _demat_cas_lines(
         "EQUITY HOLDINGS",
         "ISIN : INE002A01018 SAMPLE STOCK LTD (NSE: SAMPLESTK)",
         f"Closing Balance : {stock_units} Closing Price : {stock_price} Value : {stock_value}",
-        "SOVEREIGN GOLD BOND HOLDINGS",
-        "ISIN : IN0020210012 SGB 2028 SERIES IV",
-        f"Closing Balance : {sgb_units} Closing Price : {sgb_price} Value : {sgb_value}",
         "REIT HOLDINGS",
         "ISIN : INE0FQ01019 SAMPLE OFFICE REIT (NSE: SAMPLEREIT)",
         f"Closing Balance : {reit_units} Closing Price : {reit_price} Value : {reit_value}",
@@ -191,9 +211,6 @@ NSDL_CDSL_2026_07_LINES = _demat_cas_lines(
     stock_units="50.000",
     stock_price="2400.0000",
     stock_value="120000.00",
-    sgb_units="10.000",
-    sgb_price="6200.0000",
-    sgb_value="62000.00",
     reit_units="100.000",
     reit_price="350.0000",
     reit_value="35000.00",
@@ -202,17 +219,47 @@ NSDL_CDSL_2026_07_LINES = _demat_cas_lines(
     invit_value="22000.00",
 )
 
+# SGBs bought via RBI Retail Direct never appear in a depository CAS at all — the
+# only document is this one-time purchase confirmation. There is no periodic
+# statement anywhere that states a current value; live gold pricing is out of
+# scope here the same way live stock pricing is (see international_stock_fresh).
+# The value captured is the issue-time consideration amount, not a current price.
+SGB_CONFIRMATION_2026_07_LINES = [
+    "RESERVE BANK OF INDIA",
+    "MUMBAI BANKING DEPT",
+    "Confirmation Receipt",
+    "Issue Reference : SGB 2028 SERIES IV",
+    "ISIN : IN0020210012",
+    "Subscription Date : 05-Jul-2026 Settlement Date : 06-Jul-2026",
+    "Number of Units (In Grams) : 10",
+    "Issue Price (Rs.) : 6200",
+    "Consideration Amount (Rs.) : 62000.00",
+    "Maturity Date : 06-Jul-2034",
+    "Investor Name : TEST USER",
+    "Bank Account Number : XXXXXXXXXX6789",
+    "DISCLAIMER: Allotment is subject to realisation of funds",
+]
+
+# Vested shares surface as an ordinary equity holding in the plain HOLDINGS
+# section — no "RSU" label anywhere on that line, indistinguishable from any
+# other stock. Unvested shares live in an entirely separate "STOCK PLAN
+# SUMMARY/DETAILS" section under "Potential Value" — a different report
+# section, not a filterable column in the same table.
 MORGAN_STANLEY_RSU_2026_07_LINES = [
     "MORGAN STANLEY AT WORK",
-    "Stock Plan Account Statement",
-    "Statement Period : 07/01/2026 - 07/31/2026",
-    "Participant : TEST USER",
-    "Company : ACME CORP (Ticker: ACME)",
+    "CLIENT STATEMENT For the Period July 1-31, 2026",
+    "STATEMENT FOR: TEST USER",
     "Currency : USD",
-    "VESTED SHARES",
-    "Vested Quantity : 25.000 Market Price (USD) : 180.0000 Market Value (USD) : 4500.00",
-    "UNVESTED SHARES (Scheduled Future Vesting)",
-    "Unvested Quantity : 15.000 Market Price (USD) : 180.0000 Estimated Value (USD) : 2700.00",
+    "HOLDINGS",
+    "Symbol Quantity Market Price Market Value",
+    "SAMPLETICK 25.000 180.0000 4500.00",
+    "STOCK PLAN SUMMARY As of 07/31/2026",
+    "Exercisable Value Potential Value Total Value",
+    "0.00 2700.00 2700.00",
+    "STOCK PLAN DETAILS",
+    "Potential Restricted Stock",
+    "Grant Date Symbol Potential Quantity Grant Price Market Price Total Est Mkt Value",
+    "03/01/25 SAMPLETICK 15.000 0.00 180.0000 2700.00",
     "Statement Generated On: 08/02/2026",
 ]
 
@@ -228,6 +275,9 @@ FIDELITY_2026_07_LINES = [
     "Statement Generated On: 08/02/2026",
 ]
 
+# Three separate balance columns, never summed in the document itself. Pension
+# (EPS) is a distinct entitlement from the withdrawable PF corpus (Employee +
+# Employer) — tracked as its own position, not folded into one total.
 EPFO_2026_07_LINES = [
     "EMPLOYEES' PROVIDENT FUND ORGANISATION",
     "Member Passbook",
@@ -235,22 +285,25 @@ EPFO_2026_07_LINES = [
     "Member Name : TEST USER",
     "Establishment : SAMPLE EMPLOYER PVT LTD",
     "Currency : INR",
-    "PF ACCOUNT SUMMARY :-",
-    "Employee Share Employer Share Total Balance",
-    "210000.00 190000.00 400000.00",
-    "Passbook Generated On: 31-Jul-2026",
+    "Particulars Employee Balance Employer Balance Pension Balance",
+    "Closing Balance as on 31-Jul-2027 210000.00 190000.00 26000.00",
+    "Printed On : 31-Jul-2026",
 ]
 
+# PPF is not a separate document schema — for an HDFC-issued account it's the
+# exact same statement template as a regular savings account, distinguished
+# only by the Product field. Reuses the HDFC layout, not an invented passbook.
 PPF_2026_07_LINES = [
-    "STATE BANK OF INDIA",
-    "Public Provident Fund Account Passbook",
-    "PPF Account No : PPF1122334455",
-    "Account Holder : TEST USER",
+    "HDFC BANK LIMITED",
+    "Statement of accountFrom : 01/07/2026 To : 31/07/2026",
+    "MR. TEST USER",
+    "Account No : 55000019988776 CLASSIC ON PHONE",
+    "Product : 1030 - PUBLIC PROVIDENT FUND",
     "Currency : INR",
-    "ACCOUNT SUMMARY :-",
-    "Balance as on 31-Mar-2026 Interest Credited Closing Balance",
-    "180000.00 12600.00 192600.00",
-    "Passbook Generated On: 31-Jul-2026",
+    "STATEMENT SUMMARY :-",
+    "Opening Balance Dr Count Cr Count Debits Credits Closing Bal",
+    "180000.00 0 1 0.00 12600.00 192600.00",
+    "Generated On: 31-Jul-2026 10:00 Generated By: 99999999",
 ]
 
 NPS_2026_07_LINES = [
@@ -332,6 +385,31 @@ SAMPLEAMC1_FOLIO001_2026_05_LINES = [
     "Closing Units : 95.000 NAV : 48.0000 Market Value : 4560.00",
     "Statement Period : 01-May-2026 to 31-May-2026",
     "Statement Generated On: 03-Jun-2026",
+]
+
+# CDSL's own "Consolidated Account Statement" also lists MF folios, independent of
+# CAMS's CAS covering the same folios — confirmed via a real CDSL statement, which
+# listed a folio also present in the user's real CAMS CAS. Folio Number matched
+# exactly between the two real documents; scheme-name phrasing did not (CDSL adds
+# a separate Scheme Code field and drops the CAMS-style plan description). This
+# fixture deliberately mirrors that: same Folio No as CAMS_2026_07_LINES's
+# FOLIO001, same underlying values, differently phrased — proving dedup can't rely
+# on two "full consolidated statement" documents being mutually exclusive.
+CDSL_CAS_2026_07_LINES = [
+    "CONSOLIDATED ACCOUNT STATEMENT (CAS) FOR SECURITIES HELD IN DEMAT",
+    "FORM AND INVESTMENTS IN MUTUAL FUNDS",
+    "CAS ID: SAMPLE00000001",
+    "Statement for the period from 01-Jun-2026 to 31-Jul-2026",
+    "PAN: SAMPLEPAN1Z",
+    "Summary of Investments",
+    "Mutual Fund Folios 5,000.00",
+    "Total Portfolio Value 5,000.00",
+    "MF Folios",
+    "AMC Name : SampleAMC1",
+    "Scheme Name : SampleAMC1 Scheme Alpha Growth Plan Scheme Code : 02G",
+    "Folio No : FOLIO001 Mode of Holding : Single",
+    "Closing Balance : 100.000 NAV : 50.0000 Value : 5000.00 NAV Date : 31-Jul-2026",
+    "Statement Generated On: 05-Aug-2026",
 ]
 
 MISMATCHED_IDENTITY_CAS_LINES = [
@@ -422,6 +500,11 @@ def generate_all() -> None:
     _write_encrypted(
         CAMS_2026_07_REV2_LINES, TEST_PDF_PASSWORD, FIXTURES_DIR / "cams_2026_07_rev2.pdf"
     )
+    _write_encrypted(
+        CAMS_2026_07_MIXED_NAV_LINES,
+        TEST_PDF_PASSWORD,
+        FIXTURES_DIR / "cams_2026_07_mixed_nav.pdf",
+    )
     _write_plain(UNKNOWN_DOCUMENT_LINES, FIXTURES_DIR / "unknown_document.pdf")
     (FIXTURES_DIR / "truncated.pdf").write_bytes(b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog")
 
@@ -438,6 +521,9 @@ def generate_all() -> None:
 
     _write_encrypted(
         NSDL_CDSL_2026_07_LINES, TEST_PDF_PASSWORD, FIXTURES_DIR / "nsdl_cdsl_2026_07.pdf"
+    )
+    _write_plain(
+        SGB_CONFIRMATION_2026_07_LINES, FIXTURES_DIR / "sgb_confirmation_2026_07.pdf"
     )
     _write_encrypted(
         MORGAN_STANLEY_RSU_2026_07_LINES,
@@ -467,6 +553,9 @@ def generate_all() -> None:
         SAMPLEAMC1_FOLIO001_2026_05_LINES,
         TEST_PDF_PASSWORD,
         FIXTURES_DIR / "sampleamc1_folio001_2026_05.pdf",
+    )
+    _write_encrypted(
+        CDSL_CAS_2026_07_LINES, TEST_PDF_PASSWORD, FIXTURES_DIR / "cdsl_cas_2026_07.pdf"
     )
     _write_encrypted(
         MISMATCHED_IDENTITY_CAS_LINES,

@@ -10,14 +10,6 @@
       "currency": "INR",
       "as_of": "2026-07-31"
     },
-    "Assets:Investment:SGB:SGB2028SeriesIV": {
-      "account_name": "Assets:Investment:SGB:SGB2028SeriesIV",
-      "units": "10.000",
-      "nav": "6200.0000",
-      "value": "62000.00",
-      "currency": "INR",
-      "as_of": "2026-07-31"
-    },
     "Assets:Investment:REIT:SAMPLEREIT": {
       "account_name": "Assets:Investment:REIT:SAMPLEREIT",
       "units": "100.000",
@@ -35,5 +27,5 @@
       "as_of": "2026-07-31"
     }
   },
-  "total": "239000.00"
+  "total": "177000.00"
 }

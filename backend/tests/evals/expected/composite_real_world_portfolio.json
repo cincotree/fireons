@@ -38,7 +38,7 @@
       "nav": "6200.0000",
       "value": "62000.00",
       "currency": "INR",
-      "as_of": "2026-07-31"
+      "as_of": "2026-07-06"
     },
     "Assets:Investment:REIT:SAMPLEREIT": {
       "account_name": "Assets:Investment:REIT:SAMPLEREIT",
@@ -56,8 +56,8 @@
       "currency": "INR",
       "as_of": "2026-07-31"
     },
-    "Assets:Investment:RSU:AcmeCorp:ACME": {
-      "account_name": "Assets:Investment:RSU:AcmeCorp:ACME",
+    "Assets:Investment:Equity:US:SAMPLETICK": {
+      "account_name": "Assets:Investment:Equity:US:SAMPLETICK",
       "units": "25.000",
       "nav": "180.0000",
       "value": "4500.00",
@@ -70,8 +70,14 @@
       "currency": "INR",
       "as_of": "2026-07-31"
     },
-    "Assets:Retirement:PPF:SBI:1122334455": {
-      "account_name": "Assets:Retirement:PPF:SBI:1122334455",
+    "Assets:Retirement:EPS:100123456789": {
+      "account_name": "Assets:Retirement:EPS:100123456789",
+      "value": "26000.00",
+      "currency": "INR",
+      "as_of": "2026-07-31"
+    },
+    "Assets:Retirement:PPF:HDFC:8776": {
+      "account_name": "Assets:Retirement:PPF:HDFC:8776",
       "value": "192600.00",
       "currency": "INR",
       "as_of": "2026-07-31"
@@ -109,5 +115,5 @@
       "as_of": "2026-07-31"
     }
   },
-  "total": "1536100.00"
+  "total": "1562100.00"
 }

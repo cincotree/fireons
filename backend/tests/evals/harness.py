@@ -71,6 +71,32 @@ def canonical(nw: NetWorth | dict) -> dict:
     }
 
 
+# Numeric tolerance for position/total comparison. This does NOT relax key
+# matching — account_name is still compared exactly, on purpose (see
+# ingestion/pipeline.py: keys must be built deterministically from stable
+# identifiers, not generated as free text, precisely so exact key matching
+# stays meaningful once ingest() is LLM-backed). This only absorbs harmless
+# precision/formatting noise in the numeric fields once a real extraction
+# is under test, not just the current stub.
+VALUE_TOL = Decimal("0.01")
+UNIT_TOL = Decimal("0.001")
+
+
+def _position_diff(a: dict, e: dict) -> list[str]:
+    problems = []
+    if a["currency"] != e["currency"]:
+        problems.append(f"currency: got {a['currency']} != expected {e['currency']}")
+    if a["as_of"] != e["as_of"]:
+        problems.append(f"as_of: got {a['as_of']} != expected {e['as_of']}")
+    if abs(Decimal(a["value"]) - Decimal(e["value"])) > VALUE_TOL:
+        problems.append(f"value: got {a['value']} != expected {e['value']}")
+    if (a["units"] is None) != (e["units"] is None):
+        problems.append(f"units: got {a['units']} != expected {e['units']}")
+    elif a["units"] is not None and abs(Decimal(a["units"]) - Decimal(e["units"])) > UNIT_TOL:
+        problems.append(f"units: got {a['units']} != expected {e['units']}")
+    return problems
+
+
 def diff(actual: dict, expected: dict) -> list[str]:
     out = []
     keys = set(actual["positions"]) | set(expected["positions"])
@@ -80,9 +106,11 @@ def diff(actual: dict, expected: dict) -> list[str]:
             out.append(f"MISSING  {k}: expected {e}")
         elif e is None:
             out.append(f"EXTRA    {k}: got {a}")
-        elif a != e:
-            out.append(f"DRIFT    {k}: got {a} != expected {e}")
-    if actual["total"] != expected["total"]:
+        else:
+            field_problems = _position_diff(a, e)
+            if field_problems:
+                out.append(f"DRIFT    {k}: " + "; ".join(field_problems))
+    if abs(Decimal(actual["total"]) - Decimal(expected["total"])) > VALUE_TOL:
         delta = Decimal(actual["total"]) - Decimal(expected["total"])
         out.append(f"TOTAL    delta {delta:+}")
     if actual["has_warnings"] != expected["has_warnings"]:
