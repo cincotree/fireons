@@ -48,6 +48,13 @@
   description: >
     An exhaustive CAS listing only 2 of 3 previously-known folios means
     the 3rd was genuinely redeemed and must be removed, not left stale.
+    Scoped to source: redemption-by-omission only applies when comparing
+    against previously-known positions from the SAME source (here, CAMS)
+    — never across different sources. See
+    redemption_scoped_to_different_source for why this matters: CDSL
+    genuinely covers more funds than CAMS in the real world (demat-held
+    holdings CAMS never sees at all), so cross-source omission must
+    never be read as redemption.
   layer: L1
   tags: [completeness, redemption, cams]
   current_nw:
@@ -61,6 +68,7 @@
         value: "4560.00"
         currency: INR
         as_of: "2026-06-30"
+        source: CAMS
       "Assets:Investment:MutualFund:SampleAMC2:FOLIO002:SchemeBeta":
         account_name: "Assets:Investment:MutualFund:SampleAMC2:FOLIO002:SchemeBeta"
         units: "200.000"
@@ -68,6 +76,7 @@
         value: "4800.00"
         currency: INR
         as_of: "2026-06-30"
+        source: CAMS
       "Assets:Investment:MutualFund:SampleAMC1:FOLIO003:SchemeGamma":
         account_name: "Assets:Investment:MutualFund:SampleAMC1:FOLIO003:SchemeGamma"
         units: "50.000"
@@ -75,9 +84,66 @@
         value: "2000.00"
         currency: INR
         as_of: "2026-06-30"
+        source: CAMS
     total: "11360.00"
   files: [fixtures/cams_2026_07.pdf]
   expected_nw: !include expected/redemption.json
+  permute: false
+
+- id: redemption_scoped_to_different_source
+  description: >
+    Same underlying redemption scenario as redemption (FOLIO003 really
+    is gone), but this time a CDSL-sourced position sits alongside the
+    CAMS-sourced ones — a fund CAMS has never heard of and says nothing
+    about. Ingesting the same fresh, exhaustive CAMS CAS must still
+    remove FOLIO003 (same-source omission = real redemption) but must
+    NOT touch the CDSL-sourced REIT position — a CAMS CAS's
+    exhaustiveness claim only extends to what CAMS itself covers, never
+    to a different source's holdings. This is the case that would catch
+    an implementation that scopes completeness by document_type alone
+    (both are "consolidated MF-ish statements") instead of by the
+    specific source that issued them.
+  layer: L1
+  tags: [completeness, redemption, cams, cdsl, scope]
+  current_nw:
+    as_of: "2026-06-30"
+    reporting_currency: INR
+    positions:
+      "Assets:Investment:MutualFund:SampleAMC1:FOLIO001:SchemeAlpha":
+        account_name: "Assets:Investment:MutualFund:SampleAMC1:FOLIO001:SchemeAlpha"
+        units: "95.000"
+        nav: "48.0000"
+        value: "4560.00"
+        currency: INR
+        as_of: "2026-06-30"
+        source: CAMS
+      "Assets:Investment:MutualFund:SampleAMC2:FOLIO002:SchemeBeta":
+        account_name: "Assets:Investment:MutualFund:SampleAMC2:FOLIO002:SchemeBeta"
+        units: "200.000"
+        nav: "24.0000"
+        value: "4800.00"
+        currency: INR
+        as_of: "2026-06-30"
+        source: CAMS
+      "Assets:Investment:MutualFund:SampleAMC1:FOLIO003:SchemeGamma":
+        account_name: "Assets:Investment:MutualFund:SampleAMC1:FOLIO003:SchemeGamma"
+        units: "50.000"
+        nav: "40.0000"
+        value: "2000.00"
+        currency: INR
+        as_of: "2026-06-30"
+        source: CAMS
+      "Assets:Investment:REIT:SAMPLEREIT":
+        account_name: "Assets:Investment:REIT:SAMPLEREIT"
+        units: "100.000"
+        nav: "350.0000"
+        value: "35000.00"
+        currency: INR
+        as_of: "2026-06-30"
+        source: CDSL
+    total: "46360.00"
+  files: [fixtures/cams_2026_07.pdf]
+  expected_nw: !include expected/redemption_scoped_to_different_source.json
   permute: false
 
 - id: partial_omission

@@ -35,17 +35,41 @@ def _account_name(
         return f"Assets:Bank:{institution}:{identifier}"
     if document_type == "mutual_fund_cas":
         return f"Assets:Investment:MutualFund:{institution}:{identifier}:{instrument_name}"
+    if document_type == "loan_statement":
+        return f"Liabilities:Loan:{institution}:{identifier}"
     raise ValueError(f"unsupported document_type: {document_type}")
 
 
+def _should_replace(existing: Position | None, new: Position) -> bool:
+    """The (as_of, doc_issued_at) supersession rule: newer as_of always wins; on a tie
+    (a same-day correction, see the restatement eval case), newer doc_issued_at wins,
+    regardless of which document was uploaded/processed first. No existing position ->
+    always write. Applied uniformly whether "existing" came from the caller's seeded
+    NetWorth or from an earlier file processed in this same ingest() call, so upload
+    order never matters — confirmed via the eval suite that a naive "last file
+    processed wins" implementation gives a different (wrong) answer depending on file
+    order; this rule is what makes the answer order-independent instead.
+    """
+    if existing is None:
+        return True
+    if new.as_of != existing.as_of:
+        return new.as_of > existing.as_of
+    if existing.doc_issued_at is None:
+        return new.doc_issued_at is not None
+    if new.doc_issued_at is None:
+        return False
+    return new.doc_issued_at > existing.doc_issued_at
+
+
 def ingest(current: NetWorth, files: list[Path], password: str | None = None) -> NetWorth:
-    """First-pass scaffold, scoped to prove the extraction plumbing end to end against
-    the `fresh` case only. Deliberately does NOT yet implement: staleness/supersession
-    (as_of, doc_issued_at tie-break), completeness-driven redemption, partial-document
-    safety, cross-document dedup, currency exclusion from total, identity-mismatch
-    rejection, or the "Page 1 of N" truncation check. Extraction is LLM-based (see
-    ingestion/extract.py), not per-institution parser code (statements/parsers/ is a
-    separate, older pipeline — this one is deliberately not that).
+    """Scoped so far to: extraction (bank_statement, mutual_fund_cas, epf_passbook) and
+    (as_of, doc_issued_at) staleness/supersession. Deliberately does NOT yet implement:
+    completeness-driven redemption (an exhaustive document omitting a previously-known
+    position should remove it — this pipeline never removes anything), partial-document
+    safety, currency-aware account types (liabilities), identity-mismatch rejection, or
+    the "Page 1 of N" truncation check. Extraction is LLM-based (see ingestion/
+    extract.py), not per-institution parser code (statements/parsers/ is a separate,
+    older pipeline — this one is deliberately not that).
 
     password, when given, is used to decrypt every file in this call — fine for a
     single-file caller (e.g. the ingestion-test upload endpoint), not yet a real
@@ -55,6 +79,7 @@ def ingest(current: NetWorth, files: list[Path], password: str | None = None) ->
     positions = dict(current.positions)
     for file in files:
         facts = extract_facts(file.read_bytes(), password)
+        doc_issued_at = facts["doc_issued_at"]
         for holding in facts["holdings"]:
             if facts["document_type"] == "epf_passbook":
                 # EPF (Employee + Employer) and EPS (Pension) are tracked as separate
@@ -67,18 +92,24 @@ def ingest(current: NetWorth, files: list[Path], password: str | None = None) ->
                 epf_value = Decimal(_clean_numeric(holding["employee_balance"])) + Decimal(
                     _clean_numeric(holding["employer_balance"])
                 )
-                positions[epf_name] = Position(
+                new_epf = Position(
                     account_name=epf_name,
                     value=str(epf_value),
                     currency=holding["currency"],
                     as_of=holding["as_of"],
+                    doc_issued_at=doc_issued_at,
                 )
-                positions[eps_name] = Position(
+                if _should_replace(positions.get(epf_name), new_epf):
+                    positions[epf_name] = new_epf
+                new_eps = Position(
                     account_name=eps_name,
                     value=_clean_numeric(holding["pension_balance"]),
                     currency=holding["currency"],
                     as_of=holding["as_of"],
+                    doc_issued_at=doc_issued_at,
                 )
+                if _should_replace(positions.get(eps_name), new_eps):
+                    positions[eps_name] = new_eps
                 continue
 
             account_name = _account_name(
@@ -87,14 +118,23 @@ def ingest(current: NetWorth, files: list[Path], password: str | None = None) ->
                 holding["identifier"],
                 holding.get("instrument_name"),
             )
-            positions[account_name] = Position(
+            value = _clean_numeric(holding["value"])
+            if facts["document_type"] == "loan_statement":
+                # The model reports Outstanding Principal as printed (positive) — the
+                # negative sign that makes a liability actually subtract from net worth
+                # is applied here in code, never by the LLM.
+                value = str(-Decimal(value))
+            new_position = Position(
                 account_name=account_name,
-                value=_clean_numeric(holding["value"]),
+                value=value,
                 currency=holding["currency"],
                 as_of=holding["as_of"],
                 units=_clean_numeric(holding.get("units")),
                 nav=_clean_numeric(holding.get("nav")),
+                doc_issued_at=doc_issued_at,
             )
+            if _should_replace(positions.get(account_name), new_position):
+                positions[account_name] = new_position
 
     total = sum(
         (

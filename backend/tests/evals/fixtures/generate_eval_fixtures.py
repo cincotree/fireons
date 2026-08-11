@@ -371,7 +371,8 @@ SAMPLEAMC1_FOLIO001_2026_07_LINES = [
     "PAN : SAMPLEPAN1Z",
     "Folio No : FOLIO001",
     "Scheme : SchemeAlpha - Growth",
-    "Closing Units : 100.000 NAV : 50.0000 Market Value : 5000.00",
+    "Closing Units : 100.000",
+    "NAV on 31-Jul-2026: INR 50.0000 Market Value on 31-Jul-2026: INR 5000.00",
     "Statement Period : 01-Jul-2026 to 31-Jul-2026",
     "Statement Generated On: 03-Aug-2026",
 ]
@@ -382,7 +383,8 @@ SAMPLEAMC1_FOLIO001_2026_05_LINES = [
     "PAN : SAMPLEPAN1Z",
     "Folio No : FOLIO001",
     "Scheme : SchemeAlpha - Growth",
-    "Closing Units : 95.000 NAV : 48.0000 Market Value : 4560.00",
+    "Closing Units : 95.000",
+    "NAV on 31-May-2026: INR 48.0000 Market Value on 31-May-2026: INR 4560.00",
     "Statement Period : 01-May-2026 to 31-May-2026",
     "Statement Generated On: 03-Jun-2026",
 ]
