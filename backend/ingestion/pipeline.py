@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -37,6 +38,8 @@ def _account_name(
         return f"Assets:Investment:MutualFund:{institution}:{identifier}:{instrument_name}"
     if document_type == "loan_statement":
         return f"Liabilities:Loan:{institution}:{identifier}"
+    if document_type == "brokerage_statement":
+        return f"Assets:Investment:Equity:US:{identifier}"
     raise ValueError(f"unsupported document_type: {document_type}")
 
 
@@ -61,15 +64,32 @@ def _should_replace(existing: Position | None, new: Position) -> bool:
     return new.doc_issued_at > existing.doc_issued_at
 
 
+def _document_supersedes(existing: Position, doc_issued_at: datetime) -> bool:
+    """Whether an exhaustive document's silence about `existing` should be read as
+    redemption — only if the document is at least as current as what's already known.
+    A stale exhaustive document's silence isn't informative (see
+    stale_exhaustive_does_not_zero): it can't tell you something was redeemed after the
+    document was even generated. Falls back to as_of (midnight) when existing has no
+    doc_issued_at recorded, e.g. seeded/caller-provided state.
+    """
+    reference = existing.doc_issued_at
+    if reference is None:
+        reference = datetime.combine(existing.as_of, datetime.min.time())
+    return doc_issued_at >= reference
+
+
 def ingest(current: NetWorth, files: list[Path], password: str | None = None) -> NetWorth:
-    """Scoped so far to: extraction (bank_statement, mutual_fund_cas, epf_passbook) and
-    (as_of, doc_issued_at) staleness/supersession. Deliberately does NOT yet implement:
-    completeness-driven redemption (an exhaustive document omitting a previously-known
-    position should remove it — this pipeline never removes anything), partial-document
-    safety, currency-aware account types (liabilities), identity-mismatch rejection, or
-    the "Page 1 of N" truncation check. Extraction is LLM-based (see ingestion/
-    extract.py), not per-institution parser code (statements/parsers/ is a separate,
-    older pipeline — this one is deliberately not that).
+    """Scoped so far to: extraction (bank_statement, mutual_fund_cas, epf_passbook,
+    loan_statement, brokerage_statement), (as_of, doc_issued_at) staleness/
+    supersession, and source-scoped completeness/redemption (an exhaustive document's
+    silence about a same-source position it would have mentioned means that position
+    is gone — never applied across different sources, e.g. CDSL vs CAMS, since one
+    source's completeness claim says nothing about another's coverage). Deliberately
+    does NOT yet implement: partial-document safety beyond the exhaustiveness check,
+    identity-mismatch rejection, or the "Page 1 of N" truncation check. Extraction is
+    LLM-based (see ingestion/extract.py), not per-institution parser code
+    (statements/parsers/ is a separate, older pipeline — this one is deliberately not
+    that).
 
     password, when given, is used to decrypt every file in this call — fine for a
     single-file caller (e.g. the ingestion-test upload endpoint), not yet a real
@@ -79,7 +99,10 @@ def ingest(current: NetWorth, files: list[Path], password: str | None = None) ->
     positions = dict(current.positions)
     for file in files:
         facts = extract_facts(file.read_bytes(), password)
-        doc_issued_at = facts["doc_issued_at"]
+        doc_issued_at = datetime.fromisoformat(facts["doc_issued_at"])
+        source = facts["source"]
+        mentioned: set[str] = set()
+
         for holding in facts["holdings"]:
             if facts["document_type"] == "epf_passbook":
                 # EPF (Employee + Employer) and EPS (Pension) are tracked as separate
@@ -89,6 +112,7 @@ def ingest(current: NetWorth, files: list[Path], password: str | None = None) ->
                 # asking the LLM to compute it.
                 epf_name = f"Assets:Retirement:EPF:{holding['identifier']}"
                 eps_name = f"Assets:Retirement:EPS:{holding['identifier']}"
+                mentioned.update((epf_name, eps_name))
                 epf_value = Decimal(_clean_numeric(holding["employee_balance"])) + Decimal(
                     _clean_numeric(holding["employer_balance"])
                 )
@@ -98,6 +122,7 @@ def ingest(current: NetWorth, files: list[Path], password: str | None = None) ->
                     currency=holding["currency"],
                     as_of=holding["as_of"],
                     doc_issued_at=doc_issued_at,
+                    source=source,
                 )
                 if _should_replace(positions.get(epf_name), new_epf):
                     positions[epf_name] = new_epf
@@ -107,6 +132,7 @@ def ingest(current: NetWorth, files: list[Path], password: str | None = None) ->
                     currency=holding["currency"],
                     as_of=holding["as_of"],
                     doc_issued_at=doc_issued_at,
+                    source=source,
                 )
                 if _should_replace(positions.get(eps_name), new_eps):
                     positions[eps_name] = new_eps
@@ -118,6 +144,7 @@ def ingest(current: NetWorth, files: list[Path], password: str | None = None) ->
                 holding["identifier"],
                 holding.get("instrument_name"),
             )
+            mentioned.add(account_name)
             value = _clean_numeric(holding["value"])
             if facts["document_type"] == "loan_statement":
                 # The model reports Outstanding Principal as printed (positive) — the
@@ -132,9 +159,19 @@ def ingest(current: NetWorth, files: list[Path], password: str | None = None) ->
                 units=_clean_numeric(holding.get("units")),
                 nav=_clean_numeric(holding.get("nav")),
                 doc_issued_at=doc_issued_at,
+                source=source,
             )
             if _should_replace(positions.get(account_name), new_position):
                 positions[account_name] = new_position
+
+        if facts["is_exhaustive"]:
+            for key, existing in list(positions.items()):
+                if key in mentioned:
+                    continue
+                if existing.source != source:
+                    continue
+                if _document_supersedes(existing, doc_issued_at):
+                    del positions[key]
 
     total = sum(
         (

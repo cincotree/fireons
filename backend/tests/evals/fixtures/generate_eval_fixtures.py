@@ -102,6 +102,9 @@ def _cams_lines(
     return [
         "CONSOLIDATED ACCOUNT STATEMENT",
         f"Statement Period : {as_of_label}",
+        "This Consolidated Account Statement is brought to you by CAMS and lists the "
+        "transactions, balances and values of Mutual Fund serviced by CAMS and selected by "
+        "you.",
         "PAN : SAMPLEPAN1Z",
         "SAMPLE AMC 1 - SampleAMC1",
         "Folio No : FOLIO001",
@@ -398,6 +401,7 @@ SAMPLEAMC1_FOLIO001_2026_05_LINES = [
 # FOLIO001, same underlying values, differently phrased — proving dedup can't rely
 # on two "full consolidated statement" documents being mutually exclusive.
 CDSL_CAS_2026_07_LINES = [
+    "Central Depository Services (India) Limited",
     "CONSOLIDATED ACCOUNT STATEMENT (CAS) FOR SECURITIES HELD IN DEMAT",
     "FORM AND INVESTMENTS IN MUTUAL FUNDS",
     "CAS ID: SAMPLE00000001",
@@ -408,7 +412,7 @@ CDSL_CAS_2026_07_LINES = [
     "Total Portfolio Value 5,000.00",
     "MF Folios",
     "AMC Name : SampleAMC1",
-    "Scheme Name : SampleAMC1 Scheme Alpha Growth Plan Scheme Code : 02G",
+    "Scheme Name : SampleAMC1 SchemeAlpha Growth Plan Scheme Code : 02G",
     "Folio No : FOLIO001 Mode of Holding : Single",
     "Closing Balance : 100.000 NAV : 50.0000 Value : 5000.00 NAV Date : 31-Jul-2026",
     "Statement Generated On: 05-Aug-2026",

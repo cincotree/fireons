@@ -24,7 +24,13 @@ EXTRACT_TOOL = {
         "properties": {
             "document_type": {
                 "type": "string",
-                "enum": ["bank_statement", "mutual_fund_cas", "epf_passbook", "loan_statement"],
+                "enum": [
+                    "bank_statement",
+                    "mutual_fund_cas",
+                    "epf_passbook",
+                    "loan_statement",
+                    "brokerage_statement",
+                ],
                 "description": "The kind of statement this document is.",
             },
             "doc_issued_at": {
@@ -35,6 +41,31 @@ EXTRACT_TOOL = {
                 "document, not per-holding: when two documents describe the same as_of "
                 "with different figures (a correction), the one with the later "
                 "doc_issued_at wins, regardless of which was uploaded first or second.",
+            },
+            "source": {
+                "type": "string",
+                "description": "The specific issuer/aggregator that produced this document "
+                "— e.g. 'CAMS', 'CDSL', 'KFinTech', or the AMC's own short name for a "
+                "standalone individual-holding statement. Look for an explicit statement "
+                "like 'brought to you by CAMS' or the issuing organization's name on the "
+                "letterhead — do not guess from document_type alone. This scopes "
+                "completeness: a document's claim to be exhaustive never extends beyond its "
+                "own source, even to a same-shaped document from elsewhere. Confirmed "
+                "necessary in practice — CDSL genuinely covers more funds than CAMS, so a "
+                "CAMS document's completeness must never be read as saying anything about "
+                "CDSL-sourced holdings, and vice versa.",
+            },
+            "is_exhaustive": {
+                "type": "boolean",
+                "description": "True only if this document explicitly presents itself as a "
+                "complete listing for its source — a consolidated/summary statement showing "
+                "multiple holdings together (e.g. a 'Consolidated Account Statement' with a "
+                "portfolio summary section). False for any document that only ever "
+                "describes a single holding on its own (e.g. a standalone individual AMC "
+                "statement for one folio, a single bank account statement) — such a "
+                "document makes no claim about anything else from that source, so its "
+                "silence about other holdings must never be read as those holdings being "
+                "gone.",
             },
             "holdings": {
                 "type": "array",
@@ -50,25 +81,37 @@ EXTRACT_TOOL = {
                             "SampleAMC1' (a long name and short code together) -> 'SampleAMC1', "
                             "always prefer the short code form when both appear. Do not "
                             "paraphrase or abbreviate beyond what these rules specify. Null for "
-                            "epf_passbook (there is only one EPFO, no institution to name).",
+                            "epf_passbook (there is only one EPFO, no institution to name) and "
+                            "for brokerage_statement (the ticker symbol alone is the "
+                            "identifier, no broker name needed in the key).",
                         },
                         "identifier": {
                             "type": "string",
                             "description": "Last 4 digits of the account number for a bank "
                             "holding, the folio number for a mutual fund holding, the UAN for "
-                            "an epf_passbook holding, or the loan account number (numeric "
-                            "portion only, strip any prefix like 'LN') for a loan_statement "
-                            "holding.",
+                            "an epf_passbook holding, the loan account number (numeric portion "
+                            "only, strip any prefix like 'LN') for a loan_statement holding, "
+                            "or the ticker symbol for a brokerage_statement holding.",
                         },
                         "instrument_name": {
                             "type": ["string", "null"],
                             "description": "Scheme name for a mutual fund holding; null for a "
-                            "bank account or epf_passbook. Strip generic plan/option suffixes "
-                            "that describe how the scheme is held, not what it is: '- Growth', "
-                            "'- Direct Plan', '- Regular Plan', '(Dividend)', '(IDCW)', '- "
-                            "Growth Option', and similar. Example: 'SchemeAlpha - Growth' -> "
-                            "'SchemeAlpha'. Keep the distinctive scheme name itself intact — "
-                            "only drop the trailing plan/option descriptor.",
+                            "bank account or epf_passbook. Two normalization rules, both "
+                            "required because the same fund can be described very differently "
+                            "across documents — the folio number alone is NOT a safe "
+                            "identifier on its own, a single folio can legitimately hold "
+                            "multiple different schemes. (1) Strip generic plan/option "
+                            "suffixes that describe how the scheme is held, not what it is: "
+                            "'- Growth', '- Direct Plan', '- Regular Plan', '(Dividend)', "
+                            "'(IDCW)', '- Growth Option', and similar. (2) Strip the AMC/"
+                            "institution's own name if it appears redundantly prefixed onto "
+                            "the scheme text — the institution field already captures that. "
+                            "Example: one document prints 'SchemeAlpha - Growth', another "
+                            "prints 'SampleAMC1 Scheme Alpha Growth Plan' for the identical "
+                            "fund — both must normalize to the same value, 'SchemeAlpha'/"
+                            "'Scheme Alpha' being the distinctive part with the AMC prefix and "
+                            "plan suffix both removed. Keep only the distinctive scheme name "
+                            "itself.",
                         },
                         "units": {
                             "type": ["string", "null"],
@@ -135,7 +178,7 @@ EXTRACT_TOOL = {
                 },
             },
         },
-        "required": ["document_type", "doc_issued_at", "holdings"],
+        "required": ["document_type", "doc_issued_at", "source", "is_exhaustive", "holdings"],
     },
 }
 
