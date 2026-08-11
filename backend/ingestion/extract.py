@@ -30,6 +30,10 @@ EXTRACT_TOOL = {
                     "epf_passbook",
                     "loan_statement",
                     "brokerage_statement",
+                    "demat_cas",
+                    "sgb_confirmation",
+                    "deposit_statement",
+                    "nps_statement",
                 ],
                 "description": "The kind of statement this document is.",
             },
@@ -81,17 +85,43 @@ EXTRACT_TOOL = {
                             "SampleAMC1' (a long name and short code together) -> 'SampleAMC1', "
                             "always prefer the short code form when both appear. Do not "
                             "paraphrase or abbreviate beyond what these rules specify. Null for "
-                            "epf_passbook (there is only one EPFO, no institution to name) and "
-                            "for brokerage_statement (the ticker symbol alone is the "
-                            "identifier, no broker name needed in the key).",
+                            "epf_passbook (there is only one EPFO, no institution to name), "
+                            "brokerage_statement and demat_cas (the ticker/ISIN-derived symbol "
+                            "alone is the identifier), and sgb_confirmation (RBI is not a "
+                            "meaningful institution name here).",
                         },
                         "identifier": {
                             "type": "string",
                             "description": "Last 4 digits of the account number for a bank "
-                            "holding, the folio number for a mutual fund holding, the UAN for "
+                            "holding — exactly 4 characters, count from the right end of the "
+                            "printed number regardless of its total length, e.g. account "
+                            "number '55000019988776' -> '8776', not '9988776' or any other "
+                            "length. The folio number for a mutual fund holding, the UAN for "
                             "an epf_passbook holding, the loan account number (numeric portion "
                             "only, strip any prefix like 'LN') for a loan_statement holding, "
-                            "or the ticker symbol for a brokerage_statement holding.",
+                            "the ticker symbol for a brokerage_statement or demat_cas holding, "
+                            "the deposit account number (numeric portion only, strip any "
+                            "prefix like 'FD'/'RD') for a deposit_statement holding, a "
+                            "normalized series identifier for an sgb_confirmation holding — "
+                            "strip spaces and use consistent casing, e.g. 'SGB 2028 SERIES IV' "
+                            "-> 'SGB2028SeriesIV' — or the PRAN for an nps_statement holding.",
+                        },
+                        "instrument_type": {
+                            "type": ["string", "null"],
+                            "description": "For demat_cas: one of 'equity', 'reit', 'invit' — "
+                            "the document groups holdings under headings like 'EQUITY "
+                            "HOLDINGS', 'REIT HOLDINGS', 'INVIT HOLDINGS', use that heading to "
+                            "classify each holding. For deposit_statement: one of 'fd', 'rd' — "
+                            "Fixed Deposit vs Recurring Deposit. For bank_statement: the "
+                            "literal string 'ppf' if the document's own Product/Account Type "
+                            "field identifies it as a Public Provident Fund account rather "
+                            "than an ordinary savings/current account (e.g. 'Product : 1030 - "
+                            "PUBLIC PROVIDENT FUND') — a PPF account is frequently issued on "
+                            "the exact same statement template as a regular bank account, "
+                            "distinguished only by this field, so check it explicitly rather "
+                            "than assuming every bank_statement is an ordinary account. Null "
+                            "for a bank_statement that is an ordinary account, and for every "
+                            "other document_type.",
                         },
                         "instrument_name": {
                             "type": ["string", "null"],
@@ -111,7 +141,10 @@ EXTRACT_TOOL = {
                             "fund — both must normalize to the same value, 'SchemeAlpha'/"
                             "'Scheme Alpha' being the distinctive part with the AMC prefix and "
                             "plan suffix both removed. Keep only the distinctive scheme name "
-                            "itself.",
+                            "itself. For nps_statement: the scheme identifier with spaces "
+                            "stripped, e.g. 'Scheme E Tier I' under a fund house name -> "
+                            "'SchemeE' (drop the fund house name and the Tier qualifier, keep "
+                            "just the letter-coded scheme itself).",
                         },
                         "units": {
                             "type": ["string", "null"],

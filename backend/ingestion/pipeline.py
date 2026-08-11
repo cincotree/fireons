@@ -19,8 +19,16 @@ def _clean_numeric(value: str | None) -> str | None:
     return value.replace(",", "").strip()
 
 
+_DEMAT_PREFIXES = {"equity": "Equity:India", "reit": "REIT", "invit": "InvIT"}
+_DEPOSIT_PREFIXES = {"fd": "FD", "rd": "RD"}
+
+
 def _account_name(
-    document_type: str, institution: str, identifier: str, instrument_name: str | None
+    document_type: str,
+    institution: str,
+    identifier: str,
+    instrument_name: str | None,
+    instrument_type: str | None = None,
 ) -> str:
     """Built deterministically from stable extracted identifiers — never generated as
     free text by the LLM. Confirmed against real documents: a CAMS CAS and a CDSL CAS
@@ -33,13 +41,23 @@ def _account_name(
     the way it tolerates numeric noise.
     """
     if document_type == "bank_statement":
+        if instrument_type == "ppf":
+            return f"Assets:Retirement:PPF:{institution}:{identifier}"
         return f"Assets:Bank:{institution}:{identifier}"
+    if document_type == "nps_statement":
+        return f"Assets:Retirement:NPS:{identifier}:{instrument_name}"
     if document_type == "mutual_fund_cas":
         return f"Assets:Investment:MutualFund:{institution}:{identifier}:{instrument_name}"
     if document_type == "loan_statement":
         return f"Liabilities:Loan:{institution}:{identifier}"
     if document_type == "brokerage_statement":
         return f"Assets:Investment:Equity:US:{identifier}"
+    if document_type == "demat_cas":
+        return f"Assets:Investment:{_DEMAT_PREFIXES[instrument_type]}:{identifier}"
+    if document_type == "sgb_confirmation":
+        return f"Assets:Investment:SGB:{identifier}"
+    if document_type == "deposit_statement":
+        return f"Assets:Deposit:{_DEPOSIT_PREFIXES[instrument_type]}:{institution}:{identifier}"
     raise ValueError(f"unsupported document_type: {document_type}")
 
 
@@ -113,8 +131,8 @@ def ingest(current: NetWorth, files: list[Path], password: str | None = None) ->
                 epf_name = f"Assets:Retirement:EPF:{holding['identifier']}"
                 eps_name = f"Assets:Retirement:EPS:{holding['identifier']}"
                 mentioned.update((epf_name, eps_name))
-                epf_value = Decimal(_clean_numeric(holding["employee_balance"])) + Decimal(
-                    _clean_numeric(holding["employer_balance"])
+                epf_value = Decimal(_clean_numeric(holding.get("employee_balance"))) + Decimal(
+                    _clean_numeric(holding.get("employer_balance"))
                 )
                 new_epf = Position(
                     account_name=epf_name,
@@ -128,7 +146,7 @@ def ingest(current: NetWorth, files: list[Path], password: str | None = None) ->
                     positions[epf_name] = new_epf
                 new_eps = Position(
                     account_name=eps_name,
-                    value=_clean_numeric(holding["pension_balance"]),
+                    value=_clean_numeric(holding.get("pension_balance")),
                     currency=holding["currency"],
                     as_of=holding["as_of"],
                     doc_issued_at=doc_issued_at,
@@ -140,12 +158,13 @@ def ingest(current: NetWorth, files: list[Path], password: str | None = None) ->
 
             account_name = _account_name(
                 facts["document_type"],
-                holding["institution"],
+                holding.get("institution"),
                 holding["identifier"],
                 holding.get("instrument_name"),
+                holding.get("instrument_type"),
             )
             mentioned.add(account_name)
-            value = _clean_numeric(holding["value"])
+            value = _clean_numeric(holding.get("value"))
             if facts["document_type"] == "loan_statement":
                 # The model reports Outstanding Principal as printed (positive) — the
                 # negative sign that makes a liability actually subtract from net worth

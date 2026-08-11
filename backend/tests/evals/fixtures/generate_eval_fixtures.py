@@ -316,6 +316,7 @@ NPS_2026_07_LINES = [
     "Subscriber Name : TEST USER",
     "Currency : INR",
     "TIER I HOLDINGS",
+    "Value of your Holdings (Investments) as on Jul 31, 2026 (in Rs)",
     "Scheme : SAMPLE PENSION FUND - Scheme E Tier I",
     "Closing Units : 5000.000 NAV : 32.5000 Value : 162500.00",
     "Statement Generated On: 02-Aug-2026",
