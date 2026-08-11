@@ -13,9 +13,12 @@ from fastapi import HTTPException
 # first-time setup (15-20 statements in one sitting) is a request-count spike but a
 # modest byte volume. MAX_UPLOADS_PER_WINDOW is just a loose backstop against a
 # runaway loop of tiny files; it should never be the one that fires in normal use.
+# 50MB is deliberately tight, not generous — this app is one individual uploading
+# their own statements, not a bulk/shared ingestion path, and real statement PDFs
+# (see tests/evals/fixtures) run well under 1-2MB each.
 WINDOW_SECONDS = 3600
 MAX_UPLOADS_PER_WINDOW = 40
-MAX_CUMULATIVE_BYTES_PER_WINDOW = 200 * 1024 * 1024
+MAX_CUMULATIVE_BYTES_PER_WINDOW = 50 * 1024 * 1024
 
 _upload_log: dict[str, list[tuple[float, int]]] = defaultdict(list)
 
