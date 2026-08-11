@@ -7,13 +7,10 @@ from pypdf.errors import PdfReadError
 from ingestion.extract import extract_facts
 from ingestion.model import NetWorth, Position
 
-# Phase 1 stand-in for a real per-user identity system — the eval corpus's "owner" is
-# always this PAN/name, matching the fixtures (mismatched_identity_cas.pdf uses a
-# different PAN and name on purpose). Real uploads need this threaded through from
-# the actual logged-in user, not a hardcoded constant — same category of
-# simplification as _EVAL_FIXTURE_PASSWORD in extract.py.
-_REFERENCE_PAN = "SAMPLEPAN1Z"
-_REFERENCE_NAME_FRAGMENT = "TEST USER"
+# Fallback owner name for the eval corpus only (mismatched_identity_cas.pdf uses a
+# different name on purpose). Real callers pass the logged-in user's own name — same
+# category of simplification as _EVAL_FIXTURE_PASSWORD in extract.py.
+_EVAL_FIXTURE_OWNER_NAME = "TEST USER"
 
 
 def _clean_numeric(value: str | None) -> str | None:
@@ -29,21 +26,17 @@ def _clean_numeric(value: str | None) -> str | None:
     return value.replace(",", "").strip()
 
 
-def _identity_matches(investor_pan: str | None, investor_name: str | None) -> bool:
-    """PAN is the more reliable signal when present (exact match required). When PAN
-    is absent (common for plain bank/deposit statements), fall back to checking
-    whether the reference name appears as a substring — this is what lets a joint
-    account ('MR. TEST USER & MRS. SPOUSE USER') pass: the owner's name is present,
-    just not alone, which is a deliberately different case from a document that
-    doesn't mention the owner at all. If neither PAN nor name is present in the
-    document (nothing to check against), default to allowing it through rather than
-    rejecting on missing information.
+def _identity_matches(investor_name: str | None, reference_name: str) -> bool:
+    """Substring match, not exact — this is what lets a joint account ('MR. TEST USER
+    & MRS. SPOUSE USER') pass: the owner's name is present, just not alone, which is a
+    deliberately different case from a document that doesn't mention the owner at
+    all. If the document doesn't state a holder name, or the account has no name on
+    file to check against, default to allowing it through rather than rejecting on
+    missing information — no PAN fallback, since real users are never asked for one.
     """
-    if investor_pan is not None:
-        return investor_pan == _REFERENCE_PAN
-    if investor_name is not None:
-        return _REFERENCE_NAME_FRAGMENT.lower() in investor_name.lower()
-    return True
+    if investor_name is None or not reference_name:
+        return True
+    return reference_name.lower() in investor_name.lower()
 
 
 _DEMAT_PREFIXES = {"equity": "Equity:India", "reit": "REIT", "invit": "InvIT"}
@@ -142,7 +135,12 @@ def _document_supersedes(existing: Position, doc_issued_at: datetime) -> bool:
     return doc_issued_at >= reference
 
 
-def ingest(current: NetWorth, files: list[Path], password: str | None = None) -> NetWorth:
+def ingest(
+    current: NetWorth,
+    files: list[Path],
+    password: str | None = None,
+    account_owner_name: str | None = None,
+) -> NetWorth:
     """Scoped so far to: extraction across bank/mutual-fund/EPF/loan/brokerage/demat/
     SGB/deposit/NPS/insurance documents, (as_of, doc_issued_at) staleness/
     supersession, source-scoped completeness/redemption, and three safety checks: a
@@ -159,9 +157,14 @@ def ingest(current: NetWorth, files: list[Path], password: str | None = None) ->
     single-file caller (e.g. the ingestion-test upload endpoint), not yet a real
     per-file password model. When omitted (the eval harness never passes it), falls
     back to the eval fixture password, preserving existing harness behavior exactly.
+
+    account_owner_name is matched against each document's stated investor name — not
+    PAN, real users are never asked to provide one. When omitted (the eval harness
+    never passes it), falls back to the eval fixture's reference name.
     """
     positions = dict(current.positions)
     warnings = list(current.warnings)
+    reference_name = account_owner_name or _EVAL_FIXTURE_OWNER_NAME
 
     for file in files:
         try:
@@ -174,7 +177,7 @@ def ingest(current: NetWorth, files: list[Path], password: str | None = None) ->
             warnings.append(f"could not classify {file.name} as a known statement type")
             continue
 
-        if not _identity_matches(facts.get("investor_pan"), facts.get("investor_name")):
+        if not _identity_matches(facts.get("investor_name"), reference_name):
             warnings.append(
                 f"quarantined {file.name} — investor identity does not match account owner"
             )

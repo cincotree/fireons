@@ -61,7 +61,8 @@ EXTRACT_TOOL = {
                 "policy/folio holder this document identifies, if the document states one "
                 "anywhere — verbatim, do not guess if absent. Null if no PAN is printed "
                 "anywhere in the document (common for plain bank/deposit statements) or for "
-                "'unrecognized'.",
+                "'unrecognized'. Not currently used for identity verification (that's "
+                "name-only, see investor_name) — extracted for completeness/future use only.",
             },
             "investor_name": {
                 "type": ["string", "null"],

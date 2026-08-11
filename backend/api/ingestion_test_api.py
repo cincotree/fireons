@@ -29,7 +29,12 @@ async def test_ingest_upload(
 
     empty = NetWorth(as_of=None, reporting_currency="INR", positions={}, total="0")
     try:
-        result = ingest(empty, [tmp_path], password=password or None)
+        result = ingest(
+            empty,
+            [tmp_path],
+            password=password or None,
+            account_owner_name=current_user.full_name,
+        )
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     finally:
