@@ -34,20 +34,45 @@ EXTRACT_TOOL = {
                     "sgb_confirmation",
                     "deposit_statement",
                     "nps_statement",
+                    "insurance_policy",
+                    "unrecognized",
                 ],
-                "description": "The kind of statement this document is.",
+                "description": "The kind of statement this document is. Use 'unrecognized' "
+                "for anything that is not actually an account/holding/balance statement at "
+                "all — e.g. a fund factsheet, a brochure, marketing material. Never force a "
+                "non-statement document into the nearest-sounding category just because it "
+                "mentions a fund or account in passing; when in doubt whether a document is "
+                "really a statement of holdings, prefer 'unrecognized'. holdings must be "
+                "empty for 'unrecognized'.",
             },
             "doc_issued_at": {
-                "type": "string",
+                "type": ["string", "null"],
                 "description": "ISO datetime (YYYY-MM-DDTHH:MM:SS, time defaults to "
                 "00:00:00 if not printed) the document itself was generated/issued — e.g. "
                 "'Statement Generated On', 'Printed On'. This is a single fact about the "
                 "document, not per-holding: when two documents describe the same as_of "
                 "with different figures (a correction), the one with the later "
-                "doc_issued_at wins, regardless of which was uploaded first or second.",
+                "doc_issued_at wins, regardless of which was uploaded first or second. Null "
+                "for 'unrecognized'.",
+            },
+            "investor_pan": {
+                "type": ["string", "null"],
+                "description": "The PAN (Permanent Account Number, India) of the account/"
+                "policy/folio holder this document identifies, if the document states one "
+                "anywhere — verbatim, do not guess if absent. Null if no PAN is printed "
+                "anywhere in the document (common for plain bank/deposit statements) or for "
+                "'unrecognized'.",
+            },
+            "investor_name": {
+                "type": ["string", "null"],
+                "description": "The name(s) of the account/policy/folio holder(s) this "
+                "document identifies, exactly as printed — including a second name if it's "
+                "a joint account (e.g. 'MR. TEST USER & MRS. SPOUSE USER', keep both names, "
+                "do not pick just one). Null if no holder name is printed anywhere, or for "
+                "'unrecognized'.",
             },
             "source": {
-                "type": "string",
+                "type": ["string", "null"],
                 "description": "The specific issuer/aggregator that produced this document "
                 "— e.g. 'CAMS', 'CDSL', 'KFinTech', or the AMC's own short name for a "
                 "standalone individual-holding statement. Look for an explicit statement "
@@ -57,10 +82,10 @@ EXTRACT_TOOL = {
                 "own source, even to a same-shaped document from elsewhere. Confirmed "
                 "necessary in practice — CDSL genuinely covers more funds than CAMS, so a "
                 "CAMS document's completeness must never be read as saying anything about "
-                "CDSL-sourced holdings, and vice versa.",
+                "CDSL-sourced holdings, and vice versa. Null for 'unrecognized'.",
             },
             "is_exhaustive": {
-                "type": "boolean",
+                "type": ["boolean", "null"],
                 "description": "True only if this document explicitly presents itself as a "
                 "complete listing for its source — a consolidated/summary statement showing "
                 "multiple holdings together (e.g. a 'Consolidated Account Statement' with a "
@@ -69,7 +94,7 @@ EXTRACT_TOOL = {
                 "statement for one folio, a single bank account statement) — such a "
                 "document makes no claim about anything else from that source, so its "
                 "silence about other holdings must never be read as those holdings being "
-                "gone.",
+                "gone. Null for 'unrecognized'.",
             },
             "holdings": {
                 "type": "array",
@@ -84,11 +109,13 @@ EXTRACT_TOOL = {
                             "Examples: 'HDFC BANK LIMITED' -> 'HDFC'. 'SAMPLE AMC 1 - "
                             "SampleAMC1' (a long name and short code together) -> 'SampleAMC1', "
                             "always prefer the short code form when both appear. Do not "
-                            "paraphrase or abbreviate beyond what these rules specify. Null for "
-                            "epf_passbook (there is only one EPFO, no institution to name), "
-                            "brokerage_statement and demat_cas (the ticker/ISIN-derived symbol "
-                            "alone is the identifier), and sgb_confirmation (RBI is not a "
-                            "meaningful institution name here).",
+                            "paraphrase or abbreviate beyond what these rules specify. For "
+                            "insurance_policy, condense a multi-word brand name to one word, "
+                            "no spaces, stripping legal/product words: 'SAMPLE LIFE INSURANCE "
+                            "CO LTD' -> 'SampleLife'. Null for epf_passbook (there is only one "
+                            "EPFO, no institution to name), brokerage_statement and demat_cas "
+                            "(the ticker/ISIN-derived symbol alone is the identifier), and "
+                            "sgb_confirmation (RBI is not a meaningful institution name here).",
                         },
                         "identifier": {
                             "type": "string",
@@ -104,7 +131,9 @@ EXTRACT_TOOL = {
                             "prefix like 'FD'/'RD') for a deposit_statement holding, a "
                             "normalized series identifier for an sgb_confirmation holding — "
                             "strip spaces and use consistent casing, e.g. 'SGB 2028 SERIES IV' "
-                            "-> 'SGB2028SeriesIV' — or the PRAN for an nps_statement holding.",
+                            "-> 'SGB2028SeriesIV' — the PRAN for an nps_statement holding, or "
+                            "the policy number for an insurance_policy holding (numeric "
+                            "portion only, strip any plan-type prefix like 'ULIP'/'TERM').",
                         },
                         "instrument_type": {
                             "type": ["string", "null"],
@@ -163,10 +192,13 @@ EXTRACT_TOOL = {
                             "For loan_statement, report the Outstanding Principal as a "
                             "positive number exactly as printed — do not negate it yourself; "
                             "a liability's negative sign is applied downstream in code, not "
-                            "by you. Null for epf_passbook — use employee_balance/"
-                            "employer_balance/pension_balance instead, each reported "
-                            "separately. Never sum them yourself; that happens downstream in "
-                            "code.",
+                            "by you. For insurance_policy, report the Surrender Value "
+                            "specifically — never the (larger) Fund Value, and never the Sum "
+                            "Assured (a contingent death benefit figure, not money available "
+                            "now, no matter how prominently it's printed). Null for "
+                            "epf_passbook — use employee_balance/employer_balance/"
+                            "pension_balance instead, each reported separately. Never sum "
+                            "them yourself; that happens downstream in code.",
                         },
                         "employee_balance": {
                             "type": ["string", "null"],
@@ -211,7 +243,15 @@ EXTRACT_TOOL = {
                 },
             },
         },
-        "required": ["document_type", "doc_issued_at", "source", "is_exhaustive", "holdings"],
+        "required": [
+            "document_type",
+            "doc_issued_at",
+            "investor_pan",
+            "investor_name",
+            "source",
+            "is_exhaustive",
+            "holdings",
+        ],
     },
 }
 
@@ -219,7 +259,11 @@ EXTRACT_SYSTEM_PROMPT = (
     "You extract raw facts from financial statement documents. Report only what the "
     "document actually states — never compute, estimate, or infer a value it doesn't "
     "contain. If a document mentions unvested, potential, or contingent value that isn't "
-    "actually owned yet, do not report it as a holding at all.\n\n"
+    "actually owned yet, do not report it as a holding at all. A pure term life "
+    "insurance policy (no cash/surrender value — check for wording like 'Pure Term "
+    "Plan' or 'No Cash / Surrender Value') has nothing to report at all: do not include "
+    "any holding for it, even though it prominently prints a large Sum Assured figure — "
+    "that figure is a contingent death benefit, not an asset you own now.\n\n"
     "institution and instrument_name are used as stable identity keys downstream — the "
     "same underlying account must always normalize to the exact same string, so follow "
     "the normalization rules in each field's schema description exactly and literally. "

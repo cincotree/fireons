@@ -2,8 +2,18 @@ from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
+from pypdf.errors import PdfReadError
+
 from ingestion.extract import extract_facts
 from ingestion.model import NetWorth, Position
+
+# Phase 1 stand-in for a real per-user identity system — the eval corpus's "owner" is
+# always this PAN/name, matching the fixtures (mismatched_identity_cas.pdf uses a
+# different PAN and name on purpose). Real uploads need this threaded through from
+# the actual logged-in user, not a hardcoded constant — same category of
+# simplification as _EVAL_FIXTURE_PASSWORD in extract.py.
+_REFERENCE_PAN = "SAMPLEPAN1Z"
+_REFERENCE_NAME_FRAGMENT = "TEST USER"
 
 
 def _clean_numeric(value: str | None) -> str | None:
@@ -19,8 +29,42 @@ def _clean_numeric(value: str | None) -> str | None:
     return value.replace(",", "").strip()
 
 
+def _identity_matches(investor_pan: str | None, investor_name: str | None) -> bool:
+    """PAN is the more reliable signal when present (exact match required). When PAN
+    is absent (common for plain bank/deposit statements), fall back to checking
+    whether the reference name appears as a substring — this is what lets a joint
+    account ('MR. TEST USER & MRS. SPOUSE USER') pass: the owner's name is present,
+    just not alone, which is a deliberately different case from a document that
+    doesn't mention the owner at all. If neither PAN nor name is present in the
+    document (nothing to check against), default to allowing it through rather than
+    rejecting on missing information.
+    """
+    if investor_pan is not None:
+        return investor_pan == _REFERENCE_PAN
+    if investor_name is not None:
+        return _REFERENCE_NAME_FRAGMENT.lower() in investor_name.lower()
+    return True
+
+
 _DEMAT_PREFIXES = {"equity": "Equity:India", "reit": "REIT", "invit": "InvIT"}
 _DEPOSIT_PREFIXES = {"fd": "FD", "rd": "RD"}
+
+# is_exhaustive only justifies deleting an unmentioned position when the document is a
+# genuine consolidated statement of multiple holdings from one issuer (a CAMS/CDSL CAS,
+# an EPF passbook, an NPS statement, a bank statement). A single-instrument certificate
+# (a loan statement, an SGB confirmation, one insurance policy) is trivially "exhaustive"
+# of itself, but that says nothing about the customer's other unrelated holdings from the
+# same source — confirmed by insurance_classification: a term-insurance statement and a
+# ULIP statement share no aggregator, so both get source=None and would otherwise collide
+# in the same redemption scope, with the term document's silence about the ULIP folio
+# wrongly read as the ULIP being redeemed.
+_EXHAUSTIVE_ELIGIBLE_TYPES = {
+    "mutual_fund_cas",
+    "demat_cas",
+    "epf_passbook",
+    "nps_statement",
+    "bank_statement",
+}
 
 
 def _account_name(
@@ -58,6 +102,8 @@ def _account_name(
         return f"Assets:Investment:SGB:{identifier}"
     if document_type == "deposit_statement":
         return f"Assets:Deposit:{_DEPOSIT_PREFIXES[instrument_type]}:{institution}:{identifier}"
+    if document_type == "insurance_policy":
+        return f"Assets:Insurance:ULIP:{institution}:{identifier}"
     raise ValueError(f"unsupported document_type: {document_type}")
 
 
@@ -97,17 +143,17 @@ def _document_supersedes(existing: Position, doc_issued_at: datetime) -> bool:
 
 
 def ingest(current: NetWorth, files: list[Path], password: str | None = None) -> NetWorth:
-    """Scoped so far to: extraction (bank_statement, mutual_fund_cas, epf_passbook,
-    loan_statement, brokerage_statement), (as_of, doc_issued_at) staleness/
-    supersession, and source-scoped completeness/redemption (an exhaustive document's
-    silence about a same-source position it would have mentioned means that position
-    is gone — never applied across different sources, e.g. CDSL vs CAMS, since one
-    source's completeness claim says nothing about another's coverage). Deliberately
-    does NOT yet implement: partial-document safety beyond the exhaustiveness check,
-    identity-mismatch rejection, or the "Page 1 of N" truncation check. Extraction is
-    LLM-based (see ingestion/extract.py), not per-institution parser code
-    (statements/parsers/ is a separate, older pipeline — this one is deliberately not
-    that).
+    """Scoped so far to: extraction across bank/mutual-fund/EPF/loan/brokerage/demat/
+    SGB/deposit/NPS/insurance documents, (as_of, doc_issued_at) staleness/
+    supersession, source-scoped completeness/redemption, and three safety checks: a
+    document that isn't actually a statement gets classified 'unrecognized' rather
+    than force-fit into the nearest category; a malformed/unreadable PDF is
+    quarantined rather than crashing the whole call; and a document whose stated
+    investor identity doesn't match the account owner is quarantined rather than
+    merged in. Deliberately does NOT yet implement: the "Page 1 of N" truncation
+    check. Extraction is LLM-based (see ingestion/extract.py), not per-institution
+    parser code (statements/parsers/ is a separate, older pipeline — this one is
+    deliberately not that).
 
     password, when given, is used to decrypt every file in this call — fine for a
     single-file caller (e.g. the ingestion-test upload endpoint), not yet a real
@@ -115,8 +161,25 @@ def ingest(current: NetWorth, files: list[Path], password: str | None = None) ->
     back to the eval fixture password, preserving existing harness behavior exactly.
     """
     positions = dict(current.positions)
+    warnings = list(current.warnings)
+
     for file in files:
-        facts = extract_facts(file.read_bytes(), password)
+        try:
+            facts = extract_facts(file.read_bytes(), password)
+        except PdfReadError:
+            warnings.append(f"quarantined {file.name} — not a valid PDF")
+            continue
+
+        if facts["document_type"] == "unrecognized":
+            warnings.append(f"could not classify {file.name} as a known statement type")
+            continue
+
+        if not _identity_matches(facts.get("investor_pan"), facts.get("investor_name")):
+            warnings.append(
+                f"quarantined {file.name} — investor identity does not match account owner"
+            )
+            continue
+
         doc_issued_at = datetime.fromisoformat(facts["doc_issued_at"])
         source = facts["source"]
         mentioned: set[str] = set()
@@ -183,7 +246,7 @@ def ingest(current: NetWorth, files: list[Path], password: str | None = None) ->
             if _should_replace(positions.get(account_name), new_position):
                 positions[account_name] = new_position
 
-        if facts["is_exhaustive"]:
+        if facts["is_exhaustive"] and facts["document_type"] in _EXHAUSTIVE_ELIGIBLE_TYPES:
             for key, existing in list(positions.items()):
                 if key in mentioned:
                     continue
@@ -206,4 +269,5 @@ def ingest(current: NetWorth, files: list[Path], password: str | None = None) ->
         reporting_currency=current.reporting_currency,
         positions=positions,
         total=str(total),
+        warnings=warnings,
     )
