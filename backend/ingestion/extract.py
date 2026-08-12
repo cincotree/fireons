@@ -273,7 +273,7 @@ EXTRACT_SYSTEM_PROMPT = (
 )
 
 
-def _read_pdf_text(pdf_bytes: bytes, password: str | None) -> str:
+def read_pdf_text(pdf_bytes: bytes, password: str | None) -> str:
     reader = PdfReader(BytesIO(pdf_bytes))
     if reader.is_encrypted:
         reader.decrypt(password if password is not None else _EVAL_FIXTURE_PASSWORD)
@@ -294,7 +294,11 @@ _extraction_cache: dict[str, dict] = {}
 
 
 def extract_facts(pdf_bytes: bytes, password: str | None = None) -> dict:
-    text = _read_pdf_text(pdf_bytes, password)
+    text = read_pdf_text(pdf_bytes, password)
+    return extract_facts_from_text(text)
+
+
+def extract_facts_from_text(text: str) -> dict:
     cache_key = hashlib.sha256(text.encode()).hexdigest()
     if cache_key in _extraction_cache:
         return _extraction_cache[cache_key]

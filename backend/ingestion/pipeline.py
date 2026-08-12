@@ -4,8 +4,8 @@ from pathlib import Path
 
 from pypdf.errors import PdfReadError
 
-from ingestion.extract import extract_facts
 from ingestion.model import NetWorth, Position
+from ingestion.router import route_extract
 
 # Fallback owner name for the eval corpus only (mismatched_identity_cas.pdf uses a
 # different name on purpose). Real callers pass the logged-in user's own name — same
@@ -168,7 +168,7 @@ def ingest(
 
     for file in files:
         try:
-            facts = extract_facts(file.read_bytes(), password)
+            facts = route_extract(file.read_bytes(), password)
         except PdfReadError:
             warnings.append(f"quarantined {file.name} — not a valid PDF")
             continue
@@ -182,6 +182,13 @@ def ingest(
                 f"quarantined {file.name} — investor identity does not match account owner"
             )
             continue
+
+        # Only parser-produced facts carry this key — a parser may return a complete
+        # holding with a soft field missing (e.g. no account-holder name found) rather
+        # than deferring the whole file to the LLM; that gets surfaced here rather
+        # than silently dropped. The LLM path never sets this key, so it's a no-op
+        # for LLM-sourced facts.
+        warnings.extend(f"{file.name}: {w}" for w in facts.get("warnings", []))
 
         doc_issued_at = datetime.fromisoformat(facts["doc_issued_at"])
         source = facts["source"]
