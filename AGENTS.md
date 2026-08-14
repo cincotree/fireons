@@ -57,6 +57,22 @@ Fireons is a personal finance tracker for managing net worth and accounts. FastA
 - `npm run lint` — lint
 - Needs `.env.local` with `BACKEND_HOST=localhost:8000`
 
+### E2E tests
+Make targets wrap the Playwright suite in `e2e-tests/` (see `e2e-tests/package.json` for the underlying scripts):
+
+- `make e2e-install` — first-time setup: `npm install` + `npx playwright install chromium`
+- `make e2e` — run the full suite headless (`bash e2e-tests/run-tests.sh`)
+- `make e2e-headed` — same, with a visible browser window
+- `make e2e-ui` — Playwright's interactive UI mode (test explorer, timeline, DOM snapshots per step)
+- `make e2e-debug` — step through with the inspector
+- `make e2e-report` — open the HTML report from the last run
+
+`e2e-headed` and `e2e-ui` need a display, so they only work on a local machine, not headless CI/sandboxes.
+
+Prerequisites: Postgres reachable per `backend/.env.test`, and the `fireons_test` database must already exist (`psql -U postgres -c "CREATE DATABASE fireons_test;"`) — `run-tests.sh` does not create it.
+
+`run-tests.sh` starts the backend (`TESTING=true`, port 8020) and frontend (port 3020) itself, waits for both, runs the suite, then drops and recreates the `fireons_test` schema in teardown. Because of that teardown, don't run `npx playwright test` directly against an already-running backend from a prior `run-tests.sh` invocation — the tables will be gone and every test will fail with "relation does not exist". Always go through `run-tests.sh` (i.e. `make e2e`), or restart the backend first if running Playwright manually.
+
 ## Environment Variables
 
 ### Backend `.env` (optional)
