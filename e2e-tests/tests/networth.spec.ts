@@ -1,4 +1,42 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
+
+async function createAccount(page: Page, options: {
+  type?: 'Assets' | 'Liabilities';
+  category: string;
+  name: string;
+  currency?: string;
+  balance?: number;
+  description?: string;
+}) {
+  const { type = 'Assets', category, name, currency = 'USD', balance, description } = options;
+
+  await page.getByRole('button', { name: 'Add Account' }).click();
+
+  // The modal's <Modal> component renders as plain divs with no role="dialog",
+  // so it can't be scoped by ARIA role. Its selects render after the page-level
+  // currency selector in DOM order: [0] page currency, [1] Account Type,
+  // [2] Category (existing-list) until switched to "+ Create New Category",
+  // after which the Category <select> unmounts and Currency becomes [2].
+  await page.locator('select').nth(1).selectOption(type);
+  await page.locator('select').nth(2).selectOption('_new_');
+  await page.getByPlaceholder('Category name').fill(category);
+  await page.getByPlaceholder(/e\.g\., Savings, Checking, Home Loan/).fill(name);
+
+  if (currency !== 'USD') {
+    await page.locator('select').nth(2).selectOption(currency);
+  }
+
+  if (balance !== undefined) {
+    await page.getByPlaceholder('0.00').fill(String(balance));
+  }
+
+  if (description) {
+    await page.getByPlaceholder('Add notes about this account...').fill(description);
+  }
+
+  await page.getByRole('button', { name: 'Create Account' }).click();
+  await page.waitForTimeout(1000);
+}
 
 test.describe('Net Worth Feature - Critical User Journeys', () => {
   test.beforeEach(async ({ page }) => {
@@ -19,130 +57,99 @@ test.describe('Net Worth Feature - Critical User Journeys', () => {
   });
 
   test('complete workflow: create asset account, set balance, view net worth', async ({ page }) => {
-    await expect(page.locator('h1')).toContainText('Net Worth Tracker');
+    await expect(page.getByText('Net Worth Summary')).toBeVisible();
 
-    const accountName = `Assets:Bank:Checking${Date.now()}`;
+    const accountName = `Checking${Date.now()}`;
 
-    await page.getByRole('button', { name: 'Add Account' }).click();
-    await page.getByPlaceholder(/e.g., Assets:Bank:Savings/).fill(accountName);
-    await page.locator('select').first().selectOption('USD');
-    await page.getByPlaceholder('Add notes about this account...').fill('My checking account');
-    await page.getByRole('button', { name: 'Create Account' }).click();
-
-    await page.waitForTimeout(1000);
+    await createAccount(page, {
+      type: 'Assets',
+      category: 'Bank',
+      name: accountName,
+      currency: 'USD',
+      balance: 10000,
+      description: 'My checking account',
+    });
 
     await expect(page.getByText(accountName)).toBeVisible();
 
-    const row = page.locator('tr').filter({ hasText: accountName });
-    await row.getByRole('button', { name: 'Set Balance' }).click();
-
-    await page.locator('input[type="number"]').fill('10000');
-    await page.getByRole('button', { name: 'Update Balance' }).click();
-
-    await page.waitForTimeout(1500);
-
-    const updatedRow = page.locator('tr').filter({ hasText: accountName });
-    await expect(updatedRow.locator('td').nth(3)).toContainText('10,000');
-
     const summarySection = page.locator('.bg-white').filter({ hasText: 'Net Worth Summary' });
-    const usdSummary = summarySection.locator('.border.rounded-lg').filter({ hasText: 'USD' });
-
-    await expect(usdSummary).toBeVisible();
-    await expect(usdSummary.getByText(/Assets:/)).toBeVisible();
-    await expect(usdSummary.getByText(/Net Worth:/)).toBeVisible();
+    await expect(summarySection.getByText('Assets:')).toBeVisible();
+    await expect(summarySection.getByText(/10,000\.00/).first()).toBeVisible();
+    await expect(summarySection.getByText('Net Worth:')).toBeVisible();
   });
 
   test('complete workflow: create liability account and view negative impact on net worth', async ({ page }) => {
-    const accountName = `Liabilities:CreditCard:Visa${Date.now()}`;
+    const accountName = `Visa${Date.now()}`;
 
-    await page.getByRole('button', { name: 'Add Account' }).click();
-    await page.getByPlaceholder(/e.g., Assets:Bank:Savings/).fill(accountName);
-    await page.locator('select').first().selectOption('USD');
-    await page.getByRole('button', { name: 'Create Account' }).click();
-
-    await page.waitForTimeout(1000);
+    await createAccount(page, {
+      type: 'Liabilities',
+      category: 'CreditCard',
+      name: accountName,
+      currency: 'USD',
+      balance: 5000,
+    });
 
     await expect(page.getByText(accountName)).toBeVisible();
-    const row = page.locator('tr').filter({ hasText: accountName });
-    await expect(row.locator('.bg-red-100')).toContainText('Liabilities');
-
-    await row.getByRole('button', { name: 'Set Balance' }).click();
-    await page.locator('input[type="number"]').fill('5000');
-    await page.getByRole('button', { name: 'Update Balance' }).click();
-
-    await page.waitForTimeout(1500);
 
     const summarySection = page.locator('.bg-white').filter({ hasText: 'Net Worth Summary' });
-    const usdSummary = summarySection.locator('.border.rounded-lg').filter({ hasText: 'USD' });
-
-    await expect(usdSummary).toBeVisible();
-    await expect(usdSummary.getByText(/Liabilities:/)).toBeVisible();
+    await expect(summarySection.getByText('Liabilities:')).toBeVisible();
+    await expect(summarySection.getByText(/5,000\.00/).first()).toBeVisible();
   });
 
   test('multi-currency workflow: create accounts in different currencies', async ({ page }) => {
     const timestamp = Date.now();
+    const usdName = `USDChecking${timestamp}`;
+    const inrName = `INRSavings${timestamp}`;
 
-    await page.getByRole('button', { name: 'Add Account' }).click();
-    await page.getByPlaceholder(/e.g., Assets:Bank:Savings/).fill(`Assets:Bank:USD${timestamp}`);
-    await page.locator('select').first().selectOption('USD');
-    await page.getByRole('button', { name: 'Create Account' }).click();
-    await page.waitForTimeout(1000);
+    await createAccount(page, {
+      type: 'Assets',
+      category: `Bank${timestamp}A`,
+      name: usdName,
+      currency: 'USD',
+      balance: 1000,
+    });
 
-    await page.getByRole('button', { name: 'Add Account' }).click();
-    await page.getByPlaceholder(/e.g., Assets:Bank:Savings/).fill(`Assets:Bank:INR${timestamp}`);
-    await page.locator('select').first().selectOption('INR');
-    await page.getByRole('button', { name: 'Create Account' }).click();
-    await page.waitForTimeout(1000);
+    await createAccount(page, {
+      type: 'Assets',
+      category: `Bank${timestamp}B`,
+      name: inrName,
+      currency: 'INR',
+      balance: 50000,
+    });
 
-    await expect(page.getByText(`Assets:Bank:USD${timestamp}`)).toBeVisible();
-    await expect(page.getByText(`Assets:Bank:INR${timestamp}`)).toBeVisible();
+    await expect(page.getByText(usdName)).toBeVisible();
+    await expect(page.getByText(inrName)).toBeVisible();
 
-    const row1 = page.locator('tr').filter({ hasText: `Assets:Bank:USD${timestamp}` });
-    await row1.getByRole('button', { name: 'Set Balance' }).click();
-    await page.locator('input[type="number"]').fill('1000');
-    await page.getByRole('button', { name: 'Update Balance' }).click();
-    await page.waitForTimeout(1000);
+    await expect(page.getByText('Net Worth Summary (USD)')).toBeVisible();
 
-    const row2 = page.locator('tr').filter({ hasText: `Assets:Bank:INR${timestamp}` });
-    await row2.getByRole('button', { name: 'Set Balance' }).click();
-    await page.locator('input[type="number"]').fill('50000');
-    await page.getByRole('button', { name: 'Update Balance' }).click();
-    await page.waitForTimeout(1500);
-
-    const summarySection = page.locator('.bg-white').filter({ hasText: 'Net Worth Summary' });
-    await expect(summarySection.locator('.border.rounded-lg').filter({ hasText: 'USD' })).toBeVisible();
-    await expect(summarySection.locator('.border.rounded-lg').filter({ hasText: 'INR' })).toBeVisible();
+    const currencySelector = page.locator('select').first();
+    await currencySelector.selectOption('INR');
+    await expect(page.getByText('Net Worth Summary (INR)')).toBeVisible();
   });
 
   test('navigation and page load', async ({ page }) => {
+    // Already authenticated from beforeEach: the root path's own auth check
+    // decides the redirect, so wait for that instead of racing it with an
+    // immediate isVisible() check (which can catch the page mid-redirect).
     await page.goto('/');
+    await page.waitForURL(/.*networth/, { timeout: 10000 });
 
-    const networthLink = page.getByRole('link', { name: /Net Worth/i });
-    if (await networthLink.isVisible()) {
-      await networthLink.click();
-      await expect(page).toHaveURL(/.*networth/);
-    } else {
-      await page.goto('/networth');
-    }
-
-    await expect(page.locator('h1')).toContainText('Net Worth Tracker');
-    await expect(page.getByRole('button', { name: 'Add Account' })).toBeVisible();
     await expect(page.getByText('Net Worth Summary')).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Accounts' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Add Account' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Account Hierarchy' })).toBeVisible();
   });
 
-  test('data isolation: users can only see their own accounts', async ({ page, context }) => {
+  test('data isolation: users can only see their own accounts', async ({ page }) => {
     const timestamp = Date.now();
 
-    // Create an account for user 1 (from beforeEach)
-    const user1AccountName = `Assets:Bank:User1${timestamp}`;
-    await page.getByRole('button', { name: 'Add Account' }).click();
-    await page.getByPlaceholder(/e.g., Assets:Bank:Savings/).fill(user1AccountName);
-    await page.getByRole('button', { name: 'Create Account' }).click();
-    await page.waitForTimeout(1000);
+    const user1AccountName = `User1Account${timestamp}`;
+    await createAccount(page, {
+      type: 'Assets',
+      category: 'Bank',
+      name: user1AccountName,
+    });
     await expect(page.getByText(user1AccountName)).toBeVisible();
 
-    // Logout user 1
     await page.getByRole('button', { name: /Logout/i }).click();
     await page.waitForURL(/.*login/, { timeout: 3000 });
 
@@ -159,17 +166,15 @@ test.describe('Net Worth Feature - Critical User Journeys', () => {
     await page.getByRole('button', { name: /Create account/i }).click();
     await page.waitForURL(/.*networth/, { timeout: 5000 });
 
-    // User 2 should NOT see User 1's account
     await expect(page.getByText(user1AccountName)).not.toBeVisible();
 
-    // Create an account for user 2
-    const user2AccountName = `Assets:Bank:User2${timestamp}`;
-    await page.getByRole('button', { name: 'Add Account' }).click();
-    await page.getByPlaceholder(/e.g., Assets:Bank:Savings/).fill(user2AccountName);
-    await page.getByRole('button', { name: 'Create Account' }).click();
-    await page.waitForTimeout(1000);
+    const user2AccountName = `User2Account${timestamp}`;
+    await createAccount(page, {
+      type: 'Assets',
+      category: 'Bank',
+      name: user2AccountName,
+    });
 
-    // User 2 should see their own account but not User 1's
     await expect(page.getByText(user2AccountName)).toBeVisible();
     await expect(page.getByText(user1AccountName)).not.toBeVisible();
   });
