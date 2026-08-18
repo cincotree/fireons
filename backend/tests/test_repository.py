@@ -331,3 +331,147 @@ async def test_delete_exchange_rate(
 
     all_rates = await exchange_rate_repo.list_all()
     assert len(all_rates) == 0
+
+
+@pytest.mark.asyncio
+async def test_convert_amount_same_currency(
+    exchange_rate_repo: ExchangeRateRepository,
+):
+    result = await exchange_rate_repo.convert_amount(
+        amount=Decimal("100"),
+        from_currency="USD",
+        to_currency="USD",
+    )
+    assert result.amount == Decimal("100")
+    assert result.rate_available is True
+
+
+@pytest.mark.asyncio
+async def test_convert_amount_direct_rate(
+    exchange_rate_repo: ExchangeRateRepository,
+    session: AsyncSession,
+):
+    await exchange_rate_repo.create_or_update(
+        date=date(2024, 6, 1),
+        from_currency="USD",
+        to_currency="INR",
+        rate=Decimal("83.0"),
+    )
+    await session.commit()
+
+    result = await exchange_rate_repo.convert_amount(
+        amount=Decimal("100"),
+        from_currency="USD",
+        to_currency="INR",
+        as_of_date=date(2024, 6, 1),
+    )
+    assert result.amount == Decimal("8300.0")
+    assert result.rate_available is True
+
+
+@pytest.mark.asyncio
+async def test_convert_amount_inverse_rate(
+    exchange_rate_repo: ExchangeRateRepository,
+    session: AsyncSession,
+):
+    await exchange_rate_repo.create_or_update(
+        date=date(2024, 6, 1),
+        from_currency="USD",
+        to_currency="INR",
+        rate=Decimal("83.0"),
+    )
+    await session.commit()
+
+    result = await exchange_rate_repo.convert_amount(
+        amount=Decimal("8300"),
+        from_currency="INR",
+        to_currency="USD",
+        as_of_date=date(2024, 6, 1),
+    )
+    assert result.amount.quantize(Decimal("0.01")) == Decimal("100.00")
+    assert result.rate_available is True
+
+
+@pytest.mark.asyncio
+async def test_convert_amount_triangulates_through_usd(
+    exchange_rate_repo: ExchangeRateRepository,
+    session: AsyncSession,
+):
+    await exchange_rate_repo.create_or_update(
+        date=date(2024, 6, 1),
+        from_currency="USD",
+        to_currency="EUR",
+        rate=Decimal("0.92"),
+    )
+    await exchange_rate_repo.create_or_update(
+        date=date(2024, 6, 1),
+        from_currency="USD",
+        to_currency="GBP",
+        rate=Decimal("0.79"),
+    )
+    await session.commit()
+
+    result = await exchange_rate_repo.convert_amount(
+        amount=Decimal("100"),
+        from_currency="EUR",
+        to_currency="GBP",
+        as_of_date=date(2024, 6, 1),
+    )
+    expected = Decimal("100") * (Decimal(1) / Decimal("0.92")) * Decimal("0.79")
+    assert result.amount == expected
+    assert result.rate_available is True
+
+
+@pytest.mark.asyncio
+async def test_convert_amount_no_rate_available(
+    exchange_rate_repo: ExchangeRateRepository,
+):
+    result = await exchange_rate_repo.convert_amount(
+        amount=Decimal("100"),
+        from_currency="EUR",
+        to_currency="GBP",
+    )
+    assert result.amount == Decimal("100")
+    assert result.rate_available is False
+
+
+@pytest.mark.asyncio
+async def test_convert_amount_as_of_date_through_triangulation(
+    exchange_rate_repo: ExchangeRateRepository,
+    session: AsyncSession,
+):
+    await exchange_rate_repo.create_or_update(
+        date=date(2024, 1, 1),
+        from_currency="USD",
+        to_currency="EUR",
+        rate=Decimal("0.90"),
+    )
+    await exchange_rate_repo.create_or_update(
+        date=date(2024, 6, 1),
+        from_currency="USD",
+        to_currency="EUR",
+        rate=Decimal("0.92"),
+    )
+    await exchange_rate_repo.create_or_update(
+        date=date(2024, 1, 1),
+        from_currency="USD",
+        to_currency="GBP",
+        rate=Decimal("0.78"),
+    )
+    await exchange_rate_repo.create_or_update(
+        date=date(2024, 6, 1),
+        from_currency="USD",
+        to_currency="GBP",
+        rate=Decimal("0.79"),
+    )
+    await session.commit()
+
+    result = await exchange_rate_repo.convert_amount(
+        amount=Decimal("100"),
+        from_currency="EUR",
+        to_currency="GBP",
+        as_of_date=date(2024, 3, 1),
+    )
+    expected = Decimal("100") * (Decimal(1) / Decimal("0.90")) * Decimal("0.78")
+    assert result.amount == expected
+    assert result.rate_available is True

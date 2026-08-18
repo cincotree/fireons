@@ -3,11 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import Callable, Awaitable
 from contextlib import asynccontextmanager
 
-from api.convert_currency_api import router as convert_router
 from api.account_api import router as account_router
 from api.auth_api import router as auth_router
 from api.statements_api import router as statements_router
 from api.ingestion_test_api import router as ingestion_test_router
+from api.ingestion_api import router as ingestion_router
 from database.session import init_db
 
 
@@ -37,10 +37,10 @@ async def rewrite_api_path(request: Request, call_next: Callable[[Request], Awai
     return response
 
 app.include_router(auth_router)
-app.include_router(convert_router)
 app.include_router(account_router)
 app.include_router(statements_router)
 app.include_router(ingestion_test_router)
+app.include_router(ingestion_router)
 
 
 @app.get("/health")
