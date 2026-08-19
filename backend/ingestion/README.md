@@ -8,11 +8,6 @@ is a standalone pipeline (Phase 1): it does not write to the app's real
 `Account`/`Balance` database tables, and it is not wired into the real net-worth
 dashboard yet — that's separate, later work.
 
-`statements/parsers/` (HDFC/CAS regex-based parsers, single-holding output, keyed
-by caller-supplied bank code) is a different, older pipeline — this module's own
-`parsers/` package is deliberately not an extension of it; the output contract and
-auto-detection mechanism both differ.
-
 ## What's implemented
 
 ### Document types
@@ -68,16 +63,13 @@ hasn't been proven against a fixture yet (see "What's not covered" below).
   in the same redemption scope and the term policy's silence about the ULIP folio
   would wrongly zero it out.
 
-- **Safety trio.** A non-statement document is classified `unrecognized` rather
+- **Safety pair.** A non-statement document is classified `unrecognized` rather
   than force-fit into the nearest category. A malformed/unreadable PDF is
   quarantined (`PdfReadError`, caught before any LLM call — free) rather than
-  crashing the whole batch. A document whose stated investor name doesn't match
-  the account owner is quarantined rather than merged in.
-
-- **Identity verification is name-only, not PAN.** `ingest()` takes
-  `account_owner_name`, matched as a substring against each document's stated
-  investor name — a joint account ("MR. X & MRS. Y") still passes if the owner's
-  name is present, just not alone. Real users are never asked to provide a PAN.
+  crashing the whole batch. There is deliberately no identity verification
+  between documents or against a user profile — this is a single-tenant,
+  self-hosted tool, so there's no one to protect the uploader from except
+  themselves.
 
 - **EPF split.** A passbook reports Employee + Employer balance and a separate
   Pension (EPS) balance; these become two positions (`Assets:Retirement:EPF:...`
@@ -89,12 +81,15 @@ hasn't been proven against a fixture yet (see "What's not covered" below).
   calling the LLM. Each `try_parse_X(text) -> dict | None` either returns a
   complete, correct facts dict or defers — it never guesses or returns a value it
   isn't confident in. A parser may return a holding with a *soft* field missing
-  (e.g. no account-holder name found) plus a warning rather than deferring the
-  whole file; fields that are load-bearing for the account key
-  (`pipeline._account_name()` — institution/identifier/instrument_type/
-  instrument_name, depending on document type) or that `ingest()` reads
-  unconditionally (`doc_issued_at`) are hard-required and any gap defers the whole
-  file to the LLM instead. This is what makes cost and correctness both improve
+  (e.g. no account-holder name, or no confirmed institution — real example:
+  `FD_Account.pdf`'s "Fixed Deposit Summary" export, which never prints a bank
+  name at all) plus a warning rather than deferring the whole file. Only
+  `identifier`/`instrument_type`/`instrument_name` (the fields
+  `pipeline._account_name()` needs to build a stable, collision-safe key,
+  depending on document type) and what `ingest()` reads unconditionally
+  (`doc_issued_at`) are hard-required — `institution` is soft everywhere; when
+  absent, `_account_name()` just omits that segment from the key rather than
+  deferring the whole file to the LLM. This is what makes cost and correctness both improve
   together for a known format, instead of trading one for the other: proven
   zero-LLM-call on the full 13-file `composite_real_world_portfolio` case (was 13
   live calls), with the entire 159-invocation eval suite passing identically

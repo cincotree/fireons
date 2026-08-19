@@ -1,10 +1,66 @@
 import hashlib
+from contextvars import ContextVar
+from dataclasses import dataclass
 from io import BytesIO
 
-from pypdf import PdfReader
+from pypdf import PasswordType, PdfReader
 
 from ingestion.config import get_settings
 from ingestion.llm_client import get_client
+
+# $ per million tokens. Sticker pricing, not any time-boxed intro rate — a
+# pricing dict that silently reverts to being wrong after an intro window
+# expires is worse than a stable slight overestimate. Unknown models get no
+# cost estimate (None) rather than a guessed number.
+_PRICING_PER_MTOK: dict[str, tuple[float, float]] = {
+    "claude-sonnet-5": (3.00, 15.00),
+}
+
+
+@dataclass
+class ExtractionUsage:
+    input_tokens: int
+    output_tokens: int
+    cache_creation_input_tokens: int
+    cache_read_input_tokens: int
+
+
+# Populated per ingest() call (see pipeline.py) so a single run's LLM calls can
+# be aggregated into a cost estimate on the resulting NetWorth — a ContextVar
+# rather than a plain module global so concurrent ingest() calls (each run in
+# its own thread via asyncio.to_thread) don't cross-contaminate each other's
+# usage totals.
+_run_usage: ContextVar[list[ExtractionUsage] | None] = ContextVar("_run_usage", default=None)
+
+
+def begin_usage_tracking():
+    """Returns an opaque token — pass to end_usage_tracking() to collect this
+    run's usage and restore the ContextVar to its prior state. Without the
+    matching reset, .set() alone leaks into any other code sharing this
+    thread afterward (confirmed: broke an unrelated test that called
+    extract_facts_from_text() directly once some other test had called
+    ingest() earlier in the same process)."""
+    return _run_usage.set([])
+
+
+def end_usage_tracking(token) -> list[ExtractionUsage]:
+    usage = _run_usage.get() or []
+    _run_usage.reset(token)
+    return usage
+
+
+def estimate_cost_usd(usage: list[ExtractionUsage], model: str) -> float | None:
+    pricing = _PRICING_PER_MTOK.get(model)
+    if pricing is None:
+        return None
+    input_price, output_price = pricing
+    total = 0.0
+    for u in usage:
+        total += u.input_tokens * input_price
+        total += u.cache_creation_input_tokens * input_price * 1.25
+        total += u.cache_read_input_tokens * input_price * 0.1
+        total += u.output_tokens * output_price
+    return total / 1_000_000
 
 # Fixture password for the eval corpus only (tests/evals/fixtures/generate_eval_fixtures.py).
 # Real uploads carry a user-supplied password from the upload flow, not this constant —
@@ -52,8 +108,14 @@ EXTRACT_TOOL = {
                 "'Statement Generated On', 'Printed On'. This is a single fact about the "
                 "document, not per-holding: when two documents describe the same as_of "
                 "with different figures (a correction), the one with the later "
-                "doc_issued_at wins, regardless of which was uploaded first or second. Null "
-                "for 'unrecognized'.",
+                "doc_issued_at wins, regardless of which was uploaded first or second. If "
+                "the document has no separate generated/printed line at all — only a "
+                "statement period or a single effective date (confirmed real-world case: a "
+                "US bank statement whose only date is its 'Month DD, YYYY through Month DD, "
+                "YYYY' period) — use that document's own end/effective date here instead of "
+                "null; null is for genuinely dateless documents and 'unrecognized' only, "
+                "never for a recognized statement that simply lacks a distinct issue-date "
+                "line.",
             },
             "investor_pan": {
                 "type": ["string", "null"],
@@ -124,7 +186,14 @@ EXTRACT_TOOL = {
                             "holding — exactly 4 characters, count from the right end of the "
                             "printed number regardless of its total length, e.g. account "
                             "number '55000019988776' -> '8776', not '9988776' or any other "
-                            "length. The folio number for a mutual fund holding, the UAN for "
+                            "length. This is a required field — never write a placeholder like "
+                            "'UNKNOWN' or '<UNKNOWN>'. Some statement layouts (confirmed on a "
+                            "real US bank statement) separate an 'Account Number:' label from "
+                            "its actual digits in the extracted text order — if the text right "
+                            "after the label isn't a plausible account number, search the rest "
+                            "of the document for a standalone long digit sequence (9+ digits) "
+                            "near the top of the statement and use its last 4 digits instead of "
+                            "giving up. The folio number for a mutual fund holding, the UAN for "
                             "an epf_passbook holding, the loan account number (numeric portion "
                             "only, strip any prefix like 'LN') for a loan_statement holding, "
                             "the ticker symbol for a brokerage_statement or demat_cas holding, "
@@ -138,10 +207,14 @@ EXTRACT_TOOL = {
                         },
                         "instrument_type": {
                             "type": ["string", "null"],
-                            "description": "For demat_cas: one of 'equity', 'reit', 'invit' — "
-                            "the document groups holdings under headings like 'EQUITY "
+                            "description": "For demat_cas: one of 'equity', 'reit', 'invit', "
+                            "'etf' — the document groups holdings under headings like 'EQUITY "
                             "HOLDINGS', 'REIT HOLDINGS', 'INVIT HOLDINGS', use that heading to "
-                            "classify each holding. For deposit_statement: one of 'fd', 'rd' — "
+                            "classify each holding; an ETF (Exchange Traded Fund, trades on the "
+                            "exchange via its own ISIN like a stock, not through a folio) is "
+                            "'etf' even if grouped under an 'EQUITY HOLDINGS' heading or "
+                            "described with mutual-fund-style AMC naming text. For "
+                            "deposit_statement: one of 'fd', 'rd' — "
                             "Fixed Deposit vs Recurring Deposit. For bank_statement: the "
                             "literal string 'ppf' if the document's own Product/Account Type "
                             "field identifies it as a Public Provident Fund account rather "
@@ -276,7 +349,14 @@ EXTRACT_SYSTEM_PROMPT = (
 def read_pdf_text(pdf_bytes: bytes, password: str | None) -> str:
     reader = PdfReader(BytesIO(pdf_bytes))
     if reader.is_encrypted:
-        reader.decrypt(password if password is not None else _EVAL_FIXTURE_PASSWORD)
+        if password is not None:
+            reader.decrypt(password)
+        elif reader.decrypt("") == PasswordType.NOT_DECRYPTED:
+            # No password was supplied and the file isn't just owner-password
+            # protected (which unlocks with an empty string) — fall back to
+            # the eval corpus's fixed password so the eval suite keeps
+            # working without threading a password through every case.
+            reader.decrypt(_EVAL_FIXTURE_PASSWORD)
     return "\n".join(page.extract_text() for page in reader.pages)
 
 
@@ -292,6 +372,21 @@ def read_pdf_text(pdf_bytes: bytes, password: str | None) -> str:
 # was added, so this is an accepted tradeoff for cost, not an accidental loss of signal.
 _extraction_cache: dict[str, dict] = {}
 
+# A comprehensive real statement (e.g. a consolidated CAS covering many AMC
+# folios) needs to enumerate far more holdings than any synthetic eval fixture
+# does — each with ~10 fields. 4096 was sized for the eval corpus's 1-2-holding
+# fixtures and was confirmed too small on real multi-folio documents: the model's
+# JSON generation gets cut off mid-holding, producing an incomplete tool_use
+# result. Comfortably covers a document with several dozen holdings.
+_EXTRACTION_MAX_TOKENS = 16384
+
+
+class ExtractionTruncatedError(Exception):
+    """The model's response was cut off by the output token budget before it
+    finished — distinct from a generically malformed/incomplete result: the
+    document itself is fine, it just has more holdings than fit in one response.
+    """
+
 
 def extract_facts(pdf_bytes: bytes, password: str | None = None) -> dict:
     text = read_pdf_text(pdf_bytes, password)
@@ -306,7 +401,7 @@ def extract_facts_from_text(text: str) -> dict:
     settings = get_settings()
     response = get_client().messages.create(
         model=settings.anthropic_model,
-        max_tokens=4096,
+        max_tokens=_EXTRACTION_MAX_TOKENS,
         system=[
             {
                 "type": "text",
@@ -323,6 +418,21 @@ def extract_facts_from_text(text: str) -> dict:
             }
         ],
     )
+    usage_list = _run_usage.get()
+    if usage_list is not None:
+        usage_list.append(
+            ExtractionUsage(
+                input_tokens=response.usage.input_tokens,
+                output_tokens=response.usage.output_tokens,
+                cache_creation_input_tokens=response.usage.cache_creation_input_tokens or 0,
+                cache_read_input_tokens=response.usage.cache_read_input_tokens or 0,
+            )
+        )
+    if response.stop_reason == "max_tokens":
+        raise ExtractionTruncatedError(
+            "response cut off before it finished — the document likely has more "
+            "holdings than fit in one extraction pass"
+        )
     for block in response.content:
         if block.type == "tool_use":
             _extraction_cache[cache_key] = block.input

@@ -482,43 +482,6 @@
   expected_nw: !include expected/cams_2026_07_only.json
   permute: true
 
-- id: identity_mismatch_rejected
-  description: >
-    A CAS whose PAN/investor name does not match the account owner at
-    all (e.g. a spouse's statement uploaded by mistake) must be
-    quarantined — the ledger stays completely unchanged, same as a
-    corrupt file, and a warning is raised.
-  layer: L1
-  tags: [safety, identity, quarantine]
-  current_nw:
-    as_of: "2026-07-31"
-    reporting_currency: INR
-    positions:
-      "Assets:Bank:HDFC:6789":
-        account_name: "Assets:Bank:HDFC:6789"
-        value: "150000.00"
-        currency: INR
-        as_of: "2026-07-31"
-    total: "150000.00"
-  files: [fixtures/mismatched_identity_cas.pdf]
-  expected_nw: !include expected/identity_mismatch_rejected.json
-  permute: false
-
-- id: joint_account_not_rejected
-  description: >
-    A joint account statement (owner's name present alongside a second
-    holder's) must NOT trip the identity-mismatch rejection from
-    identity_mismatch_rejected — the owner's identity is present, just
-    not alone. Counted in full, not split by ownership share (no
-    ownership-percentage concept exists in this model) — flagged as an
-    assumption, not a settled product decision.
-  layer: L1
-  tags: [identity, joint]
-  current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
-  files: [fixtures/hdfc_joint_2026_07.pdf]
-  expected_nw: !include expected/joint_account_not_rejected.json
-  permute: false
-
 - id: multiple_accounts_same_institution
   description: >
     Two distinct HDFC accounts, different account numbers, ingested
@@ -611,4 +574,24 @@
   current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
   files: [fixtures/fidelity_2026_07.pdf]
   expected_nw: !include expected/international_stock_fresh.json
+  permute: false
+
+- id: chase_real_layout_fresh
+  description: >
+    A real JPMorgan Chase Bank, N.A. checking statement's layout (confirmed
+    against an actual statement, not a plausible approximation — see
+    CHASE_REAL_LAYOUT_2026_07_LINES) separates the account number from its
+    "Account Number:" label in pypdf's extraction order, and never prints
+    "CHASE BANK" in the all-caps form the deterministic parser matches — so
+    this correctly routes to the LLM tier, unlike chase_2026_07.pdf. Exists
+    specifically to prove the LLM correctly finds the real account number
+    from elsewhere in the document rather than the tier falling back to a
+    placeholder — a real extraction bug found and fixed via this exact
+    layout (the model had previously emitted the literal identifier
+    "UNKNOWN" instead of searching the rest of the document).
+  layer: L1
+  tags: [baseline, bank, currency, chase]
+  current_nw: {as_of: null, reporting_currency: INR, positions: {}, total: "0"}
+  files: [fixtures/chase_real_layout_2026_07.pdf]
+  expected_nw: !include expected/chase_real_layout_fresh.json
   permute: false

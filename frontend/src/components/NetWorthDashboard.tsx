@@ -8,7 +8,7 @@ import { SUPPORTED_CURRENCIES } from "@/utils/currencies";
 import { NetWorthChart } from "@/components/NetWorthChart";
 import { AssetAllocationChart } from "@/components/AssetAllocationChart";
 import { AccountHierarchyTree } from "@/components/AccountHierarchyTree";
-import { UploadStatementFlow } from "@/components/UploadStatementFlow";
+import { StatementImportFlow } from "@/components/StatementImportFlow";
 
 interface Account {
   id: string;
@@ -389,10 +389,7 @@ export function NetWorthDashboard() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold">Account Hierarchy</h2>
           <div className="flex gap-2">
-            <Button
-              onClick={() => setIsImportModalOpen(true)}
-              variant="outline"
-            >
+            <Button variant="outline" onClick={() => setIsImportModalOpen(true)}>
               Import Statement
             </Button>
             <Button
@@ -604,11 +601,17 @@ export function NetWorthDashboard() {
         </DialogContent>
       </Modal>
 
-      <UploadStatementFlow
-        open={isImportModalOpen}
-        onClose={() => setIsImportModalOpen(false)}
-        onImported={fetchData}
-      />
+      <Modal open={isImportModalOpen} onOpenChange={setIsImportModalOpen}>
+        <DialogContent>
+          <StatementImportFlow
+            embedded
+            onImported={() => {
+              setIsImportModalOpen(false);
+              fetchData();
+            }}
+          />
+        </DialogContent>
+      </Modal>
     </div>
   );
 }

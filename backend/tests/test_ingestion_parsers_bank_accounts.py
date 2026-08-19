@@ -1,6 +1,7 @@
 from ingestion.parsers.bank_accounts import try_parse_chase, try_parse_hdfc, try_parse_icici
 from tests.evals.fixtures.generate_eval_fixtures import (
     CHASE_2026_07_LINES,
+    CHASE_REAL_LAYOUT_2026_07_LINES,
     HDFC_2026_07_LINES,
     HDFC_JOINT_2026_07_LINES,
     HDFC_LOAN_2026_07_LINES,
@@ -87,3 +88,34 @@ def test_chase_parses_expected_facts_with_us_currency_and_date_order():
 
 def test_chase_does_not_match_hdfc_text():
     assert try_parse_chase(_text(HDFC_2026_07_LINES)) is None
+
+
+def test_chase_matches_real_institution_wording_case_insensitively():
+    """A real Chase statement prints 'JPMorgan Chase Bank, N.A.', never the
+    literal all-caps 'CHASE BANK' the original exact-match check required —
+    confirmed by inspecting a real statement, where the old check silently
+    deferred every genuine Chase document to the LLM regardless of whether
+    the rest of its layout was otherwise parseable. Isolates the gate fix
+    from the (separately real, separately unfixable) layout differences by
+    reusing the synthetic fixture's otherwise-parseable Indian-statement-
+    style structure with only the institution line swapped to real wording.
+    """
+    real_wording_text = _text(CHASE_2026_07_LINES).replace(
+        "CHASE BANK", "JPMorgan Chase Bank, N.A."
+    )
+    facts = try_parse_chase(real_wording_text)
+    assert facts is not None
+    assert facts["holdings"][0]["identifier"] == "1234"
+
+
+def test_chase_real_layout_defers_to_llm_not_a_parser_bug():
+    """The real Chase layout (see CHASE_REAL_LAYOUT_2026_07_LINES) separates
+    the account number from its 'Account Number:' label (a pypdf extraction
+    artifact of Chase's multi-column layout, confirmed against a real
+    statement) and uses 'Beginning/Ending Balance' wording this parser was
+    never built to recognize (it only recognizes 'closing bal', matching
+    Indian-bank statements). try_parse_chase() must correctly return None
+    here — silently guessing at the account number's position from one
+    observed sample would violate this parser tier's core contract (return a
+    complete, confident result, or defer — never guess)."""
+    assert try_parse_chase(_text(CHASE_REAL_LAYOUT_2026_07_LINES)) is None

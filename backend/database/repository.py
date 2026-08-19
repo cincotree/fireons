@@ -353,7 +353,16 @@ class IngestionRunRepository:
         return run
 
     async def mark_succeeded(
-        self, run_id: str, positions_count: int, warnings: list[str]
+        self,
+        run_id: str,
+        positions_count: int,
+        warnings: list[str],
+        llm_call_count: int | None = None,
+        llm_input_tokens: int | None = None,
+        llm_output_tokens: int | None = None,
+        llm_cache_creation_tokens: int | None = None,
+        llm_cache_read_tokens: int | None = None,
+        llm_estimated_cost_usd: Decimal | None = None,
     ) -> IngestionRun | None:
         result = await self.session.execute(
             select(IngestionRun).where(IngestionRun.id == run_id)
@@ -364,6 +373,12 @@ class IngestionRunRepository:
             run.positions_count = positions_count
             run.warnings = warnings
             run.completed_at = datetime.now()
+            run.llm_call_count = llm_call_count
+            run.llm_input_tokens = llm_input_tokens
+            run.llm_output_tokens = llm_output_tokens
+            run.llm_cache_creation_tokens = llm_cache_creation_tokens
+            run.llm_cache_read_tokens = llm_cache_read_tokens
+            run.llm_estimated_cost_usd = llm_estimated_cost_usd
             await self.session.flush()
         return run
 

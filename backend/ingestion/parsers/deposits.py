@@ -99,3 +99,75 @@ def try_parse_rd(text: str) -> dict | None:
     return _extract_deposit(
         text, instrument_type="rd", institution="ICICI", account_no_re=_RD_ACCOUNT_NO_RE
     )
+
+
+# A different, real-world "Fixed Deposit Summary" export (confirmed: FD_Account.pdf)
+# — a single table row, no bank name anywhere in the document at all (only a
+# branch name). institution is genuinely absent here, not just hard to find —
+# pipeline._account_name() treats that as a soft field and omits it from the
+# account key rather than deferring this file to the LLM. No "generated on"
+# date either; the Deposit Start Date is the best document-stated date
+# available, used for both as_of and doc_issued_at.
+_FD_SUMMARY_ROW_RE = re.compile(
+    r"(\d+)\s+(\d{6,20})\s+(.+?)\s+([A-Z]{3})\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s+"
+    r"(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})\s+([\d.]+)\s+(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})"
+)
+_FD_SUMMARY_NAME_RE = re.compile(r"^Name\s*:\s*(.+)$", re.IGNORECASE | re.MULTILINE)
+
+
+def try_parse_fd_summary(text: str) -> dict | None:
+    if "Fixed Deposit Summary" not in text:
+        return None
+    if "Principal" not in text or "Maturity" not in text or "Deposit" not in text:
+        return None
+
+    normalized = re.sub(r"\s+", " ", text)
+    row_match = _FD_SUMMARY_ROW_RE.search(normalized)
+    if row_match is None:
+        return None
+    (
+        _sr_no,
+        account_no,
+        _branch_and_holder,
+        currency,
+        principal,
+        _maturity_amount,
+        _maturity_date,
+        _rate,
+        deposit_start_date,
+    ) = row_match.groups()
+
+    as_of = parse_date_abbrev_month(deposit_start_date)
+    if as_of is None:
+        return None
+
+    name_match = _FD_SUMMARY_NAME_RE.search(text)
+    investor_name = name_match.group(1).strip() if name_match else None
+    warnings = [
+        f"{account_no}: institution could not be determined from this document "
+        f"— rename the account once created"
+    ]
+    if investor_name is None:
+        warnings.append("could not find an account holder name")
+
+    return {
+        "document_type": "deposit_statement",
+        "doc_issued_at": as_of.isoformat(),
+        "investor_name": investor_name,
+        "source": None,
+        "is_exhaustive": False,
+        "holdings": [
+            {
+                "institution": None,
+                "identifier": account_no,
+                "instrument_name": None,
+                "instrument_type": "fd",
+                "units": None,
+                "nav": None,
+                "value": principal.replace(",", ""),
+                "currency": currency,
+                "as_of": as_of.isoformat(),
+            }
+        ],
+        "warnings": warnings,
+    }
