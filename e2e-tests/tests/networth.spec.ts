@@ -43,7 +43,10 @@ test.describe('Net Worth Feature - Critical User Journeys', () => {
   // Account creation and its initial balance are now one combined step in a
   // single modal — there is no separate "Set Balance" flow to drive
   // afterwards. A brand-new user also has no existing categories yet, so
-  // every creation must go through "+ Create New Category".
+  // every creation must go through "+ Create New Category". Uses
+  // data-testid selectors rather than DOM position so it stays correct
+  // regardless of how many other <select> elements the page renders
+  // elsewhere (e.g. the display-currency selector).
   async function createAccount(
     page: import('@playwright/test').Page,
     opts: { type: 'Assets' | 'Liabilities'; category: string; name: string; currency: string; balance: string }
@@ -207,11 +210,15 @@ test.describe('Net Worth Feature - Critical User Journeys', () => {
 
   test('navigation and page load', async ({ page }) => {
     // "/" redirects an authenticated user to "/networth" — go there directly
-    // and confirm it lands and renders correctly, rather than racing the
-    // redirect via a conditional nav-link click.
+    // and confirm it lands and renders correctly. Already authenticated from
+    // beforeEach: the root path's own auth check decides the redirect, so
+    // wait for that instead of racing it with an immediate isVisible() check
+    // (which can catch the page mid-redirect) — a longer timeout absorbs
+    // that race.
     await page.goto('/');
-    await page.waitForURL(/.*networth/, { timeout: 5000 });
+    await page.waitForURL(/.*networth/, { timeout: 10000 });
 
+    await expect(page.getByText('Net Worth Summary')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Add Account' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Account Hierarchy' })).toBeVisible();
     await expect(page.getByTestId('networth-summary')).toBeVisible();
