@@ -32,6 +32,7 @@ class AccountResponse(BaseModel):
     balance: Optional[Decimal] = None
     balance_in_display_currency: Optional[Decimal] = None
     display_currency: Optional[str] = None
+    rate_available: bool = True
 
     class Config:
         from_attributes = True
@@ -120,12 +121,15 @@ async def list_accounts(
         balance = balance_map.get((account.id, account.currency))
 
         balance_in_display_currency = None
+        rate_available = True
         if balance is not None:
-            balance_in_display_currency = await rate_repo.convert_amount(
+            conversion = await rate_repo.convert_amount(
                 amount=balance,
                 from_currency=account.currency,
                 to_currency=display_currency,
             )
+            rate_available = conversion.rate_available
+            balance_in_display_currency = conversion.amount if rate_available else None
 
         account_dict = {
             "id": account.id,
@@ -139,6 +143,7 @@ async def list_accounts(
             "balance": balance,
             "balance_in_display_currency": balance_in_display_currency,
             "display_currency": display_currency,
+            "rate_available": rate_available,
         }
         response.append(AccountResponse(**account_dict))
 
@@ -279,6 +284,8 @@ async def get_summary(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    """Buckets balances by their own native currency; no display-currency
+    conversion. Not called by the dashboard (which uses /accounts instead)."""
     if as_of_date is None:
         as_of_date = date_type.today()
 
@@ -531,17 +538,21 @@ async def get_networth_history(
     )
     # account_id -> (converted_amount_in_target_currency, account_type)
     account_latest: dict[str, tuple[Decimal, AccountType]] = {}
+    accounts_with_missing_rates: set[str] = set()
     for b in baseline_balances:
         # Only include balance in the account's native currency (matches /accounts logic)
         if b.currency != b.account.currency:
             continue
-        converted = await rate_repo.convert_amount(
+        conversion = await rate_repo.convert_amount(
             amount=b.amount,
             from_currency=b.currency,
             to_currency=currency,
             as_of_date=baseline_date,
         )
-        account_latest[b.account_id] = (converted, b.account.account_type)
+        if not conversion.rate_available:
+            accounts_with_missing_rates.add(b.account_id)
+            continue
+        account_latest[b.account_id] = (conversion.amount, b.account.account_type)
 
     # All balance entries within the requested range (no currency filter)
     balances = await balance_repo.get_history(
@@ -565,13 +576,17 @@ async def get_networth_history(
     for date_str in sorted(date_entries.keys()):
         balance_date = date_type.fromisoformat(date_str)
         for b in date_entries[date_str]:
-            converted = await rate_repo.convert_amount(
+            conversion = await rate_repo.convert_amount(
                 amount=b.amount,
                 from_currency=b.currency,
                 to_currency=currency,
                 as_of_date=balance_date,
             )
-            account_latest[b.account_id] = (converted, b.account.account_type)
+            if not conversion.rate_available:
+                accounts_with_missing_rates.add(b.account_id)
+                account_latest.pop(b.account_id, None)
+                continue
+            account_latest[b.account_id] = (conversion.amount, b.account.account_type)
 
         total_assets = Decimal(0)
         total_liabilities = Decimal(0)
@@ -588,7 +603,10 @@ async def get_networth_history(
             "net_worth": float(total_assets - total_liabilities),
         })
 
-    return result
+    return {
+        "data": result,
+        "accounts_with_missing_rates": sorted(accounts_with_missing_rates),
+    }
 
 
 @router.get("/allocation")
@@ -602,6 +620,7 @@ async def get_asset_allocation(
         as_of_date = date_type.today()
 
     balance_repo = BalanceRepository(session)
+    rate_repo = ExchangeRateRepository(session)
     balances = await balance_repo.get_latest_balances(
         user_id=current_user.id,
         as_of_date=as_of_date
@@ -609,13 +628,20 @@ async def get_asset_allocation(
 
     allocation_by_category = {}
     total = Decimal(0)
+    excluded_count = 0
 
     for balance in balances:
-        # Filter by currency
-        if balance.currency != currency:
+        if balance.account.account_type != AccountType.ASSETS:
             continue
 
-        if balance.account.account_type != AccountType.ASSETS:
+        conversion = await rate_repo.convert_amount(
+            amount=balance.amount,
+            from_currency=balance.currency,
+            to_currency=currency,
+            as_of_date=as_of_date,
+        )
+        if not conversion.rate_available:
+            excluded_count += 1
             continue
 
         name_parts = balance.account.name.split(":")
@@ -624,8 +650,8 @@ async def get_asset_allocation(
         if category not in allocation_by_category:
             allocation_by_category[category] = Decimal(0)
 
-        allocation_by_category[category] += balance.amount
-        total += balance.amount
+        allocation_by_category[category] += conversion.amount
+        total += conversion.amount
 
     breakdown = []
     for category, amount in allocation_by_category.items():
@@ -643,4 +669,5 @@ async def get_asset_allocation(
         "total": float(total),
         "currency": currency,
         "breakdown": breakdown,
+        "excluded_count": excluded_count,
     }

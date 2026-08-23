@@ -3,20 +3,21 @@ from datetime import date
 
 import pytest
 
-from database.models import AccountType
+from database.models import AccountType, User
 from database.repository import AccountRepository
 
 
 @pytest.mark.asyncio
 class TestAccountCreation:
 
-    async def test_create_account(self, account_repo: AccountRepository):
+    async def test_create_account(self, account_repo: AccountRepository, test_user: User):
         account = await account_repo.create(
             name="Assets:Bank:Checking",
             open_date=date(2024, 1, 1),
             currency="EUR",
             description="Main checking account",
             meta={"bank_number": "123456"},
+            user_id=test_user.id,
         )
 
         assert account.id is not None
@@ -36,18 +37,22 @@ class TestAccountCreation:
         ("Income:Salary", AccountType.INCOME),
         ("Expenses:Food:Groceries", AccountType.EXPENSES),
     ])
-    async def test_account_types(self, account_repo: AccountRepository, name: str, expected_type: AccountType):
+    async def test_account_types(
+        self, account_repo: AccountRepository, test_user: User, name: str, expected_type: AccountType
+    ):
         account = await account_repo.create(
             name=name,
             open_date=date(2024, 1, 1),
+            user_id=test_user.id,
         )
 
         assert account.account_type == expected_type
 
-    async def test_account_hierarchy(self, account_repo: AccountRepository):
+    async def test_account_hierarchy(self, account_repo: AccountRepository, test_user: User):
         account = await account_repo.create(
             name="Assets:Bank:Chase:Checking",
             open_date=date(2024, 1, 1),
+            user_id=test_user.id,
         )
 
         assert account.parent_name == "Assets:Bank:Chase"
@@ -56,6 +61,7 @@ class TestAccountCreation:
         top_level = await account_repo.create(
             name="Assets",
             open_date=date(2024, 1, 1),
+            user_id=test_user.id,
         )
 
         assert top_level.parent_name is None

@@ -36,7 +36,6 @@ async def test_ingest_upload(
             empty,
             [tmp_path],
             password=password or None,
-            account_owner_name=current_user.full_name,
         )
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
