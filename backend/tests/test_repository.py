@@ -5,7 +5,7 @@ from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.repository import AccountRepository, BalanceRepository, ExchangeRateRepository
-from database.models import AccountType
+from database.models import AccountType, User
 
 
 @pytest_asyncio.fixture
@@ -23,11 +23,13 @@ async def test_create_balance_entry(
     account_repo: AccountRepository,
     balance_repo: BalanceRepository,
     session: AsyncSession,
+    test_user: User,
 ):
     account = await account_repo.create(
         name="Assets:Bank:TestSavings",
         open_date=date(2024, 1, 1),
         currency="USD",
+        user_id=test_user.id,
     )
     await session.commit()
 
@@ -52,11 +54,13 @@ async def test_update_existing_balance(
     account_repo: AccountRepository,
     balance_repo: BalanceRepository,
     session: AsyncSession,
+    test_user: User,
 ):
     account = await account_repo.create(
         name="Assets:Bank:UpdateTest",
         open_date=date(2024, 1, 1),
         currency="USD",
+        user_id=test_user.id,
     )
     await session.commit()
 
@@ -86,11 +90,13 @@ async def test_get_latest_balances(
     account_repo: AccountRepository,
     balance_repo: BalanceRepository,
     session: AsyncSession,
+    test_user: User,
 ):
     account = await account_repo.create(
         name="Assets:Bank:LatestTest",
         open_date=date(2024, 1, 1),
         currency="USD",
+        user_id=test_user.id,
     )
     await session.commit()
 
@@ -128,11 +134,13 @@ async def test_multi_currency_balances(
     account_repo: AccountRepository,
     balance_repo: BalanceRepository,
     session: AsyncSession,
+    test_user: User,
 ):
     account = await account_repo.create(
         name="Assets:MultiCurrency:Test",
         open_date=date(2024, 1, 1),
         currency="USD",
+        user_id=test_user.id,
     )
     await session.commit()
 
@@ -162,11 +170,13 @@ async def test_delete_balance(
     account_repo: AccountRepository,
     balance_repo: BalanceRepository,
     session: AsyncSession,
+    test_user: User,
 ):
     account = await account_repo.create(
         name="Assets:DeleteTest",
         open_date=date(2024, 1, 1),
         currency="USD",
+        user_id=test_user.id,
     )
     await session.commit()
 
@@ -179,7 +189,7 @@ async def test_delete_balance(
     await session.commit()
     balance_id = balance.id
 
-    deleted = await balance_repo.delete(balance_id)
+    deleted = await balance_repo.delete(balance_id, user_id=test_user.id)
     await session.commit()
 
     assert deleted is True
