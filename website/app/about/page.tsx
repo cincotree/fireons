@@ -3,8 +3,8 @@ import { Metadata } from 'next';
 import { appRoutes } from '@/lib/config';
 
 export const metadata: Metadata = {
-  title: 'About FIRE - Fireones',
-  description: 'Learn about the FIRE (Financial Independence, Retire Early) movement and how Fireones can help you achieve your financial goals.',
+  title: 'About FIRE - Fireons',
+  description: 'Learn about the FIRE (Financial Independence, Retire Early) movement and how Fireons can help you achieve your financial goals.',
 };
 
 export default function About() {
@@ -44,14 +44,14 @@ export default function About() {
             <div className="bg-blue-50 p-6 rounded-lg">
               <h3 className="text-xl font-semibold text-blue-900 mb-2">Lean FIRE</h3>
               <p className="text-gray-700">
-                Living frugally and retiring with a minimal budget. Typically requires $500K-$1M in savings.
+                Living frugally and retiring with a minimal budget. Typically requires ₹1-2 Cr in savings.
               </p>
             </div>
 
             <div className="bg-teal-50 p-6 rounded-lg">
               <h3 className="text-xl font-semibold text-teal-900 mb-2">Fat FIRE</h3>
               <p className="text-gray-700">
-                Maintaining a comfortable lifestyle in retirement. Usually requires $2.5M-$5M+ in savings.
+                Maintaining a comfortable lifestyle in retirement. Usually requires ₹10 Cr+ in savings.
               </p>
             </div>
 
@@ -80,17 +80,18 @@ export default function About() {
           <div className="bg-cyan-50 p-8 rounded-xl mb-12">
             <h3 className="text-2xl font-bold text-gray-900 mb-4">Example Calculation</h3>
             <div className="space-y-2 text-gray-700">
-              <p>Annual expenses: $40,000</p>
-              <p>Multiply by 25: $40,000 × 25 = <strong className="text-blue-800">$1,000,000</strong></p>
+              <p>Annual expenses: ₹12,00,000 (₹12 lakh)</p>
+              <p>Multiply by 25: ₹12,00,000 × 25 = <strong className="text-blue-800">₹3,00,00,000 (₹3 Cr)</strong></p>
               <p className="mt-4 text-sm">
-                With $1M invested, you can withdraw $40,000 annually (4%) to cover your living expenses.
+                With ₹3 Cr invested, you can withdraw ₹12 lakh annually (4%) to cover your living expenses.
+                Some in the Indian FIRE community prefer a more conservative 3% withdrawal rate, which works out to 33x annual expenses instead of 25x.
               </p>
             </div>
           </div>
 
-          <h2 className="text-3xl font-bold text-gray-900 mb-4 mt-12">Why Join Fireones?</h2>
+          <h2 className="text-3xl font-bold text-gray-900 mb-4 mt-12">Why Join Fireons?</h2>
           <p className="text-gray-700 mb-6">
-            Achieving FIRE is challenging, and having a supportive community makes all the difference. Fireones
+            Achieving FIRE is challenging, and having a supportive community makes all the difference. Fireons
             provides:
           </p>
 
@@ -105,13 +106,13 @@ export default function About() {
               <svg className="w-6 h-6 text-teal-600 mr-2 mt-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
-              <span><strong>Multi-currency support</strong> — Perfect for international investors and digital nomads</span>
+              <span><strong>Multi-currency support</strong> — Perfect for NRIs and anyone with investments spread across India and abroad</span>
             </li>
             <li className="flex items-start">
               <svg className="w-6 h-6 text-teal-600 mr-2 mt-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
-              <span><strong>Community feedback</strong> — Get advice and encouragement from fellow Fireones</span>
+              <span><strong>Community feedback</strong> — Get advice and encouragement from fellow Fireons</span>
             </li>
             <li className="flex items-start">
               <svg className="w-6 h-6 text-teal-600 mr-2 mt-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -130,7 +131,7 @@ export default function About() {
             Ready to Start Your FIRE Journey?
           </h2>
           <p className="text-xl text-gray-600 mb-8">
-            Join the Fireones community and take control of your financial future
+            Join the Fireons community and take control of your financial future
           </p>
           <Link
             href={appRoutes.waitlist}

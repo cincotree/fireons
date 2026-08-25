@@ -3,8 +3,8 @@ import { Metadata } from 'next';
 import { appRoutes } from '@/lib/config';
 
 export const metadata: Metadata = {
-  title: 'Privacy & Security - Fireones',
-  description: 'Learn how Fireones protects your privacy and keeps your financial data secure with anonymity-first design.',
+  title: 'Privacy & Security - Fireons',
+  description: 'Learn how Fireons protects your privacy and keeps your financial data secure with anonymity-first design.',
 };
 
 export default function Privacy() {
@@ -28,7 +28,7 @@ export default function Privacy() {
 
           <h2 className="text-3xl font-bold text-gray-900 mb-6">Anonymity by Design</h2>
           <p className="text-gray-700 mb-6">
-            At Fireones, we believe your financial journey is personal. That's why we've built our platform
+            At Fireons, we believe your financial journey is personal. That's why we've built our platform
             from the ground up with anonymity as a core principle, not an afterthought.
           </p>
 
@@ -151,7 +151,7 @@ export default function Privacy() {
 
           <h2 className="text-3xl font-bold text-gray-900 mb-6 mt-12">Working with Financial Professionals</h2>
           <p className="text-gray-700 mb-6">
-            When you choose to consult with a financial professional through Fireones:
+            When you choose to consult with a financial professional through Fireons:
           </p>
 
           <ul className="space-y-3 mb-8 text-gray-700">
@@ -224,7 +224,7 @@ export default function Privacy() {
             Trust Built on Transparency
           </h2>
           <p className="text-xl text-gray-600 mb-8">
-            Join Fireones and take control of your financial future with complete peace of mind
+            Join Fireons and take control of your financial future with complete peace of mind
           </p>
           <Link
             href={appRoutes.waitlist}

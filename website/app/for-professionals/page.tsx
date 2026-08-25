@@ -3,8 +3,8 @@ import { Metadata } from 'next';
 import { appRoutes } from '@/lib/config';
 
 export const metadata: Metadata = {
-  title: 'For Financial Professionals - Fireones',
-  description: 'Connect with motivated FIRE enthusiasts as a financial advisor. Build your reputation and grow your practice with Fireones.',
+  title: 'For Financial Professionals - Fireons',
+  description: 'Connect with motivated FIRE enthusiasts as a financial advisor. Build your reputation and grow your practice with Fireons.',
 };
 
 export default function ForProfessionals() {
@@ -33,7 +33,7 @@ export default function ForProfessionals() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-              Why Join Fireones?
+              Why Join Fireons?
             </h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
               Reach a targeted audience of financially savvy individuals actively seeking professional guidance
@@ -71,9 +71,9 @@ export default function ForProfessionals() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Global Reach</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Reach Across India</h3>
               <p className="text-gray-600">
-                Connect with clients worldwide pursuing FIRE across different countries and currencies.
+                Connect with clients across India pursuing FIRE, including NRIs managing investments across borders.
               </p>
             </div>
           </div>
@@ -219,14 +219,14 @@ export default function ForProfessionals() {
             <div className="bg-white p-6 rounded-lg shadow-sm">
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Tax Professionals</h3>
               <p className="text-gray-600">
-                CPAs and tax advisors specializing in tax optimization strategies for early retirement.
+                Chartered Accountants (CAs) and tax advisors specializing in tax optimization strategies for early retirement.
               </p>
             </div>
 
             <div className="bg-white p-6 rounded-lg shadow-sm">
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Investment Advisors</h3>
               <p className="text-gray-600">
-                Registered investment advisors (RIA) with expertise in portfolio management for FIRE goals.
+                SEBI-registered investment advisors (RIA) with expertise in portfolio management for FIRE goals.
               </p>
             </div>
 
@@ -244,7 +244,7 @@ export default function ForProfessionals() {
       <section className="py-20 bg-cyan-600 text-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-            Ready to Join Fireones?
+            Ready to Join Fireons?
           </h2>
           <p className="text-xl text-blue-100 mb-8">
             Start connecting with motivated clients today
