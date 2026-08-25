@@ -10,4 +10,8 @@ export const professionalParam = {
 export const appRoutes = {
   waitlist: '/waitlist',
   waitlistProfessional: `/waitlist?${professionalParam.name}=${professionalParam.value}`,
+  calculators: '/calculators',
+  retirementCalculator: '/calculators/retirement',
+  coastFireCalculator: '/calculators/coast-fire',
+  savingsRateCalculator: '/calculators/savings-rate',
 };

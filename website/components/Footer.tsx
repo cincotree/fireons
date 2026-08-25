@@ -43,6 +43,16 @@ export default function Footer() {
             <h4 className="font-semibold mb-4">For Fireons</h4>
             <ul className="space-y-2 text-sm">
               <li>
+                <Link href={appRoutes.calculators} className="text-gray-400 hover:text-white transition-colors">
+                  Free Calculators
+                </Link>
+              </li>
+              <li>
+                <Link href={appRoutes.retirementCalculator} className="text-gray-400 hover:text-white transition-colors">
+                  Retirement Calculator
+                </Link>
+              </li>
+              <li>
                 <Link href={appRoutes.waitlist} className="text-gray-400 hover:text-white transition-colors">
                   Join the Waitlist
                 </Link>

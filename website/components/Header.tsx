@@ -49,6 +49,12 @@ export default function Header() {
           {/* CTA Buttons */}
           <div className="hidden md:flex items-center space-x-3">
             <Link
+              href={appRoutes.calculators}
+              className="bg-amber-500 text-white px-5 py-2.5 rounded-lg hover:bg-amber-600 transition-all font-semibold shadow-md hover:shadow-lg"
+            >
+              Free Calculators
+            </Link>
+            <Link
               href={appRoutes.waitlist}
               className="bg-cyan-600 text-white px-6 py-2.5 rounded-lg hover:bg-cyan-700 transition-all font-medium shadow-md hover:shadow-lg"
             >
@@ -98,6 +104,12 @@ export default function Header() {
                 Privacy
               </Link>
               <div className="pt-3 border-t border-slate-200 flex flex-col space-y-2 mt-2">
+                <Link
+                  href={appRoutes.calculators}
+                  className="bg-amber-500 text-white px-4 py-2.5 rounded-lg hover:bg-amber-600 transition-all font-semibold text-center shadow-md"
+                >
+                  Free Calculators
+                </Link>
                 <Link
                   href={appRoutes.waitlist}
                   className="bg-cyan-600 text-white px-4 py-2.5 rounded-lg hover:bg-cyan-700 transition-all font-medium text-center shadow-md"
