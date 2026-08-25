@@ -3,8 +3,8 @@ import { Metadata } from 'next';
 import { appRoutes } from '@/lib/config';
 
 export const metadata: Metadata = {
-  title: 'Features - Fireones',
-  description: 'Explore all the features Fireones offers to help you achieve financial independence.',
+  title: 'Features - Fireons',
+  description: 'Explore all the features Fireons offers to help you achieve financial independence.',
 };
 
 export default function Features() {
@@ -33,7 +33,7 @@ export default function Features() {
                 <div className="flex-shrink-0">
                   <div className="w-16 h-16 bg-blue-800 rounded-xl flex items-center justify-center">
                     <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l4-4m-4 4l-4-4" />
                     </svg>
                   </div>
                 </div>
@@ -41,7 +41,7 @@ export default function Features() {
                   <h3 className="text-2xl font-bold text-gray-900 mb-3">Multi-Currency Net Worth Tracking</h3>
                   <p className="text-gray-600 mb-4">
                     Track your assets across multiple currencies with real-time conversion rates. Perfect for
-                    international investors, expats, and digital nomads managing global portfolios.
+                    NRIs and anyone managing investments across India and abroad.
                   </p>
                   <ul className="space-y-2 text-gray-600">
                     <li className="flex items-start">
@@ -240,7 +240,7 @@ export default function Features() {
                 <div className="ml-6">
                   <h3 className="text-2xl font-bold text-gray-900 mb-3">Advisor Reviews & Ratings</h3>
                   <p className="text-gray-600 mb-4">
-                    Read honest reviews from other Fireones to find the right financial professional for your
+                    Read honest reviews from other Fireons to find the right financial professional for your
                     needs. Community-driven quality assurance.
                   </p>
                   <ul className="space-y-2 text-gray-600">
@@ -278,7 +278,7 @@ export default function Features() {
             Ready to Experience These Features?
           </h2>
           <p className="text-xl text-blue-100 mb-8">
-            Join Fireones today and start your journey to financial independence
+            Join Fireons today and start your journey to financial independence
           </p>
           <Link
             href={appRoutes.waitlist}
