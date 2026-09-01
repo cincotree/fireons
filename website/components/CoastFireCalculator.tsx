@@ -1,12 +1,14 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { CoastFireInputs, simulateCoastFire } from '@/lib/retirementCalculator';
 import { useLocalStorageState } from '@/lib/useLocalStorageState';
+import { decodeParamsToInputs, encodeInputsToParams, isAllocationChoice } from '@/lib/urlState';
 import CoastFireCalculatorForm from './CoastFireCalculatorForm';
 import RetirementCalculatorChart from './RetirementCalculatorChart';
+import ShareButton from './ShareButton';
 
-const DEFAULT_INPUTS: CoastFireInputs = {
+export const DEFAULT_INPUTS: CoastFireInputs = {
   currentAge: 30,
   retirementAge: 55,
   lifeExpectancy: 85,
@@ -32,6 +34,16 @@ export default function CoastFireCalculator() {
   const handleChange = (patch: Partial<CoastFireInputs>) => {
     setInputs((current) => ({ ...current, ...patch }));
   };
+
+  useEffect(() => {
+    const decoded = decodeParamsToInputs(new URLSearchParams(window.location.search), DEFAULT_INPUTS, {
+      preRetirementAllocation: isAllocationChoice,
+      postRetirementAllocation: isAllocationChoice,
+    });
+    if (decoded) {
+      setInputs(decoded);
+    }
+  }, [setInputs]);
 
   const result = useMemo(() => {
     if (inputs.retirementAge <= inputs.currentAge || inputs.lifeExpectancy < inputs.retirementAge) {
@@ -81,6 +93,17 @@ export default function CoastFireCalculator() {
             Assumes no further contributions from today, inflation-adjusted withdrawals in retirement, and the
             return/allocation assumptions above. For guidance on your actual plan, consult a financial professional.
           </p>
+
+          <ShareButton
+            text={
+              result.isAlreadyCoastFire
+                ? `I'm already Coast FIRE — ${formatRupees(result.projectedCorpusAtRetirement)} projected at retirement with zero further contributions! Find out if you can stop investing today:`
+                : `I need ${formatRupees(result.coastFireNumber - inputs.currentSavings)} more to reach Coast FIRE. Find out if you can stop investing today:`
+            }
+            buildUrl={() =>
+              `${window.location.origin}${window.location.pathname}?${encodeInputsToParams(inputs).toString()}`
+            }
+          />
         </div>
       )}
     </div>
