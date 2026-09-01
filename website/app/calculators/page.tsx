@@ -20,6 +20,21 @@ export default function Calculators() {
         </div>
       </section>
 
+      {/* Not sure where to start? */}
+      <section className="pb-8">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+          <Link
+            href={appRoutes.getStarted}
+            className="group flex items-center justify-between gap-4 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-2xl px-6 py-5 transition-colors"
+          >
+            <span className="font-semibold text-amber-900">
+              Not sure where to start? Answer a few quick questions and we&apos;ll point you to the right calculator.
+            </span>
+            <span className="text-amber-700 font-semibold whitespace-nowrap group-hover:underline">Get started →</span>
+          </Link>
+        </div>
+      </section>
+
       {/* Calculator grid */}
       <section className="pb-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
