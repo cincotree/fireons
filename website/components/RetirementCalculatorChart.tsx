@@ -43,6 +43,8 @@ export default function RetirementCalculatorChart({ series, milestoneAge, milest
   const areaPath = `${linePath} L ${xForAge(maxAge)} ${yForValue(0)} L ${xForAge(minAge)} ${yForValue(0)} Z`;
 
   const milestoneX = xForAge(milestoneAge);
+  const milestoneLabelAnchor = milestoneX > WIDTH - 200 ? 'end' : 'start';
+  const milestoneLabelX = milestoneX + (milestoneLabelAnchor === 'end' ? -6 : 6);
   const yTicks = [0, 0.25, 0.5, 0.75, 1].map((fraction) => minValue + fraction * (maxValue - minValue));
   const axisUnit = axisUnitFor(Math.max(Math.abs(minValue), Math.abs(maxValue)));
   const formatAxisValue = (value: number) =>
@@ -85,7 +87,7 @@ export default function RetirementCalculatorChart({ series, milestoneAge, milest
         strokeWidth={2}
         strokeDasharray="4 4"
       />
-      <text x={milestoneX + 6} y={PADDING.top + 12} fontSize={11} fill="#b45309">
+      <text x={milestoneLabelX} y={PADDING.top + 12} textAnchor={milestoneLabelAnchor} fontSize={11} fill="#b45309">
         {milestoneLabel} (age {milestoneAge})
       </text>
 
