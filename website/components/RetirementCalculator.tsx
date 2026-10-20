@@ -1,12 +1,14 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { RetirementInputs, simulateRetirement } from '@/lib/retirementCalculator';
 import { useLocalStorageState } from '@/lib/useLocalStorageState';
+import { decodeParamsToInputs, encodeInputsToParams, isAllocationChoice } from '@/lib/urlState';
 import RetirementCalculatorForm from './RetirementCalculatorForm';
 import RetirementCalculatorChart from './RetirementCalculatorChart';
+import ShareButton from './ShareButton';
 
-const DEFAULT_INPUTS: RetirementInputs = {
+export const DEFAULT_INPUTS: RetirementInputs = {
   currentAge: 30,
   contributionEndAge: 55,
   retirementAge: 55,
@@ -35,6 +37,16 @@ export default function RetirementCalculator() {
   const handleChange = (patch: Partial<RetirementInputs>) => {
     setInputs((current) => ({ ...current, ...patch }));
   };
+
+  useEffect(() => {
+    const decoded = decodeParamsToInputs(new URLSearchParams(window.location.search), DEFAULT_INPUTS, {
+      preRetirementAllocation: isAllocationChoice,
+      postRetirementAllocation: isAllocationChoice,
+    });
+    if (decoded) {
+      setInputs(decoded);
+    }
+  }, [setInputs]);
 
   const result = useMemo(() => {
     if (
@@ -97,6 +109,17 @@ export default function RetirementCalculator() {
             inflation-adjusted withdrawals in retirement, and the return/allocation assumptions above. For guidance
             on your actual plan, consult a financial professional.
           </p>
+
+          <ShareButton
+            text={
+              result.isAlreadyOnTrack
+                ? `I'm already on track to retire at ${inputs.retirementAge} with ${formatRupees(result.corpusAtRetirement)}! Calculate your own FIRE number:`
+                : `I need to invest ${formatRupees(result.requiredMonthlySip)}/mo to retire at ${inputs.retirementAge} with ${formatRupees(result.corpusAtRetirement)}. Calculate your own FIRE number:`
+            }
+            buildUrl={() =>
+              `${window.location.origin}${window.location.pathname}?${encodeInputsToParams(inputs).toString()}`
+            }
+          />
         </div>
       )}
     </div>

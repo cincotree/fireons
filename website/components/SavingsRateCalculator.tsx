@@ -1,12 +1,14 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { MAX_YEARS, SavingsRateInputs, simulateSavingsRate } from '@/lib/savingsRateCalculator';
 import { useLocalStorageState } from '@/lib/useLocalStorageState';
+import { decodeParamsToInputs, encodeInputsToParams } from '@/lib/urlState';
 import SavingsRateCalculatorForm from './SavingsRateCalculatorForm';
 import RetirementCalculatorChart from './RetirementCalculatorChart';
+import ShareButton from './ShareButton';
 
-const DEFAULT_INPUTS: SavingsRateInputs = {
+export const DEFAULT_INPUTS: SavingsRateInputs = {
   currentAge: 30,
   monthlyIncome: 150000,
   monthlyExpenses: 90000,
@@ -28,6 +30,13 @@ export default function SavingsRateCalculator() {
   const handleChange = (patch: Partial<SavingsRateInputs>) => {
     setInputs((current) => ({ ...current, ...patch }));
   };
+
+  useEffect(() => {
+    const decoded = decodeParamsToInputs(new URLSearchParams(window.location.search), DEFAULT_INPUTS);
+    if (decoded) {
+      setInputs(decoded);
+    }
+  }, [setInputs]);
 
   const result = useMemo(() => {
     if (inputs.currentAge <= 0) return null;
@@ -90,6 +99,17 @@ export default function SavingsRateCalculator() {
             Assumes a 4% safe withdrawal rate (25× annual expenses), a constant savings rate, and the return/inflation
             assumptions above. For guidance on your actual plan, consult a financial professional.
           </p>
+
+          <ShareButton
+            text={
+              result.yearsToFI === 0
+                ? "I'm already financially independent! Calculate your own FIRE timeline:"
+                : `At my ${result.savingsRatePct.toFixed(0)}% savings rate, I'll reach financial independence in ${result.yearsToFI} ${result.yearsToFI === 1 ? 'year' : 'years'}. See how fast your savings rate gets you there:`
+            }
+            buildUrl={() =>
+              `${window.location.origin}${window.location.pathname}?${encodeInputsToParams(inputs).toString()}`
+            }
+          />
         </div>
       )}
     </div>
