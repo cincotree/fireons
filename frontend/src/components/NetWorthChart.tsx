@@ -32,6 +32,7 @@ export function NetWorthChart({
   endDate,
 }: NetWorthChartProps) {
   const [data, setData] = useState<NetWorthHistoryEntry[]>([]);
+  const [missingRateCount, setMissingRateCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,8 +63,9 @@ export function NetWorthChart({
         throw new Error("Failed to fetch net worth history");
       }
 
-      const historyData = await response.json();
-      setData(historyData);
+      const body = await response.json();
+      setData(body.data);
+      setMissingRateCount(body.accounts_with_missing_rates?.length ?? 0);
     } catch (err) {
       console.error("Error fetching net worth history:", err);
       setError("Failed to load net worth history");
@@ -118,6 +120,11 @@ export function NetWorthChart({
 
   return (
     <div className="w-full h-64">
+      {missingRateCount > 0 && (
+        <p className="text-xs text-amber-600 mb-1">
+          {missingRateCount} account(s) excluded — exchange rate unavailable for {currency}.
+        </p>
+      )}
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart
           data={data}

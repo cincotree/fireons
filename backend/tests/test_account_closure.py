@@ -229,4 +229,4 @@ class TestClosedAccountExcludedFromDashboardEndpoints:
         response = await client.get("/api/networth-history?currency=USD", headers=auth_headers)
 
         assert response.status_code == 200
-        assert response.json() == []
+        assert response.json()["data"] == []

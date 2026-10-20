@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ChevronRight, ChevronDown, Pencil } from "lucide-react";
+import { getCurrencyColor, getCurrencySymbol } from "@/utils/currencies";
 
 interface Account {
   id: string;
@@ -10,6 +11,7 @@ interface Account {
   currency: string;
   balance: number | null;
   balance_in_display_currency: number | null;
+  rate_available: boolean;
 }
 
 interface TreeNode {
@@ -29,7 +31,7 @@ interface AccountHierarchyTreeProps {
 export function AccountHierarchyTree({
   accounts,
   onAccountClick,
-  currency = "USD",
+  currency = "INR",
 }: AccountHierarchyTreeProps) {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => {
     const allPaths = new Set<string>();
@@ -45,26 +47,6 @@ export function AccountHierarchyTree({
     });
     return allPaths;
   });
-
-  const getCurrencyColor = (currencyCode: string): string => {
-    const colors: Record<string, string> = {
-      USD: "#22c55e", // green
-      INR: "#f97316", // orange
-      EUR: "#3b82f6", // blue
-      GBP: "#a855f7", // purple
-    };
-    return colors[currencyCode] || "#6b7280"; // default gray
-  };
-
-  const getCurrencySymbol = (currencyCode: string): string => {
-    const symbols: Record<string, string> = {
-      USD: "$",
-      INR: "₹",
-      EUR: "€",
-      GBP: "£",
-    };
-    return symbols[currencyCode] || currencyCode;
-  };
 
   const buildTree = (): Map<string, TreeNode> => {
     const root = new Map<string, TreeNode>();
@@ -200,13 +182,15 @@ export function AccountHierarchyTree({
             )}
           </div>
           <div className="col-span-3 text-right text-sm text-gray-600">
-            {node.account && node.account.balance !== null
-              ? new Intl.NumberFormat("en-US", {
-                  style: "currency",
-                  currency: node.account.currency,
-                  minimumFractionDigits: 2,
-                }).format(node.account.balance)
-              : ""}
+            {node.account && !node.account.rate_available ? (
+              <span className="text-amber-600" title="Exchange rate unavailable">
+                rate unavailable
+              </span>
+            ) : node.account && node.account.balance_in_display_currency !== null ? (
+              formatCurrency(node.account.balance_in_display_currency)
+            ) : (
+              ""
+            )}
           </div>
           <div className="col-span-3 text-right text-sm font-semibold text-gray-700">
             {hasChildren && nodeTotal !== 0 ? formatCurrency(nodeTotal) : ""}
