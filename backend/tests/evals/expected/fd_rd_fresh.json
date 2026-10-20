@@ -1,0 +1,19 @@
+{
+  "as_of": "2026-07-31",
+  "reporting_currency": "INR",
+  "positions": {
+    "Assets:Deposit:FD:HDFC:5544332211": {
+      "account_name": "Assets:Deposit:FD:HDFC:5544332211",
+      "value": "428500.00",
+      "currency": "INR",
+      "as_of": "2026-07-31"
+    },
+    "Assets:Deposit:RD:ICICI:6677889900": {
+      "account_name": "Assets:Deposit:RD:ICICI:6677889900",
+      "value": "118500.00",
+      "currency": "INR",
+      "as_of": "2026-07-31"
+    }
+  },
+  "total": "547000.00"
+}

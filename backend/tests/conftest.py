@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from database.config import get_settings
-from database.models import Base, Account
+from database.models import Base, Account, User
 from database.repository import AccountRepository, TransactionRepository
 
 # Test database configuration
@@ -116,7 +116,19 @@ async def transaction_repo(session: AsyncSession) -> TransactionRepository:
 
 
 @pytest_asyncio.fixture
-async def sample_accounts(account_repo: AccountRepository) -> dict[str, Account]:
+async def test_user(session: AsyncSession) -> User:
+    user = User(
+        email="fixture-test@example.com",
+        username="fixture_test_user",
+        hashed_password="unused-in-these-tests",
+    )
+    session.add(user)
+    await session.flush()
+    return user
+
+
+@pytest_asyncio.fixture
+async def sample_accounts(account_repo: AccountRepository, test_user: User) -> dict[str, Account]:
     accounts = {}
 
     account_data = [
@@ -136,6 +148,7 @@ async def sample_accounts(account_repo: AccountRepository) -> dict[str, Account]
             open_date=date(2024, 1, 1),
             currency=currency,
             description=description,
+            user_id=test_user.id,
         )
         key = name.split(":")[-1]
         accounts[key] = account

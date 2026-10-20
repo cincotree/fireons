@@ -4,10 +4,15 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/modal";
 import { getBaseHttpUrl } from "@/utils/api";
+import { SUPPORTED_CURRENCIES } from "@/utils/currencies";
 import { NetWorthChart } from "@/components/NetWorthChart";
 import { AssetAllocationChart } from "@/components/AssetAllocationChart";
 import { AccountHierarchyTree } from "@/components/AccountHierarchyTree";
+<<<<<<< HEAD
 import { ImportStatementFlow } from "@/components/ImportStatementFlow";
+=======
+import { StatementImportFlow } from "@/components/StatementImportFlow";
+>>>>>>> main
 
 interface Account {
   id: string;
@@ -19,6 +24,7 @@ interface Account {
   balance: number | null;
   balance_in_display_currency: number | null;
   display_currency: string | null;
+  rate_available: boolean;
   is_active: boolean;
 }
 
@@ -29,7 +35,7 @@ export function NetWorthDashboard() {
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const [selectedCurrency, setSelectedCurrency] = useState("USD");
+  const [selectedCurrency, setSelectedCurrency] = useState("INR");
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [newAccountType, setNewAccountType] = useState<"Assets" | "Liabilities">("Assets");
   const [newAccountCategory, setNewAccountCategory] = useState("");
@@ -42,6 +48,7 @@ export function NetWorthDashboard() {
   const [originalBalance, setOriginalBalance] = useState<number | null>(null);
   const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
   const [accountToClose, setAccountToClose] = useState<Account | null>(null);
+  const [chartsRefreshKey, setChartsRefreshKey] = useState(0);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   useEffect(() => {
@@ -67,6 +74,10 @@ export function NetWorthDashboard() {
 
       const accountsData = await accountsRes.json();
       setAccounts(accountsData);
+      // NetWorthChart/AssetAllocationChart fetch their own data independently
+      // of `accounts`, so bump their key to force a remount+refetch whenever
+      // account data changes (create/edit/close/balance update).
+      setChartsRefreshKey((key) => key + 1);
     } catch (err) {
       console.error("Error fetching data:", err);
       setError("Failed to load net worth data. Please try again.");
@@ -294,15 +305,17 @@ export function NetWorthDashboard() {
     <div className="p-8 space-y-6">
       <div className="flex items-center justify-end">
         <select
+          data-testid="display-currency-select"
           className="border rounded-lg pl-3 pr-10 py-1.5 text-sm appearance-none bg-white"
           style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em' }}
           value={selectedCurrency}
           onChange={(e) => setSelectedCurrency(e.target.value)}
         >
-          <option value="USD">$ USD</option>
-          <option value="INR">₹ INR</option>
-          <option value="EUR">€ EUR</option>
-          <option value="GBP">£ GBP</option>
+          {SUPPORTED_CURRENCIES.map((currency) => (
+            <option key={currency.code} value={currency.code}>
+              {currency.symbol} {currency.code}
+            </option>
+          ))}
         </select>
       </div>
 
@@ -312,8 +325,14 @@ export function NetWorthDashboard() {
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-lg shadow p-6" data-testid="networth-summary">
         <h2 className="text-xl font-semibold mb-4">Net Worth Summary ({selectedCurrency})</h2>
+        {accounts.some((a) => !a.rate_available) && (
+          <p className="text-sm text-amber-600 mb-3">
+            {accounts.filter((a) => !a.rate_available).length} account(s) excluded — exchange
+            rate unavailable for {selectedCurrency}.
+          </p>
+        )}
         {accounts.length > 0 ? (() => {
           const totalAssets = accounts
             .filter(a => a.account_type === "Assets")
@@ -361,12 +380,12 @@ export function NetWorthDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white rounded-lg shadow p-6 md:col-span-2">
           <h2 className="text-xl font-semibold mb-4">Growth trend</h2>
-          <NetWorthChart currency={selectedCurrency} />
+          <NetWorthChart key={chartsRefreshKey} currency={selectedCurrency} />
         </div>
 
         <div className="bg-white rounded-lg shadow p-6 md:col-span-1">
           <h2 className="text-xl font-semibold mb-4">Asset Allocation</h2>
-          <AssetAllocationChart currency={selectedCurrency} />
+          <AssetAllocationChart key={chartsRefreshKey} currency={selectedCurrency} />
         </div>
       </div>
 
@@ -374,10 +393,7 @@ export function NetWorthDashboard() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold">Account Hierarchy</h2>
           <div className="flex gap-2">
-            <Button
-              onClick={() => setIsImportModalOpen(true)}
-              variant="outline"
-            >
+            <Button variant="outline" onClick={() => setIsImportModalOpen(true)}>
               Import Statement
             </Button>
             <Button
@@ -406,6 +422,7 @@ export function NetWorthDashboard() {
               <div>
                 <label className="block text-sm font-medium mb-1">Account Type *</label>
                 <select
+                  data-testid="account-type-select"
                   className="w-full border rounded px-3 py-2"
                   value={newAccountType}
                   onChange={(e) => {
@@ -423,6 +440,7 @@ export function NetWorthDashboard() {
                 <label className="block text-sm font-medium mb-1">Category *</label>
                 {!isNewCategory ? (
                   <select
+                    data-testid="account-category-select"
                     className="w-full border rounded px-3 py-2"
                     value={newAccountCategory}
                     onChange={(e) => {
@@ -443,6 +461,7 @@ export function NetWorthDashboard() {
                 ) : (
                   <div className="flex gap-2">
                     <input
+                      data-testid="account-category-new-input"
                       type="text"
                       placeholder="Category name"
                       className="flex-1 border rounded px-3 py-2"
@@ -467,6 +486,7 @@ export function NetWorthDashboard() {
               <div>
                 <label className="block text-sm font-medium mb-1">Account Name *</label>
                 <input
+                  data-testid="account-name-input"
                   type="text"
                   placeholder="e.g., Savings, Checking, Home Loan"
                   className="w-full border rounded px-3 py-2"
@@ -483,6 +503,7 @@ export function NetWorthDashboard() {
               <div>
                 <label className="block text-sm font-medium mb-1">Currency *</label>
                 <select
+                  data-testid="account-currency-select"
                   className="w-full border rounded px-3 py-2"
                   value={newAccountCurrency}
                   onChange={(e) => setNewAccountCurrency(e.target.value)}
@@ -500,6 +521,7 @@ export function NetWorthDashboard() {
                   Current Balance ({newAccountCurrency})
                 </label>
                 <input
+                  data-testid="account-balance-input"
                   type="number"
                   step="0.01"
                   placeholder="0.00"
@@ -583,11 +605,25 @@ export function NetWorthDashboard() {
         </DialogContent>
       </Modal>
 
+<<<<<<< HEAD
       <ImportStatementFlow
         open={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         onImported={fetchData}
       />
+=======
+      <Modal open={isImportModalOpen} onOpenChange={setIsImportModalOpen}>
+        <DialogContent>
+          <StatementImportFlow
+            embedded
+            onImported={() => {
+              setIsImportModalOpen(false);
+              fetchData();
+            }}
+          />
+        </DialogContent>
+      </Modal>
+>>>>>>> main
     </div>
   );
 }

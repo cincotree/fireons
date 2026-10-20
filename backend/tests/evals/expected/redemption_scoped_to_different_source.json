@@ -1,0 +1,32 @@
+{
+  "as_of": "2026-07-31",
+  "reporting_currency": "INR",
+  "positions": {
+    "Assets:Investment:MutualFund:SampleAMC1:FOLIO001:SchemeAlpha": {
+      "account_name": "Assets:Investment:MutualFund:SampleAMC1:FOLIO001:SchemeAlpha",
+      "units": "100.000",
+      "nav": "50.0000",
+      "value": "5000.00",
+      "currency": "INR",
+      "as_of": "2026-07-31"
+    },
+    "Assets:Investment:MutualFund:SampleAMC2:FOLIO002:SchemeBeta": {
+      "account_name": "Assets:Investment:MutualFund:SampleAMC2:FOLIO002:SchemeBeta",
+      "units": "200.000",
+      "nav": "25.0000",
+      "value": "5000.00",
+      "currency": "INR",
+      "as_of": "2026-07-31"
+    },
+    "Assets:Investment:REIT:SAMPLEREIT": {
+      "account_name": "Assets:Investment:REIT:SAMPLEREIT",
+      "units": "100.000",
+      "nav": "350.0000",
+      "value": "35000.00",
+      "currency": "INR",
+      "as_of": "2026-06-30",
+      "source": "CDSL"
+    }
+  },
+  "total": "45000.00"
+}

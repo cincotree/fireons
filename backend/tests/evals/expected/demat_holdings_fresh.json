@@ -1,0 +1,31 @@
+{
+  "as_of": "2026-07-31",
+  "reporting_currency": "INR",
+  "positions": {
+    "Assets:Investment:Equity:India:SAMPLESTK": {
+      "account_name": "Assets:Investment:Equity:India:SAMPLESTK",
+      "units": "50.000",
+      "nav": "2400.0000",
+      "value": "120000.00",
+      "currency": "INR",
+      "as_of": "2026-07-31"
+    },
+    "Assets:Investment:REIT:SAMPLEREIT": {
+      "account_name": "Assets:Investment:REIT:SAMPLEREIT",
+      "units": "100.000",
+      "nav": "350.0000",
+      "value": "35000.00",
+      "currency": "INR",
+      "as_of": "2026-07-31"
+    },
+    "Assets:Investment:InvIT:SAMPLEINVIT": {
+      "account_name": "Assets:Investment:InvIT:SAMPLEINVIT",
+      "units": "200.000",
+      "nav": "110.0000",
+      "value": "22000.00",
+      "currency": "INR",
+      "as_of": "2026-07-31"
+    }
+  },
+  "total": "177000.00"
+}
