@@ -135,7 +135,7 @@ npm run test:ui             # interactive Playwright UI
 ```
 
 ## Python Configuration
-- **Version**: Python 3.10.5 (specified in `backend/.tool-versions` and `pyproject.toml`)
+- **Version**: Python 3.12 (specified in `backend/.tool-versions` and `pyproject.toml`; matches the Lambda `python3.12` runtime)
 - **Package Manager**: uv (fast Python package installer and resolver)
 - **Type Checking**: Pyright with strict mode disabled for general type issues (see `pyrightconfig.json` and `backend/pyproject.toml`)
 
@@ -158,6 +158,23 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 # Ingestion pipeline (backend/ingestion/config.py)
 ANTHROPIC_API_KEY=
 ANTHROPIC_MODEL=claude-sonnet-5
+```
+
+### Backend production settings (`backend/app_config.py`, `backend/database/config.py`)
+All default to today's local dev behavior. With `APP_ENV=production` the app refuses to start unless `SECRET_KEY`, `ORIGIN_VERIFY_SECRET`, `DATABASE_URL` and `CORS_ORIGINS` are set, and the ingestion-test router and `/docs`, `/redoc`, `/openapi.json` are off unless explicitly enabled.
+```bash
+APP_ENV=production
+CORS_ORIGINS=https://app.fireons.com          # comma-separated
+ORIGIN_VERIFY_SECRET=<random>                  # requests without a matching X-Origin-Verify header get 403 (/health exempt)
+INGESTION_TEST_ENABLED=false                   # defaults to false in production
+API_DOCS_ENABLED=false                         # defaults to false in production
+DATABASE_URL=postgresql://...-pooler.../db     # sslmode=require added unless set; overrides POSTGRES_*
+DATABASE_URL_DIRECT=postgresql://.../db        # used by Alembic, falls back to DATABASE_URL
+DB_NULL_POOL=true                              # no connection pooling in-process (Lambda)
+DB_DISABLE_PREPARED_STATEMENTS=true            # psycopg prepare_threshold=None for the Neon PgBouncer pooler
+DB_CREATE_TABLES_ON_STARTUP=false              # skip Base.metadata.create_all; prod schema comes from Alembic only
+EXCHANGE_RATE_SYNC_ENABLED=false               # turns off the in-process APScheduler job
+SSM_PREFIX=/fireons/prod                       # load every parameter under this path into the env at cold start (needs the `aws` extra: boto3); existing env vars win
 ```
 
 ### Frontend `.env.local` (required)

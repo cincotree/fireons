@@ -5,18 +5,34 @@ Async database session management.
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.pool import NullPool
 
-from database.config import get_settings
+from database.config import Settings, get_settings
 from database.models import Base
 
 # Global engine and session factory
 _engine = None
 _async_session_factory = None
+
+
+def engine_options(settings: Settings) -> dict:
+    if settings.db_null_pool:
+        options: dict = {"poolclass": NullPool}
+    else:
+        options = {
+            "pool_size": settings.pool_size,
+            "max_overflow": settings.max_overflow,
+            "pool_timeout": settings.pool_timeout,
+        }
+    if settings.db_disable_prepared_statements:
+        options["connect_args"] = {"prepare_threshold": None}
+    return options
 
 
 def get_engine():
@@ -25,11 +41,9 @@ def get_engine():
     if _engine is None:
         settings = get_settings()
         _engine = create_async_engine(
-            settings.database_url,
+            settings.async_database_url,
             echo=False,  # Set to True for SQL debugging
-            pool_size=settings.pool_size,
-            max_overflow=settings.max_overflow,
-            pool_timeout=settings.pool_timeout,
+            **engine_options(settings),
         )
     return _engine
 
@@ -61,8 +75,13 @@ async def init_db():
     This should be called at application startup.
     """
     settings = get_settings()
-    print(f"Connecting to database: {settings.postgres_db}")
-    print(f"Database URL: postgresql://{settings.postgres_host}:{settings.postgres_port}/{settings.postgres_db}")
+    url = make_url(settings.async_database_url)
+    print(f"Connecting to database: {url.database}")
+    print(f"Database URL: postgresql://{url.host}:{url.port or 5432}/{url.database}")
+
+    if not settings.db_create_tables_on_startup:
+        print("Skipping table creation (DB_CREATE_TABLES_ON_STARTUP=false)")
+        return
 
     engine = get_engine()
     try:

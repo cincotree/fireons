@@ -35,7 +35,7 @@ Fireons is a personal finance tracker for managing net worth and accounts. FastA
 - `app.py`: Main server with `/api` path rewriting middleware
 - Authentication: `auth_api.py`, `auth_utils.py`, JWT-based (30min expiry)
 - API routes: `convert_currency_api.py`, `networth_api.py`
-- Package manager: uv. Python 3.10.5.
+- Package manager: uv. Python 3.12.
 - Type checking: Pyright (strict mode disabled)
 
 ### Frontend (Next.js 15/React/TypeScript)

@@ -5,10 +5,24 @@ Database configuration settings.
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings
+from sqlalchemy.engine import make_url
+
+ASYNC_DRIVER = "postgresql+psycopg"
+SYNC_DRIVER = "postgresql"
+
+
+def _normalize_database_url(url: str, driver: str) -> str:
+    parsed = make_url(url).set(drivername=driver)
+    if "sslmode" not in parsed.query:
+        parsed = parsed.update_query_dict({"sslmode": "require"})
+    return parsed.render_as_string(hide_password=False)
 
 
 class Settings(BaseSettings):
     """Database configuration settings."""
+
+    database_url: str | None = None
+    database_url_direct: str | None = None
 
     # PostgreSQL connection settings
     postgres_user: str = "postgres"
@@ -21,6 +35,9 @@ class Settings(BaseSettings):
     pool_size: int = 5
     max_overflow: int = 10
     pool_timeout: int = 30
+    db_null_pool: bool = False
+    db_disable_prepared_statements: bool = False
+    db_create_tables_on_startup: bool = True
 
     # For testing
     testing: bool = False
@@ -37,29 +54,35 @@ class Settings(BaseSettings):
             return self.postgres_db
         return self.postgres_db
 
+    def _url_from_parts(self, driver: str) -> str:
+        return (
+            f"{driver}://{self.postgres_user}:{self.postgres_password}"
+            f"@{self.postgres_host}:{self.postgres_port}/{self._effective_db_name}"
+        )
+
     @property
-    def database_url(self) -> str:
+    def async_database_url(self) -> str:
         """Get the async database URL for SQLAlchemy."""
         if self.testing and self.test_database_url:
             return self.test_database_url
+        if self.database_url:
+            return _normalize_database_url(self.database_url, ASYNC_DRIVER)
+        return self._url_from_parts(ASYNC_DRIVER)
 
-        db_name = self._effective_db_name
-        return (
-            f"postgresql+psycopg://{self.postgres_user}:{self.postgres_password}"
-            f"@{self.postgres_host}:{self.postgres_port}/{db_name}"
-        )
+    @property
+    def migration_database_url(self) -> str:
+        if self.testing and self.test_database_url:
+            return self.test_database_url
+        direct_url = self.database_url_direct or self.database_url
+        if direct_url:
+            return _normalize_database_url(direct_url, ASYNC_DRIVER)
+        return self._url_from_parts(ASYNC_DRIVER)
 
     @property
     def sync_database_url(self) -> str:
         """Get the sync database URL for Alembic migrations."""
-        if self.testing and self.test_database_url:
-            # Convert async URL to sync
-            return self.test_database_url.replace("+psycopg", "")
-
-        db_name = self._effective_db_name
-        return (
-            f"postgresql://{self.postgres_user}:{self.postgres_password}"
-            f"@{self.postgres_host}:{self.postgres_port}/{db_name}"
+        return make_url(self.migration_database_url).set(drivername=SYNC_DRIVER).render_as_string(
+            hide_password=False
         )
 
     class Config:

@@ -1,6 +1,5 @@
 from logging.config import fileConfig
 import asyncio
-import os
 
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
@@ -13,12 +12,9 @@ from database.config import get_settings
 
 config = context.config
 
-database_url = os.getenv("DATABASE_URL")
-if not database_url:
-    settings = get_settings()
-    database_url = settings.database_url
+database_url = get_settings().migration_database_url
 
-config.set_main_option("sqlalchemy.url", database_url)
+config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
