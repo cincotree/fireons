@@ -167,7 +167,7 @@ EXCHANGE_RATE_SYNC_ENABLED=true                # in-process APScheduler job
 ```
 The schema comes from Alembic only; the app never creates tables. Run `uv run alembic upgrade head` before starting a fresh database (`make backend` and the e2e runner do this).
 
-When `AWS_EXECUTION_ENV` is set (Lambda, ECS), settings missing from the environment are read from the AWS Secrets Manager secret `fireons/app`, a JSON object such as `{"SECRET_KEY": ..., "DATABASE_URL": ..., "ANTHROPIC_API_KEY": ...}` (`backend/secrets_source.py`). Env vars and `.env` take precedence. Locally nothing calls AWS.
+When `ENV` is set (e.g. `ENV=production` on the Lambda), settings missing from the environment are read from the AWS Secrets Manager secret `fireons/<ENV>`, a JSON object such as `{"SECRET_KEY": ..., "DATABASE_URL": ..., "ANTHROPIC_API_KEY": ...}` (`backend/secrets_source.py`). Env vars and `.env` take precedence. Locally `ENV` is unset and nothing calls AWS.
 
 ### Frontend `.env.local` (required)
 ```bash

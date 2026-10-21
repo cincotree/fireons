@@ -6,7 +6,7 @@ import pytest
 
 from app_config import AppSettings
 from database.config import Settings as DatabaseSettings
-from secrets_source import AWS_RUNTIME_ENV, SECRET_ID, fetch_secret
+from secrets_source import ENV_VAR, fetch_secret, secret_id_for
 
 SECRET = {"SECRET_KEY": "from-secrets-manager", "DATABASE_URL": "postgresql://app:pw@db.example.com/fireons"}
 
@@ -33,22 +33,22 @@ def secrets_manager(monkeypatch):
 
 
 def test_settings_read_from_one_secret_fetch(monkeypatch, secrets_manager):
-    monkeypatch.setenv(AWS_RUNTIME_ENV, "AWS_Lambda_python3.12")
+    monkeypatch.setenv(ENV_VAR, "production")
 
     assert AppSettings(_env_file=None).secret_key == "from-secrets-manager"
     assert DatabaseSettings(_env_file=None).database_url == SECRET["DATABASE_URL"]
-    assert secrets_manager == [SECRET_ID]
+    assert secrets_manager == [secret_id_for("production")]
 
 
 def test_env_vars_take_precedence(monkeypatch, secrets_manager):
-    monkeypatch.setenv(AWS_RUNTIME_ENV, "AWS_Lambda_python3.12")
+    monkeypatch.setenv(ENV_VAR, "production")
     monkeypatch.setenv("SECRET_KEY", "from-env")
 
     assert AppSettings(_env_file=None).secret_key == "from-env"
 
 
-def test_secrets_manager_unused_outside_aws(monkeypatch, secrets_manager):
-    monkeypatch.delenv(AWS_RUNTIME_ENV, raising=False)
+def test_secrets_manager_unused_without_env(monkeypatch, secrets_manager):
+    monkeypatch.delenv(ENV_VAR, raising=False)
     monkeypatch.setenv("SECRET_KEY", "from-env")
 
     assert AppSettings(_env_file=None).secret_key == "from-env"
@@ -56,12 +56,12 @@ def test_secrets_manager_unused_outside_aws(monkeypatch, secrets_manager):
 
 
 def test_unreadable_secret_gives_clear_error(monkeypatch, secrets_manager):
-    monkeypatch.setenv(AWS_RUNTIME_ENV, "AWS_Lambda_python3.12")
+    monkeypatch.setenv(ENV_VAR, "production")
     monkeypatch.setitem(
         sys.modules,
         "boto3",
         SimpleNamespace(client=lambda service: SimpleNamespace(get_secret_value=lambda SecretId: {})),
     )
 
-    with pytest.raises(RuntimeError, match=SECRET_ID):
+    with pytest.raises(RuntimeError, match=secret_id_for("production")):
         AppSettings(_env_file=None)
