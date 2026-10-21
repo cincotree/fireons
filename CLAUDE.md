@@ -135,20 +135,16 @@ npm run test:ui             # interactive Playwright UI
 ```
 
 ## Python Configuration
-- **Version**: Python 3.10.5 (specified in `backend/.tool-versions` and `pyproject.toml`)
+- **Version**: Python 3.12 (specified in `backend/.tool-versions` and `pyproject.toml`; matches the Lambda `python3.12` runtime)
 - **Package Manager**: uv (fast Python package installer and resolver)
 - **Type Checking**: Pyright with strict mode disabled for general type issues (see `pyrightconfig.json` and `backend/pyproject.toml`)
 
 ## Environment Variables
 
-### Backend `.env` (optional, has defaults)
+### Backend `.env` (`cp .env.sample .env`; `SECRET_KEY` and `DATABASE_URL` are required)
 ```bash
 # Database
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=fireons_development
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/fireons_development
 
 # Authentication
 SECRET_KEY=your-secret-key-change-this-in-production
@@ -159,6 +155,19 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 ANTHROPIC_API_KEY=
 ANTHROPIC_MODEL=claude-sonnet-5
 ```
+
+### Deployment settings (`backend/app_config.py`, `backend/database/config.py`)
+Every environment is configured the same way, through env vars (locally from `.env`). `SECRET_KEY` and `DATABASE_URL` have no default and the app will not start without them. Everything else is optional and defaults to local dev behavior:
+```bash
+CORS_ORIGINS=http://localhost:3000,http://localhost:3020   # comma-separated
+INGESTION_TEST_ENABLED=true                    # mounts the /ingestion-test debug router
+DATABASE_URL=postgresql+psycopg://...          # used exactly as given by the app and Alembic (add ?sslmode=require for Neon)
+DB_NULL_POOL=false                             # NullPool instead of QueuePool (Lambda)
+EXCHANGE_RATE_SYNC_ENABLED=true                # in-process APScheduler job
+```
+The schema comes from Alembic only; the app never creates tables. Run `uv run alembic upgrade head` before starting a fresh database (`make backend` and the e2e runner do this).
+
+When `APP_ENV` is set (e.g. `APP_ENV=production` on the Lambda), settings missing from the environment are read from the AWS Secrets Manager secret `fireons/<APP_ENV>`, a JSON object such as `{"SECRET_KEY": ..., "DATABASE_URL": ..., "ANTHROPIC_API_KEY": ...}` (`backend/secrets_source.py`). Env vars and `.env` take precedence. Locally `APP_ENV` is unset and nothing calls AWS.
 
 ### Frontend `.env.local` (required)
 ```bash

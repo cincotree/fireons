@@ -1,9 +1,9 @@
 from functools import lru_cache
 
-from pydantic_settings import BaseSettings
+from secrets_source import SecretsManagerSettings
 
 
-class Settings(BaseSettings):
+class Settings(SecretsManagerSettings):
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-5"
 

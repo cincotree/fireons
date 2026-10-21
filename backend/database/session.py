@@ -10,13 +10,25 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.pool import NullPool
 
-from database.config import get_settings
+from database.config import Settings, get_settings
 from database.models import Base
 
 # Global engine and session factory
 _engine = None
 _async_session_factory = None
+
+
+def engine_options(settings: Settings) -> dict:
+    if settings.db_null_pool:
+        return {"poolclass": NullPool}
+    return {
+        "pool_pre_ping": True,
+        "pool_size": settings.pool_size,
+        "max_overflow": settings.max_overflow,
+        "pool_timeout": settings.pool_timeout,
+    }
 
 
 def get_engine():
@@ -27,9 +39,7 @@ def get_engine():
         _engine = create_async_engine(
             settings.database_url,
             echo=False,  # Set to True for SQL debugging
-            pool_size=settings.pool_size,
-            max_overflow=settings.max_overflow,
-            pool_timeout=settings.pool_timeout,
+            **engine_options(settings),
         )
     return _engine
 
@@ -52,27 +62,6 @@ def AsyncSessionLocal():
     """Create a new async session."""
     factory = get_session_factory()
     return factory()
-
-
-async def init_db():
-    """
-    Initialize the database by creating all tables.
-
-    This should be called at application startup.
-    """
-    settings = get_settings()
-    print(f"Connecting to database: {settings.postgres_db}")
-    print(f"Database URL: postgresql://{settings.postgres_host}:{settings.postgres_port}/{settings.postgres_db}")
-
-    engine = get_engine()
-    try:
-        async with engine.begin() as conn:
-            print("Creating all tables...")
-            await conn.run_sync(Base.metadata.create_all)
-            print("✓ All tables created successfully")
-    except Exception as e:
-        print(f"Error creating tables: {e}")
-        raise
 
 
 async def drop_db():

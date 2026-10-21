@@ -142,11 +142,7 @@ statement = await txn_repo.get_account_statement(
 Set environment variables or create `.env`:
 
 ```bash
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=aimoney
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/aimoney
 ```
 
 **Connection URL**:
@@ -157,7 +153,7 @@ postgresql://postgres:postgres@localhost:5432/aimoney
 ## Development Setup
 
 ### Prerequisites
-- Python 3.10.5 or higher
+- Python 3.12
 - PostgreSQL 14+
 - [uv](https://docs.astral.sh/uv/) package manager
 

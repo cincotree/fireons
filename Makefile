@@ -1,8 +1,35 @@
-.PHONY: install db \
+.DEFAULT_GOAL := help
+
+.PHONY: help install db \
 	backend-setup backend backend-test \
 	frontend-setup frontend frontend-build frontend-lint \
 	e2e-setup e2e e2e-headed e2e-ui e2e-debug e2e-report \
 	test
+
+help:
+	@echo "Usage: make <target>"
+	@echo ""
+	@echo "Setup"
+	@echo "  install          Install backend, frontend and e2e dependencies"
+	@echo "  db               Start the local Postgres container"
+	@echo "  backend-setup    Install backend dependencies"
+	@echo "  frontend-setup   Install frontend dependencies"
+	@echo "  e2e-setup        Install e2e dependencies and the Playwright browser"
+	@echo ""
+	@echo "Run"
+	@echo "  backend          Apply migrations and start the backend with reload"
+	@echo "  frontend         Start the frontend dev server"
+	@echo ""
+	@echo "Test and check"
+	@echo "  test             Run backend tests and e2e tests"
+	@echo "  backend-test     Run backend tests"
+	@echo "  e2e              Run e2e tests"
+	@echo "  e2e-headed       Run e2e tests in a visible browser"
+	@echo "  e2e-ui           Open the Playwright UI"
+	@echo "  e2e-debug        Run e2e tests with the Playwright inspector"
+	@echo "  e2e-report       Open the last e2e report"
+	@echo "  frontend-lint    Lint the frontend"
+	@echo "  frontend-build   Build the frontend for production"
 
 install: backend-setup frontend-setup e2e-setup
 
@@ -15,7 +42,7 @@ backend-setup:
 	cd backend && uv sync
 
 backend:
-	cd backend && uv run uvicorn app:app --reload
+	cd backend && uv run alembic upgrade head && uv run uvicorn app:app --reload
 
 backend-test:
 	cd backend && uv run pytest

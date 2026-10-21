@@ -10,15 +10,13 @@ from api.account_api import router as account_router
 from api.auth_api import router as auth_router
 from api.ingestion_test_api import router as ingestion_test_router
 from api.ingestion_api import router as ingestion_router
-from database.session import init_db
+from app_config import AppSettings, get_app_settings
 from jobs.config import get_exchange_rate_sync_settings
 from jobs.exchange_rate_sync import sync_exchange_rates
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db()
-
     scheduler = None
     settings = get_exchange_rate_sync_settings()
     if settings.exchange_rate_sync_enabled:
@@ -40,17 +38,6 @@ async def lifespan(app: FastAPI):
         scheduler.shutdown(wait=False)
 
 
-app = FastAPI(lifespan=lifespan)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3020"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-@app.middleware("http")
 async def rewrite_api_path(request: Request, call_next: Callable[[Request], Awaitable[Response]]):
     if request.url.path.startswith("/api"):
         scope = request.scope
@@ -59,12 +46,33 @@ async def rewrite_api_path(request: Request, call_next: Callable[[Request], Awai
     response = await call_next(request)
     return response
 
-app.include_router(auth_router)
-app.include_router(account_router)
-app.include_router(ingestion_test_router)
-app.include_router(ingestion_router)
 
-
-@app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+def create_app(settings: AppSettings | None = None) -> FastAPI:
+    settings = settings or get_app_settings()
+
+    app = FastAPI(lifespan=lifespan)
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origin_list,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    app.middleware("http")(rewrite_api_path)
+
+    app.include_router(auth_router)
+    app.include_router(account_router)
+    if settings.ingestion_test_enabled:
+        app.include_router(ingestion_test_router)
+    app.include_router(ingestion_router)
+    app.get("/health")(health)
+
+    return app
+
+
+app = create_app()

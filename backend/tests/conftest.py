@@ -3,16 +3,23 @@ Pytest fixtures for database testing with PostgreSQL.
 """
 
 import asyncio
+import os
 from datetime import date
 from typing import AsyncGenerator
 
 import pytest
 import pytest_asyncio
 from sqlalchemy import text
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     create_async_engine,
     async_sessionmaker,
+)
+
+os.environ.setdefault("SECRET_KEY", "pytest-secret-key")
+os.environ.setdefault(
+    "DATABASE_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/fireons_development"
 )
 
 from database.config import get_settings
@@ -20,16 +27,10 @@ from database.models import Base, Account, User
 from database.repository import AccountRepository, TransactionRepository
 
 # Test database configuration
-settings = get_settings()
-TEST_DB_NAME = f"{settings.postgres_db}_test"
-TEST_DATABASE_URL = (
-    f"postgresql+psycopg://{settings.postgres_user}:{settings.postgres_password}"
-    f"@{settings.postgres_host}:{settings.postgres_port}/{TEST_DB_NAME}"
-)
-ADMIN_DATABASE_URL = (
-    f"postgresql+psycopg://{settings.postgres_user}:{settings.postgres_password}"
-    f"@{settings.postgres_host}:{settings.postgres_port}/postgres"
-)
+_base_url = make_url(get_settings().database_url)
+TEST_DB_NAME = f"{_base_url.database}_test"
+TEST_DATABASE_URL = _base_url.set(database=TEST_DB_NAME).render_as_string(hide_password=False)
+ADMIN_DATABASE_URL = _base_url.set(database="postgres").render_as_string(hide_password=False)
 
 
 @pytest.fixture(scope="session")
