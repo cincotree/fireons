@@ -59,8 +59,8 @@ class Settings(SecretsManagerSettings):
         )
 
     @property
-    def async_database_url(self) -> str:
-        """Get the async database URL for SQLAlchemy."""
+    def sqlalchemy_url(self) -> str:
+        """Get the database URL for SQLAlchemy."""
         if self.testing and self.test_database_url:
             return self.test_database_url
         if self.database_url:

@@ -14,13 +14,13 @@ def _settings(**overrides) -> Settings:
 
 
 def test_database_url_uses_async_driver_and_requires_tls():
-    url = make_url(_settings(database_url=NEON_URL).async_database_url)
+    url = make_url(_settings(database_url=NEON_URL).sqlalchemy_url)
     assert url.drivername == "postgresql+psycopg"
     assert url.query["sslmode"] == "require"
 
 
 def test_explicit_sslmode_is_preserved():
-    url = make_url(_settings(database_url=NEON_URL + "?sslmode=disable").async_database_url)
+    url = make_url(_settings(database_url=NEON_URL + "?sslmode=disable").sqlalchemy_url)
     assert url.query["sslmode"] == "disable"
 
 
