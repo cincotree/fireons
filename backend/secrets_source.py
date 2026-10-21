@@ -5,7 +5,7 @@ from functools import lru_cache
 
 from pydantic_settings import BaseSettings, EnvSettingsSource, PydanticBaseSettingsSource
 
-ENV_VAR = "ENV"
+ENV_VAR = "APP_ENV"
 
 
 def secret_id_for(env: str) -> str:
