@@ -4,8 +4,9 @@ Database configuration settings.
 
 from functools import lru_cache
 
-from pydantic_settings import BaseSettings
 from sqlalchemy.engine import make_url
+
+from secrets_source import SecretsManagerSettings
 
 ASYNC_DRIVER = "postgresql+psycopg"
 SYNC_DRIVER = "postgresql"
@@ -18,7 +19,7 @@ def _normalize_database_url(url: str, driver: str) -> str:
     return parsed.render_as_string(hide_password=False)
 
 
-class Settings(BaseSettings):
+class Settings(SecretsManagerSettings):
     """Database configuration settings."""
 
     database_url: str | None = None

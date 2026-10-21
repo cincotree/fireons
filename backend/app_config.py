@@ -2,10 +2,11 @@ import os
 from functools import lru_cache
 
 from pydantic import Field
-from pydantic_settings import BaseSettings
+
+from secrets_source import SecretsManagerSettings
 
 
-class AppSettings(BaseSettings):
+class AppSettings(SecretsManagerSettings):
     secret_key: str = Field(min_length=1)
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30

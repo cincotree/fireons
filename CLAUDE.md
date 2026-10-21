@@ -161,7 +161,7 @@ ANTHROPIC_MODEL=claude-sonnet-5
 ```
 
 ### Deployment settings (`backend/app_config.py`, `backend/database/config.py`)
-Every environment is configured the same way, through env vars. Defaults match local dev; `SECRET_KEY` has no default and the app will not start without it.
+Every environment is configured the same way, through env vars (locally from `.env`); deployed environments can supply secrets from AWS Secrets Manager instead (`backend/secrets_source.py`). Defaults match local dev; `SECRET_KEY` has no default and the app will not start without it.
 ```bash
 SECRET_KEY=                                    # required
 CORS_ORIGINS=http://localhost:3000,http://localhost:3020   # comma-separated
@@ -171,6 +171,7 @@ DATABASE_URL=                                  # app and Alembic; overrides POST
 DB_NULL_POOL=false                             # NullPool instead of QueuePool (Lambda)
 DB_CREATE_TABLES_ON_STARTUP=true               # Base.metadata.create_all at startup; disable when the schema comes from Alembic
 EXCHANGE_RATE_SYNC_ENABLED=true                # in-process APScheduler job
+SECRETS_MANAGER_SECRET_ID=                      # AWS Secrets Manager JSON secret (e.g. {"SECRET_KEY": ..., "DATABASE_URL": ..., "ANTHROPIC_API_KEY": ...}) read once at startup; env vars and .env take precedence
 ```
 
 ### Frontend `.env.local` (required)
