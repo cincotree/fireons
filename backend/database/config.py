@@ -67,13 +67,6 @@ class Settings(SecretsManagerSettings):
             return _normalize_database_url(self.database_url)
         return self._url_from_parts()
 
-    @property
-    def sync_database_url(self) -> str:
-        """Get the sync database URL for Alembic migrations."""
-        return make_url(self.async_database_url).set(drivername="postgresql").render_as_string(
-            hide_password=False
-        )
-
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
