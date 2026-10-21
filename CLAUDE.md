@@ -167,7 +167,7 @@ SECRET_KEY=                                    # required
 CORS_ORIGINS=http://localhost:3000,http://localhost:3020   # comma-separated
 INGESTION_TEST_ENABLED=true                    # mounts the /ingestion-test debug router
 API_DOCS_ENABLED=true                          # serves /docs, /redoc, /openapi.json
-DATABASE_URL=                                  # app and Alembic; overrides POSTGRES_*; sslmode=require added unless set
+DATABASE_URL=                                  # app and Alembic; overrides POSTGRES_*; sslmode=require added unless the URL sets one (use ?sslmode=disable for a non-TLS database)
 DB_NULL_POOL=false                             # NullPool instead of QueuePool (Lambda)
 DB_CREATE_TABLES_ON_STARTUP=true               # Base.metadata.create_all at startup; disable when the schema comes from Alembic
 EXCHANGE_RATE_SYNC_ENABLED=true                # in-process APScheduler job

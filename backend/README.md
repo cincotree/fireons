@@ -157,7 +157,7 @@ postgresql://postgres:postgres@localhost:5432/aimoney
 ## Development Setup
 
 ### Prerequisites
-- Python 3.10.5 or higher
+- Python 3.12
 - PostgreSQL 14+
 - [uv](https://docs.astral.sh/uv/) package manager
 

@@ -12,8 +12,14 @@ SECRET_ID_ENV = "SECRETS_MANAGER_SECRET_ID"
 def fetch_secret(secret_id: str) -> dict[str, str]:
     import boto3
 
-    response = boto3.client("secretsmanager").get_secret_value(SecretId=secret_id)
-    return json.loads(response["SecretString"])
+    try:
+        response = boto3.client("secretsmanager").get_secret_value(SecretId=secret_id)
+        values = json.loads(response["SecretString"])
+    except Exception as error:
+        raise RuntimeError(f"Could not read secret {secret_id!r} from AWS Secrets Manager: {error}") from error
+    if not isinstance(values, dict):
+        raise RuntimeError(f"Secret {secret_id!r} must be a JSON object of KEY: value pairs")
+    return {key: str(value) for key, value in values.items()}
 
 
 class SecretsManagerSource(EnvSettingsSource):

@@ -53,3 +53,15 @@ def test_secrets_manager_unused_without_secret_id(monkeypatch, secrets_manager):
 
     assert AppSettings(_env_file=None).secret_key == "from-env"
     assert secrets_manager == []
+
+
+def test_unreadable_secret_gives_clear_error(monkeypatch, secrets_manager):
+    monkeypatch.setenv(SECRET_ID_ENV, "fireons/missing")
+    monkeypatch.setitem(
+        sys.modules,
+        "boto3",
+        SimpleNamespace(client=lambda service: SimpleNamespace(get_secret_value=lambda SecretId: {})),
+    )
+
+    with pytest.raises(RuntimeError, match="fireons/missing"):
+        AppSettings(_env_file=None)

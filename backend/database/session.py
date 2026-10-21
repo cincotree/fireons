@@ -25,6 +25,7 @@ def engine_options(settings: Settings) -> dict:
     if settings.db_null_pool:
         return {"poolclass": NullPool}
     return {
+        "pool_pre_ping": True,
         "pool_size": settings.pool_size,
         "max_overflow": settings.max_overflow,
         "pool_timeout": settings.pool_timeout,

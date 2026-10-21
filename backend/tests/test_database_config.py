@@ -26,3 +26,7 @@ def test_explicit_sslmode_is_preserved():
 
 def test_null_pool():
     assert engine_options(_settings(db_null_pool=True)) == {"poolclass": NullPool}
+
+
+def test_pooled_engine_checks_connections_before_use():
+    assert engine_options(_settings())["pool_pre_ping"] is True
