@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  PYTHON_VERSION: '3.10'
+  PYTHON_VERSION: '3.12'
   NODE_VERSION: '22'
 
 jobs:
@@ -37,6 +37,8 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/fireons_development
     defaults:
       run:
         working-directory: ./backend
@@ -53,6 +55,12 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --frozen
+
+      - name: Apply migrations to an empty database
+        run: uv run alembic upgrade head
+
+      - name: Check models match migrations
+        run: uv run alembic check
 
       - name: Run tests
         run: uv run pytest
