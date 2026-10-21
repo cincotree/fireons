@@ -28,7 +28,6 @@ export function NetWorthDashboard() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
-  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [selectedCurrency, setSelectedCurrency] = useState("INR");
@@ -37,7 +36,6 @@ export function NetWorthDashboard() {
   const [newAccountCategory, setNewAccountCategory] = useState("");
   const [newAccountSubcategory, setNewAccountSubcategory] = useState("");
   const [isNewCategory, setIsNewCategory] = useState(false);
-  const [newAccountName, setNewAccountName] = useState("");
   const [newAccountDescription, setNewAccountDescription] = useState("");
   const [newAccountCurrency, setNewAccountCurrency] = useState("USD");
   const [balanceAmount, setBalanceAmount] = useState("");
@@ -96,12 +94,10 @@ export function NetWorthDashboard() {
   const openAccountModal = (account?: Account) => {
     if (account) {
       setEditingAccount(account);
-      setSelectedAccount(account);
       const parts = account.name.split(":");
       setNewAccountType(parts[0] as "Assets" | "Liabilities");
       setNewAccountCategory(parts[1] || "");
       setNewAccountSubcategory(parts.slice(2).join(":"));
-      setNewAccountName(account.name);
       setNewAccountDescription(account.description || "");
       setNewAccountCurrency(account.currency);
       setBalanceAmount(account.balance?.toString() || "");
@@ -109,11 +105,9 @@ export function NetWorthDashboard() {
       setIsNewCategory(false);
     } else {
       setEditingAccount(null);
-      setSelectedAccount(null);
       setNewAccountType("Assets");
       setNewAccountCategory("");
       setNewAccountSubcategory("");
-      setNewAccountName("");
       setNewAccountDescription("");
       setNewAccountCurrency(selectedCurrency);
       setBalanceAmount("");
@@ -232,17 +226,15 @@ export function NetWorthDashboard() {
       setNewAccountType("Assets");
       setNewAccountCategory("");
       setNewAccountSubcategory("");
-      setNewAccountName("");
       setNewAccountDescription("");
       setNewAccountCurrency("USD");
       setBalanceAmount("");
       setIsNewCategory(false);
       setEditingAccount(null);
-      setSelectedAccount(null);
       setIsAccountModalOpen(false);
       await fetchData();
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -276,8 +268,8 @@ export function NetWorthDashboard() {
       setIsCloseConfirmOpen(false);
       setAccountToClose(null);
       await fetchData();
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -408,7 +400,7 @@ export function NetWorthDashboard() {
       </div>
 
       <Modal open={isAccountModalOpen} onOpenChange={setIsAccountModalOpen}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingAccount ? "Edit Account" : "Add New Account"}</DialogTitle>
           </DialogHeader>
@@ -573,7 +565,7 @@ export function NetWorthDashboard() {
       </Modal>
 
       <Modal open={isCloseConfirmOpen} onOpenChange={setIsCloseConfirmOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Close Account</DialogTitle>
           </DialogHeader>
