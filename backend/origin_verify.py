@@ -5,7 +5,7 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 ORIGIN_VERIFY_HEADER = "x-origin-verify"
-EXEMPT_PATHS = frozenset({"/health", "/api/health"})
+EXEMPT_PATHS = frozenset({"/health"})
 
 
 class OriginVerifyMiddleware:

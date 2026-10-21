@@ -3,10 +3,6 @@ from collections.abc import MutableMapping
 from typing import Any
 
 
-def _parameter_env_name(parameter_name: str) -> str:
-    return parameter_name.rsplit("/", 1)[-1]
-
-
 def load_ssm_parameters(
     prefix: str | None = None,
     client: Any = None,
@@ -32,7 +28,7 @@ def load_ssm_parameters(
             request["NextToken"] = next_token
         response = client.get_parameters_by_path(**request)
         for parameter in response.get("Parameters", []):
-            env_name = _parameter_env_name(parameter["Name"])
+            env_name = parameter["Name"].rsplit("/", 1)[-1]
             if env_name and env_name not in environ:
                 environ[env_name] = parameter["Value"]
                 loaded.append(env_name)

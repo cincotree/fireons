@@ -45,17 +45,16 @@ class AppSettings(BaseSettings):
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
+    def _enabled_outside_production(self, flag: bool | None) -> bool:
+        return not self.is_production if flag is None else flag
+
     @property
     def ingestion_test_router_enabled(self) -> bool:
-        if self.ingestion_test_enabled is None:
-            return not self.is_production
-        return self.ingestion_test_enabled
+        return self._enabled_outside_production(self.ingestion_test_enabled)
 
     @property
     def api_docs_routes_enabled(self) -> bool:
-        if self.api_docs_enabled is None:
-            return not self.is_production
-        return self.api_docs_enabled
+        return self._enabled_outside_production(self.api_docs_enabled)
 
 
 def validate_startup_settings(app_settings: AppSettings, database_settings: DatabaseSettings) -> None:

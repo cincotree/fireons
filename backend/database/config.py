@@ -60,23 +60,21 @@ class Settings(BaseSettings):
             f"@{self.postgres_host}:{self.postgres_port}/{self._effective_db_name}"
         )
 
-    @property
-    def async_database_url(self) -> str:
-        """Get the async database URL for SQLAlchemy."""
+    def _resolve_async_url(self, url: str | None) -> str:
         if self.testing and self.test_database_url:
             return self.test_database_url
-        if self.database_url:
-            return _normalize_database_url(self.database_url, ASYNC_DRIVER)
+        if url:
+            return _normalize_database_url(url, ASYNC_DRIVER)
         return self._url_from_parts(ASYNC_DRIVER)
 
     @property
+    def async_database_url(self) -> str:
+        """Get the async database URL for SQLAlchemy."""
+        return self._resolve_async_url(self.database_url)
+
+    @property
     def migration_database_url(self) -> str:
-        if self.testing and self.test_database_url:
-            return self.test_database_url
-        direct_url = self.database_url_direct or self.database_url
-        if direct_url:
-            return _normalize_database_url(direct_url, ASYNC_DRIVER)
-        return self._url_from_parts(ASYNC_DRIVER)
+        return self._resolve_async_url(self.database_url_direct or self.database_url)
 
     @property
     def sync_database_url(self) -> str:

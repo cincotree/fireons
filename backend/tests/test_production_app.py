@@ -37,19 +37,19 @@ def _db_settings() -> DatabaseSettings:
     return DatabaseSettings(_env_file=None, database_url="postgresql://app:pw@db.example.com/fireons")
 
 
-async def _client(application: FastAPI) -> AsyncClient:
+def _client(application: FastAPI) -> AsyncClient:
     return AsyncClient(transport=ASGITransport(app=application), base_url="http://test")
 
 
 @pytest_asyncio.fixture
 async def prod_client():
-    async with await _client(create_app(_prod_settings(), _db_settings())) as client:
+    async with _client(create_app(_prod_settings(), _db_settings())) as client:
         yield client
 
 
 @pytest_asyncio.fixture
 async def dev_client():
-    async with await _client(create_app(_dev_settings(), _db_settings())) as client:
+    async with _client(create_app(_dev_settings(), _db_settings())) as client:
         yield client
 
 

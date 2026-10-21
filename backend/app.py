@@ -81,9 +81,9 @@ def create_app(
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    app.middleware("http")(rewrite_api_path)
     if settings.origin_verify_secret:
         app.add_middleware(OriginVerifyMiddleware, secret=settings.origin_verify_secret)
+    app.middleware("http")(rewrite_api_path)
 
     app.include_router(auth_router)
     app.include_router(account_router)
