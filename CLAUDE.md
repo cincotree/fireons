@@ -141,7 +141,7 @@ npm run test:ui             # interactive Playwright UI
 
 ## Environment Variables
 
-### Backend `.env` (optional, has defaults)
+### Backend `.env` (`cp .env.sample .env`; `SECRET_KEY` is required)
 ```bash
 # Database
 POSTGRES_USER=postgres
@@ -160,21 +160,21 @@ ANTHROPIC_API_KEY=
 ANTHROPIC_MODEL=claude-sonnet-5
 ```
 
-### Backend production settings (`backend/app_config.py`, `backend/database/config.py`)
-All default to today's local dev behavior. With `APP_ENV=production` the app refuses to start unless `SECRET_KEY`, `ORIGIN_VERIFY_SECRET`, `DATABASE_URL` and `CORS_ORIGINS` are set, and the ingestion-test router and `/docs`, `/redoc`, `/openapi.json` are off unless explicitly enabled.
+### Deployment settings (`backend/app_config.py`, `backend/database/config.py`)
+Every environment is configured the same way, through env vars. Defaults match local dev; `SECRET_KEY` has no default and the app will not start without it.
 ```bash
-APP_ENV=production
-CORS_ORIGINS=https://app.fireons.com          # comma-separated
-ORIGIN_VERIFY_SECRET=<random>                  # requests without a matching X-Origin-Verify header get 403 (/health exempt)
-INGESTION_TEST_ENABLED=false                   # defaults to false in production
-API_DOCS_ENABLED=false                         # defaults to false in production
-DATABASE_URL=postgresql://...-pooler.../db     # sslmode=require added unless set; overrides POSTGRES_*
-DATABASE_URL_DIRECT=postgresql://.../db        # used by Alembic, falls back to DATABASE_URL
-DB_NULL_POOL=true                              # no connection pooling in-process (Lambda)
-DB_DISABLE_PREPARED_STATEMENTS=true            # psycopg prepare_threshold=None for the Neon PgBouncer pooler
-DB_CREATE_TABLES_ON_STARTUP=false              # skip Base.metadata.create_all; prod schema comes from Alembic only
-EXCHANGE_RATE_SYNC_ENABLED=false               # turns off the in-process APScheduler job
-SSM_PREFIX=/fireons/prod                       # load every parameter under this path into the env at cold start (needs the `aws` extra: boto3); existing env vars win
+SECRET_KEY=                                    # required
+CORS_ORIGINS=http://localhost:3000,http://localhost:3020   # comma-separated
+ORIGIN_VERIFY_SECRET=                          # when set, requests without a matching X-Origin-Verify header get 403 (/health exempt)
+INGESTION_TEST_ENABLED=true                    # mounts the /ingestion-test debug router
+API_DOCS_ENABLED=true                          # serves /docs, /redoc, /openapi.json
+DATABASE_URL=                                  # overrides POSTGRES_*; sslmode=require added unless set
+DATABASE_URL_DIRECT=                           # used by Alembic, falls back to DATABASE_URL
+DB_NULL_POOL=false                             # NullPool instead of QueuePool (Lambda)
+DB_DISABLE_PREPARED_STATEMENTS=false           # psycopg prepare_threshold=None (PgBouncer transaction pooler)
+DB_CREATE_TABLES_ON_STARTUP=true               # Base.metadata.create_all at startup; disable when the schema comes from Alembic
+EXCHANGE_RATE_SYNC_ENABLED=true                # in-process APScheduler job
+SSM_PREFIX=                                    # load every parameter under this path into the env at startup (needs the `aws` extra); existing env vars win
 ```
 
 ### Frontend `.env.local` (required)

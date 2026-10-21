@@ -3,6 +3,7 @@ Pytest fixtures for database testing with PostgreSQL.
 """
 
 import asyncio
+import os
 from datetime import date
 from typing import AsyncGenerator
 
@@ -14,6 +15,8 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
     async_sessionmaker,
 )
+
+os.environ.setdefault("SECRET_KEY", "pytest-secret-key")
 
 from database.config import get_settings
 from database.models import Base, Account, User

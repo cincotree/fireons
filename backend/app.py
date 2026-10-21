@@ -10,9 +10,7 @@ from api.account_api import router as account_router
 from api.auth_api import router as auth_router
 from api.ingestion_test_api import router as ingestion_test_router
 from api.ingestion_api import router as ingestion_router
-from app_config import AppSettings, get_app_settings, validate_startup_settings
-from database.config import Settings as DatabaseSettings
-from database.config import get_settings as get_database_settings
+from app_config import AppSettings, get_app_settings
 from database.session import init_db
 from jobs.config import get_exchange_rate_sync_settings
 from jobs.exchange_rate_sync import sync_exchange_rates
@@ -58,15 +56,10 @@ async def health():
     return {"status": "ok"}
 
 
-def create_app(
-    settings: AppSettings | None = None,
-    database_settings: DatabaseSettings | None = None,
-) -> FastAPI:
+def create_app(settings: AppSettings | None = None) -> FastAPI:
     settings = settings or get_app_settings()
-    database_settings = database_settings or get_database_settings()
-    validate_startup_settings(settings, database_settings)
 
-    docs_enabled = settings.api_docs_routes_enabled
+    docs_enabled = settings.api_docs_enabled
     app = FastAPI(
         lifespan=lifespan,
         docs_url="/docs" if docs_enabled else None,
@@ -87,7 +80,7 @@ def create_app(
 
     app.include_router(auth_router)
     app.include_router(account_router)
-    if settings.ingestion_test_router_enabled:
+    if settings.ingestion_test_enabled:
         app.include_router(ingestion_test_router)
     app.include_router(ingestion_router)
     app.get("/health")(health)

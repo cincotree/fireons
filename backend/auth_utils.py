@@ -42,14 +42,14 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
         expire = datetime.utcnow() + timedelta(minutes=settings.access_token_expire_minutes)
 
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.jwt_secret_key, algorithm=settings.algorithm)
+    encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
     return encoded_jwt
 
 
 def decode_token(token: str) -> Optional[TokenData]:
     settings = get_app_settings()
     try:
-        payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.algorithm])
+        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
         user_id: str = payload.get("sub")
         username: str = payload.get("username")
         email: str = payload.get("email")
