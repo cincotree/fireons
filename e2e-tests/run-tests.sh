@@ -17,6 +17,11 @@ BACKEND_PID=$!
 
 echo "Waiting for backend to be ready..."
 while ! curl -s http://localhost:8020 > /dev/null; do
+  if ! kill -0 $BACKEND_PID 2>/dev/null; then
+    echo "Backend failed to start. Last lines of backend.log:"
+    tail -5 backend.log
+    exit 1
+  fi
   sleep 1
 done
 echo "Backend is ready"
