@@ -1,7 +1,6 @@
 #!/bin/bash
 
 export TESTING=true
-export POSTGRES_DB=fireons_test
 
 cleanup() {
   echo "Cleaning up test servers..."

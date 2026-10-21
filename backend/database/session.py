@@ -38,7 +38,7 @@ def get_engine():
     if _engine is None:
         settings = get_settings()
         _engine = create_async_engine(
-            settings.sqlalchemy_url,
+            settings.database_url,
             echo=False,  # Set to True for SQL debugging
             **engine_options(settings),
         )
@@ -72,7 +72,7 @@ async def init_db():
     This should be called at application startup.
     """
     settings = get_settings()
-    url = make_url(settings.sqlalchemy_url)
+    url = make_url(settings.database_url)
     print(f"Connecting to database: {url.database}")
     print(f"Database URL: postgresql://{url.host}:{url.port or 5432}/{url.database}")
 

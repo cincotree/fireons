@@ -12,7 +12,7 @@ from database.config import get_settings
 
 config = context.config
 
-database_url = get_settings().sqlalchemy_url
+database_url = get_settings().database_url
 
 config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 

@@ -141,14 +141,10 @@ npm run test:ui             # interactive Playwright UI
 
 ## Environment Variables
 
-### Backend `.env` (`cp .env.sample .env`; `SECRET_KEY` is required)
+### Backend `.env` (`cp .env.sample .env`; `SECRET_KEY` and `DATABASE_URL` are required)
 ```bash
 # Database
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=fireons_development
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/fireons_development
 
 # Authentication
 SECRET_KEY=your-secret-key-change-this-in-production
@@ -161,13 +157,13 @@ ANTHROPIC_MODEL=claude-sonnet-5
 ```
 
 ### Deployment settings (`backend/app_config.py`, `backend/database/config.py`)
-Every environment is configured the same way, through env vars (locally from `.env`); deployed environments can supply secrets from AWS Secrets Manager instead (`backend/secrets_source.py`). Defaults match local dev; `SECRET_KEY` has no default and the app will not start without it.
+Every environment is configured the same way, through env vars (locally from `.env`); deployed environments can supply secrets from AWS Secrets Manager instead (`backend/secrets_source.py`). Defaults match local dev; `SECRET_KEY` and `DATABASE_URL` have no default and the app will not start without them.
 ```bash
 SECRET_KEY=                                    # required
 CORS_ORIGINS=http://localhost:3000,http://localhost:3020   # comma-separated
 INGESTION_TEST_ENABLED=true                    # mounts the /ingestion-test debug router
 API_DOCS_ENABLED=true                          # serves /docs, /redoc, /openapi.json
-DATABASE_URL=                                  # app and Alembic; overrides POSTGRES_*; sslmode=require added unless the URL sets one (use ?sslmode=disable for a non-TLS database)
+DATABASE_URL=postgresql+psycopg://...          # required; used exactly as given by the app and Alembic (add ?sslmode=require for Neon)
 DB_NULL_POOL=false                             # NullPool instead of QueuePool (Lambda)
 DB_CREATE_TABLES_ON_STARTUP=true               # Base.metadata.create_all at startup; disable when the schema comes from Alembic
 EXCHANGE_RATE_SYNC_ENABLED=true                # in-process APScheduler job
