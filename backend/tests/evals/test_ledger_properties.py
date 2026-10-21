@@ -6,14 +6,6 @@ from ingestion.model import NetWorth
 from ingestion.pipeline import ingest
 from tests.evals.harness import canonical, diff, params
 
-NOT_IMPLEMENTED = pytest.mark.xfail(
-    raises=NotImplementedError,
-    strict=True,
-    reason="ingest() not yet implemented — Phase 1 covers the eval set only",
-)
-
-
-@NOT_IMPLEMENTED
 @pytest.mark.parametrize("case,order", params("L1"))
 def test_ledger_properties(case, order):
     seed = NetWorth.model_validate(case["current_nw"])
@@ -26,7 +18,6 @@ def test_ledger_properties(case, order):
     assert not problems, f"\n{case['id']} — order {order}\n" + "\n".join(problems)
 
 
-@NOT_IMPLEMENTED
 @pytest.mark.parametrize("case,order", params("L1"))
 def test_total_is_sum_of_positions(case, order):
     seed = NetWorth.model_validate(case["current_nw"])
@@ -39,7 +30,6 @@ def test_total_is_sum_of_positions(case, order):
     )
 
 
-@NOT_IMPLEMENTED
 @pytest.mark.parametrize("case,order", params("L1"))
 def test_second_ingest_is_noop(case, order):
     seed = NetWorth.model_validate(case["current_nw"])

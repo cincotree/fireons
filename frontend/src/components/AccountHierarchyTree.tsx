@@ -14,25 +14,25 @@ interface Account {
   rate_available: boolean;
 }
 
-interface TreeNode {
+interface TreeNode<T extends Account> {
   name: string;
   fullPath: string;
-  children: Map<string, TreeNode>;
-  account: Account | null;
+  children: Map<string, TreeNode<T>>;
+  account: T | null;
   isExpanded: boolean;
 }
 
-interface AccountHierarchyTreeProps {
-  accounts: Account[];
-  onAccountClick?: (account: Account) => void;
+interface AccountHierarchyTreeProps<T extends Account> {
+  accounts: T[];
+  onAccountClick?: (account: T) => void;
   currency?: string;
 }
 
-export function AccountHierarchyTree({
+export function AccountHierarchyTree<T extends Account>({
   accounts,
   onAccountClick,
   currency = "INR",
-}: AccountHierarchyTreeProps) {
+}: AccountHierarchyTreeProps<T>) {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => {
     const allPaths = new Set<string>();
     accounts.forEach((account) => {
@@ -48,8 +48,8 @@ export function AccountHierarchyTree({
     return allPaths;
   });
 
-  const buildTree = (): Map<string, TreeNode> => {
-    const root = new Map<string, TreeNode>();
+  const buildTree = (): Map<string, TreeNode<T>> => {
+    const root = new Map<string, TreeNode<T>>();
 
     accounts.forEach((account) => {
       const parts = account.name.split(":");
@@ -101,7 +101,7 @@ export function AccountHierarchyTree({
     }).format(amount);
   };
 
-  const calculateNodeTotal = (node: TreeNode): number => {
+  const calculateNodeTotal = (node: TreeNode<T>): number => {
     if (node.account) {
       const balance = node.account.balance_in_display_currency;
       if (balance === null || balance === undefined) {
@@ -122,7 +122,7 @@ export function AccountHierarchyTree({
     return total;
   };
 
-  const renderNode = (node: TreeNode, level: number = 0) => {
+  const renderNode = (node: TreeNode<T>, level: number = 0) => {
     const hasChildren = node.children.size > 0;
     const isExpanded = expandedNodes.has(node.fullPath);
     const paddingLeft = level * 24;
