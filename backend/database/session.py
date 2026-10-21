@@ -23,16 +23,12 @@ _async_session_factory = None
 
 def engine_options(settings: Settings) -> dict:
     if settings.db_null_pool:
-        options: dict = {"poolclass": NullPool}
-    else:
-        options = {
-            "pool_size": settings.pool_size,
-            "max_overflow": settings.max_overflow,
-            "pool_timeout": settings.pool_timeout,
-        }
-    if settings.db_disable_prepared_statements:
-        options["connect_args"] = {"prepare_threshold": None}
-    return options
+        return {"poolclass": NullPool}
+    return {
+        "pool_size": settings.pool_size,
+        "max_overflow": settings.max_overflow,
+        "pool_timeout": settings.pool_timeout,
+    }
 
 
 def get_engine():

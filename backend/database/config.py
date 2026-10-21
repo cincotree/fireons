@@ -22,7 +22,6 @@ class Settings(BaseSettings):
     """Database configuration settings."""
 
     database_url: str | None = None
-    database_url_direct: str | None = None
 
     # PostgreSQL connection settings
     postgres_user: str = "postgres"
@@ -36,7 +35,6 @@ class Settings(BaseSettings):
     max_overflow: int = 10
     pool_timeout: int = 30
     db_null_pool: bool = False
-    db_disable_prepared_statements: bool = False
     db_create_tables_on_startup: bool = True
 
     # For testing
@@ -60,26 +58,19 @@ class Settings(BaseSettings):
             f"@{self.postgres_host}:{self.postgres_port}/{self._effective_db_name}"
         )
 
-    def _resolve_async_url(self, url: str | None) -> str:
-        if self.testing and self.test_database_url:
-            return self.test_database_url
-        if url:
-            return _normalize_database_url(url, ASYNC_DRIVER)
-        return self._url_from_parts(ASYNC_DRIVER)
-
     @property
     def async_database_url(self) -> str:
         """Get the async database URL for SQLAlchemy."""
-        return self._resolve_async_url(self.database_url)
-
-    @property
-    def migration_database_url(self) -> str:
-        return self._resolve_async_url(self.database_url_direct or self.database_url)
+        if self.testing and self.test_database_url:
+            return self.test_database_url
+        if self.database_url:
+            return _normalize_database_url(self.database_url, ASYNC_DRIVER)
+        return self._url_from_parts(ASYNC_DRIVER)
 
     @property
     def sync_database_url(self) -> str:
         """Get the sync database URL for Alembic migrations."""
-        return make_url(self.migration_database_url).set(drivername=SYNC_DRIVER).render_as_string(
+        return make_url(self.async_database_url).set(drivername=SYNC_DRIVER).render_as_string(
             hide_password=False
         )
 
