@@ -9,11 +9,10 @@ from sqlalchemy.engine import make_url
 from secrets_source import SecretsManagerSettings
 
 ASYNC_DRIVER = "postgresql+psycopg"
-SYNC_DRIVER = "postgresql"
 
 
-def _normalize_database_url(url: str, driver: str) -> str:
-    parsed = make_url(url).set(drivername=driver)
+def _normalize_database_url(url: str) -> str:
+    parsed = make_url(url).set(drivername=ASYNC_DRIVER)
     if "sslmode" not in parsed.query:
         parsed = parsed.update_query_dict({"sslmode": "require"})
     return parsed.render_as_string(hide_password=False)
@@ -53,9 +52,9 @@ class Settings(SecretsManagerSettings):
             return self.postgres_db
         return self.postgres_db
 
-    def _url_from_parts(self, driver: str) -> str:
+    def _url_from_parts(self) -> str:
         return (
-            f"{driver}://{self.postgres_user}:{self.postgres_password}"
+            f"{ASYNC_DRIVER}://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self._effective_db_name}"
         )
 
@@ -65,13 +64,13 @@ class Settings(SecretsManagerSettings):
         if self.testing and self.test_database_url:
             return self.test_database_url
         if self.database_url:
-            return _normalize_database_url(self.database_url, ASYNC_DRIVER)
-        return self._url_from_parts(ASYNC_DRIVER)
+            return _normalize_database_url(self.database_url)
+        return self._url_from_parts()
 
     @property
     def sync_database_url(self) -> str:
         """Get the sync database URL for Alembic migrations."""
-        return make_url(self.async_database_url).set(drivername=SYNC_DRIVER).render_as_string(
+        return make_url(self.async_database_url).set(drivername="postgresql").render_as_string(
             hide_password=False
         )
 
