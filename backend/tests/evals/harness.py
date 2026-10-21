@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from ingestion.config import get_settings
 from ingestion.model import NetWorth
 
 EVALS_DIR = Path(__file__).parent
@@ -39,12 +40,18 @@ def _orderings(case: dict) -> list[list[Path]]:
     return [list(order) for order in dict.fromkeys(itertools.permutations(files))]
 
 
+def _marks(case: dict) -> list:
+    if case.get("requires_llm") and not get_settings().anthropic_api_key:
+        return [pytest.mark.skip(reason="routes to the LLM tier; ANTHROPIC_API_KEY not set")]
+    return []
+
+
 def params(layer: str):
     for case in load_cases(layer):
         orderings = _orderings(case)
         for i, order in enumerate(orderings):
             case_id = f"{case['id']}[{i}]" if len(orderings) > 1 else case["id"]
-            yield pytest.param(case, order, id=case_id)
+            yield pytest.param(case, order, id=case_id, marks=_marks(case))
 
 
 def canonical(nw: NetWorth | dict) -> dict:
