@@ -5,7 +5,8 @@ from functools import lru_cache
 
 from pydantic_settings import BaseSettings, EnvSettingsSource, PydanticBaseSettingsSource
 
-SECRET_ID_ENV = "SECRETS_MANAGER_SECRET_ID"
+SECRET_ID = "fireons/app"
+AWS_RUNTIME_ENV = "AWS_EXECUTION_ENV"
 
 
 @lru_cache
@@ -42,7 +43,6 @@ class SecretsManagerSettings(BaseSettings):
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
         sources: tuple[PydanticBaseSettingsSource, ...] = (init_settings, env_settings, dotenv_settings)
-        secret_id = os.getenv(SECRET_ID_ENV)
-        if secret_id:
-            sources += (SecretsManagerSource(settings_cls, secret_id),)
+        if os.getenv(AWS_RUNTIME_ENV):
+            sources += (SecretsManagerSource(settings_cls, SECRET_ID),)
         return sources + (file_secret_settings,)

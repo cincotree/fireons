@@ -5,7 +5,6 @@ Async database session management.
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -63,32 +62,6 @@ def AsyncSessionLocal():
     """Create a new async session."""
     factory = get_session_factory()
     return factory()
-
-
-async def init_db():
-    """
-    Initialize the database by creating all tables.
-
-    This should be called at application startup.
-    """
-    settings = get_settings()
-    url = make_url(settings.database_url)
-    print(f"Connecting to database: {url.database}")
-    print(f"Database URL: postgresql://{url.host}:{url.port or 5432}/{url.database}")
-
-    if not settings.db_create_tables_on_startup:
-        print("Skipping table creation (DB_CREATE_TABLES_ON_STARTUP=false)")
-        return
-
-    engine = get_engine()
-    try:
-        async with engine.begin() as conn:
-            print("Creating all tables...")
-            await conn.run_sync(Base.metadata.create_all)
-            print("✓ All tables created successfully")
-    except Exception as e:
-        print(f"Error creating tables: {e}")
-        raise
 
 
 async def drop_db():

@@ -18,7 +18,6 @@ class Settings(SecretsManagerSettings):
     max_overflow: int = 10
     pool_timeout: int = 30
     db_null_pool: bool = False
-    db_create_tables_on_startup: bool = True
 
     class Config:
         env_file = ".env"

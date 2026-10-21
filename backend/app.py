@@ -11,15 +11,12 @@ from api.auth_api import router as auth_router
 from api.ingestion_test_api import router as ingestion_test_router
 from api.ingestion_api import router as ingestion_router
 from app_config import AppSettings, get_app_settings
-from database.session import init_db
 from jobs.config import get_exchange_rate_sync_settings
 from jobs.exchange_rate_sync import sync_exchange_rates
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db()
-
     scheduler = None
     settings = get_exchange_rate_sync_settings()
     if settings.exchange_rate_sync_enabled:
@@ -57,13 +54,7 @@ async def health():
 def create_app(settings: AppSettings | None = None) -> FastAPI:
     settings = settings or get_app_settings()
 
-    docs_enabled = settings.api_docs_enabled
-    app = FastAPI(
-        lifespan=lifespan,
-        docs_url="/docs" if docs_enabled else None,
-        redoc_url="/redoc" if docs_enabled else None,
-        openapi_url="/openapi.json" if docs_enabled else None,
-    )
+    app = FastAPI(lifespan=lifespan)
 
     app.add_middleware(
         CORSMiddleware,

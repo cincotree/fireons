@@ -157,18 +157,17 @@ ANTHROPIC_MODEL=claude-sonnet-5
 ```
 
 ### Deployment settings (`backend/app_config.py`, `backend/database/config.py`)
-Every environment is configured the same way, through env vars (locally from `.env`); deployed environments can supply secrets from AWS Secrets Manager instead (`backend/secrets_source.py`). Defaults match local dev; `SECRET_KEY` and `DATABASE_URL` have no default and the app will not start without them.
+Every environment is configured the same way, through env vars (locally from `.env`). `SECRET_KEY` and `DATABASE_URL` have no default and the app will not start without them. Everything else is optional and defaults to local dev behavior:
 ```bash
-SECRET_KEY=                                    # required
 CORS_ORIGINS=http://localhost:3000,http://localhost:3020   # comma-separated
 INGESTION_TEST_ENABLED=true                    # mounts the /ingestion-test debug router
-API_DOCS_ENABLED=true                          # serves /docs, /redoc, /openapi.json
-DATABASE_URL=postgresql+psycopg://...          # required; used exactly as given by the app and Alembic (add ?sslmode=require for Neon)
+DATABASE_URL=postgresql+psycopg://...          # used exactly as given by the app and Alembic (add ?sslmode=require for Neon)
 DB_NULL_POOL=false                             # NullPool instead of QueuePool (Lambda)
-DB_CREATE_TABLES_ON_STARTUP=true               # Base.metadata.create_all at startup; disable when the schema comes from Alembic
 EXCHANGE_RATE_SYNC_ENABLED=true                # in-process APScheduler job
-SECRETS_MANAGER_SECRET_ID=                      # AWS Secrets Manager JSON secret (e.g. {"SECRET_KEY": ..., "DATABASE_URL": ..., "ANTHROPIC_API_KEY": ...}) read once at startup; env vars and .env take precedence
 ```
+The schema comes from Alembic only; the app never creates tables. Run `uv run alembic upgrade head` before starting a fresh database (`make backend` and the e2e runner do this).
+
+When `AWS_EXECUTION_ENV` is set (Lambda, ECS), settings missing from the environment are read from the AWS Secrets Manager secret `fireons/app`, a JSON object such as `{"SECRET_KEY": ..., "DATABASE_URL": ..., "ANTHROPIC_API_KEY": ...}` (`backend/secrets_source.py`). Env vars and `.env` take precedence. Locally nothing calls AWS.
 
 ### Frontend `.env.local` (required)
 ```bash

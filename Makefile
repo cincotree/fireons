@@ -15,7 +15,7 @@ backend-setup:
 	cd backend && uv sync
 
 backend:
-	cd backend && uv run uvicorn app:app --reload
+	cd backend && uv run alembic upgrade head && uv run uvicorn app:app --reload
 
 backend-test:
 	cd backend && uv run pytest

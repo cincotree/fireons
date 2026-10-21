@@ -42,10 +42,8 @@ async def test_cors_origins_come_from_settings():
 
 
 @pytest.mark.asyncio
-async def test_debug_routes_can_be_disabled():
-    async with _client(ingestion_test_enabled=False, api_docs_enabled=False) as client:
-        ingestion_test = await client.post("/api/ingestion-test/upload")
-        docs = await client.get("/openapi.json")
+async def test_ingestion_test_router_can_be_disabled():
+    async with _client(ingestion_test_enabled=False) as client:
+        response = await client.post("/api/ingestion-test/upload")
 
-    assert ingestion_test.status_code == 404
-    assert docs.status_code == 404
+    assert response.status_code == 404
