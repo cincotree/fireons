@@ -149,8 +149,8 @@ export function NetWorthChart({
             stroke="#999"
           />
           <Tooltip
-            formatter={(value: number) => formatCurrency(value)}
-            labelFormatter={formatDate}
+            formatter={(value) => formatCurrency(Number(value))}
+            labelFormatter={(label) => formatDate(String(label))}
           />
           <Legend
             verticalAlign="top"
