@@ -172,7 +172,7 @@ DATABASE_URL=                                  # app and Alembic; overrides POST
 DB_NULL_POOL=false                             # NullPool instead of QueuePool (Lambda)
 DB_CREATE_TABLES_ON_STARTUP=true               # Base.metadata.create_all at startup; disable when the schema comes from Alembic
 EXCHANGE_RATE_SYNC_ENABLED=true                # in-process APScheduler job
-SSM_PREFIX=                                    # load every parameter under this path into the env at startup (needs the `aws` extra); existing env vars win
+SSM_PREFIX=                                    # load every parameter under this path into the env at startup ; existing env vars win
 ```
 
 ### Frontend `.env.local` (required)
