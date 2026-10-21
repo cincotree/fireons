@@ -165,14 +165,12 @@ Every environment is configured the same way, through env vars. Defaults match l
 ```bash
 SECRET_KEY=                                    # required
 CORS_ORIGINS=http://localhost:3000,http://localhost:3020   # comma-separated
-ORIGIN_VERIFY_SECRET=                          # when set, requests without a matching X-Origin-Verify header get 403 (/health exempt)
 INGESTION_TEST_ENABLED=true                    # mounts the /ingestion-test debug router
 API_DOCS_ENABLED=true                          # serves /docs, /redoc, /openapi.json
 DATABASE_URL=                                  # app and Alembic; overrides POSTGRES_*; sslmode=require added unless set
 DB_NULL_POOL=false                             # NullPool instead of QueuePool (Lambda)
 DB_CREATE_TABLES_ON_STARTUP=true               # Base.metadata.create_all at startup; disable when the schema comes from Alembic
 EXCHANGE_RATE_SYNC_ENABLED=true                # in-process APScheduler job
-SSM_PREFIX=                                    # load every parameter under this path into the env at startup ; existing env vars win
 ```
 
 ### Frontend `.env.local` (required)

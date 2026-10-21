@@ -5,12 +5,11 @@ from pydantic import ValidationError
 from app import create_app
 from app_config import AppSettings
 
-ORIGIN_SECRET = "cloudfront-shared-secret"
 APP_ORIGIN = "https://app.fireons.com"
 
 
 def _client(**overrides) -> AsyncClient:
-    values = {"secret_key": "k" * 32, "cors_origins": APP_ORIGIN, "origin_verify_secret": ORIGIN_SECRET}
+    values = {"secret_key": "k" * 32, "cors_origins": APP_ORIGIN}
     values.update(overrides)
     app = create_app(AppSettings(_env_file=None, **values))
     return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
@@ -28,7 +27,6 @@ async def _preflight(client: AsyncClient, origin: str):
         headers={
             "Origin": origin,
             "Access-Control-Request-Method": "POST",
-            "X-Origin-Verify": ORIGIN_SECRET,
         },
     )
 
@@ -44,22 +42,8 @@ async def test_cors_origins_come_from_settings():
 
 
 @pytest.mark.asyncio
-async def test_origin_verify_header():
-    async with _client() as client:
-        missing = await client.post("/api/auth/login", json={})
-        wrong = await client.post("/api/auth/login", json={}, headers={"X-Origin-Verify": "guess"})
-        correct = await client.post("/api/auth/login", json={}, headers={"X-Origin-Verify": ORIGIN_SECRET})
-        health = await client.get("/api/health")
-
-    assert missing.status_code == 403
-    assert wrong.status_code == 403
-    assert correct.status_code == 422
-    assert health.status_code == 200
-
-
-@pytest.mark.asyncio
 async def test_debug_routes_can_be_disabled():
-    async with _client(origin_verify_secret="", ingestion_test_enabled=False, api_docs_enabled=False) as client:
+    async with _client(ingestion_test_enabled=False, api_docs_enabled=False) as client:
         ingestion_test = await client.post("/api/ingestion-test/upload")
         docs = await client.get("/openapi.json")
 

@@ -10,7 +10,6 @@ class AppSettings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     cors_origins: str = "http://localhost:3000,http://localhost:3020"
-    origin_verify_secret: str = ""
     ingestion_test_enabled: bool = True
     api_docs_enabled: bool = True
 

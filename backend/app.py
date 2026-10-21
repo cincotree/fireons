@@ -14,8 +14,6 @@ from app_config import AppSettings, get_app_settings
 from database.session import init_db
 from jobs.config import get_exchange_rate_sync_settings
 from jobs.exchange_rate_sync import sync_exchange_rates
-from origin_verify import OriginVerifyMiddleware
-from ssm_secrets import load_ssm_parameters
 
 
 @asynccontextmanager
@@ -74,8 +72,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    if settings.origin_verify_secret:
-        app.add_middleware(OriginVerifyMiddleware, secret=settings.origin_verify_secret)
     app.middleware("http")(rewrite_api_path)
 
     app.include_router(auth_router)
@@ -88,5 +84,4 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     return app
 
 
-load_ssm_parameters()
 app = create_app()
