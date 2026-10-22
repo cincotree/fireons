@@ -4,7 +4,7 @@ const { Client } = pg;
 
 async function clearTestDatabase() {
   const databaseUrl =
-    process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/fireons_test';
+    process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/fireons_e2e';
   const client = new Client({ connectionString: databaseUrl.replace('+psycopg', '') });
 
   try {

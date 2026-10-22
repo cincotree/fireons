@@ -28,7 +28,7 @@ from database.repository import AccountRepository, TransactionRepository
 
 # Test database configuration
 _base_url = make_url(get_settings().database_url)
-TEST_DB_NAME = f"{_base_url.database}_test"
+TEST_DB_NAME = "fireons_test"
 TEST_DATABASE_URL = _base_url.set(database=TEST_DB_NAME).render_as_string(hide_password=False)
 ADMIN_DATABASE_URL = _base_url.set(database="postgres").render_as_string(hide_password=False)
 
