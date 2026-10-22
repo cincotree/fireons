@@ -32,6 +32,11 @@ FRONTEND_PID=$!
 
 echo "Waiting for frontend to be ready..."
 while ! curl -s http://localhost:3020 > /dev/null; do
+  if ! kill -0 $FRONTEND_PID 2>/dev/null; then
+    echo "Frontend failed to start. Last lines of frontend.log:"
+    tail -5 frontend.log
+    exit 1
+  fi
   sleep 1
 done
 echo "Frontend is ready"

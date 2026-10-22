@@ -63,6 +63,12 @@ Full design rationale lives in `backend/ingestion/README.md` — read it before 
 
 ## Development Commands
 
+### One-time local setup
+```bash
+make setup  # deps, .env files, Postgres container, fireons_development + fireons_e2e databases, migrations
+```
+Databases: development uses `fireons_development`, backend tests use `fireons_test` (created and dropped by `tests/conftest.py`), e2e uses `fireons_e2e`. `make db-create` creates the first and last from `backend/.env` and `backend/.env.test`.
+
 ### Backend Setup
 ```bash
 cd backend
@@ -74,7 +80,7 @@ uv sync  # Install dependencies using uv
 # Run dev server (from backend/)
 uv run uvicorn app:app --reload
 
-# Run all tests (requires PostgreSQL running; creates/drops a *_test database each session)
+# Run all tests (requires PostgreSQL running; creates/drops the fireons_test database each session)
 uv run pytest
 
 # Run a single test file / test / eval case
@@ -128,7 +134,7 @@ docker run -p 3000:3000 -e BACKEND_HOST=localhost:8000 fireons/frontend
 ```bash
 cd e2e-tests
 npm install
-npm test                    # starts backend (:8020) + frontend (:3020) against fireons_test DB, runs all specs, tears down
+npm test                    # starts backend (:8020) + frontend (:3020) against fireons_e2e DB, runs all specs, tears down
 bash run-tests.sh <spec file>   # run a single spec
 npm run test:headed         # visible browser
 npm run test:ui             # interactive Playwright UI
