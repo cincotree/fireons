@@ -4,7 +4,8 @@ from typing import Callable
 
 from fastapi import HTTPException, Request
 
-PUBLIC_READ_LIMIT = 120
+from api.config import get_api_settings
+
 PUBLIC_READ_WINDOW_SECONDS = 60
 
 
@@ -34,7 +35,9 @@ class SlidingWindowLimiter:
         self._hits.clear()
 
 
-public_read_limiter = SlidingWindowLimiter(PUBLIC_READ_LIMIT, PUBLIC_READ_WINDOW_SECONDS)
+public_read_limiter = SlidingWindowLimiter(
+    get_api_settings().public_read_limit_per_minute, PUBLIC_READ_WINDOW_SECONDS
+)
 
 
 async def limit_public_reads(request: Request) -> None:

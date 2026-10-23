@@ -148,6 +148,15 @@ test.describe('Professionals directory - public listing, filters and change hist
     await filtersButton(page).click();
     await expect(filter(page, 'State')).toBeVisible();
   };
+  const option = (page: Page, name: string) => page.getByRole('option', { name, exact: true });
+  const choose = async (page: Page, label: 'State' | 'City', ...values: string[]) => {
+    await filter(page, label).click();
+    for (const value of values) await option(page, value).click();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('listbox')).toHaveCount(0);
+  };
+  const chip = (page: Page, value: string, kind: string) =>
+    page.getByRole('button', { name: `Remove ${value} ${kind} filter` });
   const historyButton = (page: Page, name: string) =>
     page.getByRole('button', { name: `View history for ${name}` });
 
@@ -196,8 +205,8 @@ test.describe('Professionals directory - public listing, filters and change hist
     await expect(filter(page, 'City')).toBeVisible();
     await expect(page.getByRole('combobox', { name: 'Status' })).toHaveCount(0);
     await expect(filter(page, 'Source').locator('option').first()).toHaveText('All sources');
-    await expect(filter(page, 'State').locator('option').first()).toHaveText('All states');
-    await expect(filter(page, 'City').locator('option').first()).toHaveText('All cities');
+    await expect(filter(page, 'State')).toHaveText('All states');
+    await expect(filter(page, 'City')).toHaveText('All cities');
   });
 
   test('the Filters button toggles the panel and counts active filters', async ({ page }) => {
@@ -205,7 +214,7 @@ test.describe('Professionals directory - public listing, filters and change hist
     await expect(filtersButton(page)).toHaveText('Filters');
 
     await openFilters(page);
-    await filter(page, 'State').selectOption('Gujarat');
+    await choose(page, 'State', 'Gujarat');
     await expect(historyButton(page, 'Priya Shah')).toBeVisible();
     await expect(filtersButton(page)).toHaveText('Filters (1)');
 
@@ -216,7 +225,9 @@ test.describe('Professionals directory - public listing, filters and change hist
     await expect(filtersButton(page)).toHaveText('Filters (1)');
 
     await filtersButton(page).click();
-    await filter(page, 'State').selectOption('');
+    await filter(page, 'State').click();
+    await option(page, 'Gujarat').click();
+    await page.keyboard.press('Escape');
     await expect(filtersButton(page)).toHaveText('Filters');
     await expect(historyButton(page, 'Rohan Mehta')).toBeVisible();
   });
@@ -282,48 +293,151 @@ test.describe('Professionals directory - public listing, filters and change hist
 
   test('source filter shows only that source', async ({ page }) => {
     await page.goto('/professionals');
-
     await openFilters(page);
+
     await filter(page, 'Source').selectOption({ label: 'Other Register of Advisers' });
 
     await expect(historyButton(page, 'Zulu Otherperson')).toBeVisible();
     await expect(page.getByText('Showing 1–1 of 1')).toBeVisible();
   });
 
-  test('state filter narrows results and scopes the city options', async ({ page }) => {
+  test('state dropdown is searchable', async ({ page }) => {
     await page.goto('/professionals');
     await openFilters(page);
+    await filter(page, 'State').click();
+    await expect(option(page, 'Gujarat')).toBeVisible();
+    await expect(option(page, 'Maharashtra')).toBeVisible();
 
-    await filter(page, 'State').selectOption('Maharashtra');
-    await expect(historyButton(page, 'Rohan Mehta')).toBeVisible();
-    await expect(historyButton(page, 'Priya Shah')).toHaveCount(0);
+    await page.getByRole('textbox', { name: 'Search states' }).fill('guj');
 
-    const cityOptions = filter(page, 'City').locator('option');
-    await expect(cityOptions).toHaveText(['All cities', 'Mumbai', 'Pune']);
+    await expect(option(page, 'Gujarat')).toBeVisible();
+    await expect(option(page, 'Maharashtra')).toHaveCount(0);
 
-    await filter(page, 'City').selectOption('Pune');
-    await expect(historyButton(page, 'Old Timer')).toBeVisible();
+    await page.getByRole('textbox', { name: 'Search states' }).fill('zzz');
+    await expect(page.getByText('No matching states.')).toBeVisible();
+
+    await page.getByRole('textbox', { name: 'Search states' }).fill('guj');
+    await option(page, 'Gujarat').click();
+    await page.keyboard.press('Escape');
+    await expect(historyButton(page, 'Priya Shah')).toBeVisible();
     await expect(historyButton(page, 'Rohan Mehta')).toHaveCount(0);
   });
 
-  test('changing the state clears a city that no longer applies', async ({ page }) => {
+  test('several states can be selected at once', async ({ page }) => {
     await page.goto('/professionals');
     await openFilters(page);
-    await filter(page, 'State').selectOption('Maharashtra');
-    await filter(page, 'City').selectOption('Pune');
+
+    await choose(page, 'State', 'Maharashtra', 'Gujarat');
+
+    await expect(historyButton(page, 'Rohan Mehta')).toBeVisible();
+    await expect(historyButton(page, 'Old Timer')).toBeVisible();
+    await expect(historyButton(page, 'Priya Shah')).toBeVisible();
+    await expect(historyButton(page, 'Zeta Filler 01')).toHaveCount(0);
+    await expect(filter(page, 'State')).toHaveText('Maharashtra +1');
+    await expect(chip(page, 'Maharashtra', 'state')).toBeVisible();
+    await expect(chip(page, 'Gujarat', 'state')).toBeVisible();
+    await expect(filtersButton(page)).toHaveText('Filters (2)');
+  });
+
+  test('city options follow the selected states and several cities can be chosen', async ({ page }) => {
+    await page.goto('/professionals');
+    await openFilters(page);
+    await choose(page, 'State', 'Maharashtra');
+
+    await filter(page, 'City').click();
+    await expect(option(page, 'Mumbai')).toBeVisible();
+    await expect(option(page, 'Pune')).toBeVisible();
+    await expect(option(page, 'Ahmedabad')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+
+    await choose(page, 'State', 'Gujarat');
+    await filter(page, 'City').click();
+    await expect(option(page, 'Ahmedabad')).toBeVisible();
+    await option(page, 'Mumbai').click();
+    await option(page, 'Pune').click();
+    await page.keyboard.press('Escape');
+
+    await expect(historyButton(page, 'Rohan Mehta')).toBeVisible();
+    await expect(historyButton(page, 'Old Timer')).toBeVisible();
+    await expect(historyButton(page, 'Priya Shah')).toHaveCount(0);
+    await expect(filter(page, 'City')).toHaveText('Mumbai +1');
+  });
+
+  test('removing a state also drops cities that no longer apply', async ({ page }) => {
+    await page.goto('/professionals');
+    await openFilters(page);
+    await choose(page, 'State', 'Maharashtra', 'Gujarat');
+    await choose(page, 'City', 'Pune');
+    await expect(chip(page, 'Pune', 'city')).toBeVisible();
     await expect(page.getByText('Showing 1–1 of 1')).toBeVisible();
 
-    await filter(page, 'State').selectOption('Gujarat');
+    await chip(page, 'Maharashtra', 'state').click();
 
-    await expect(filter(page, 'City')).toHaveValue('');
+    await expect(chip(page, 'Pune', 'city')).toHaveCount(0);
+    await expect(filter(page, 'City')).toHaveText('All cities');
     await expect(historyButton(page, 'Priya Shah')).toBeVisible();
+    await expect(page.getByText('Showing 1–1 of 1')).toBeVisible();
+  });
+
+  test('a selected value can be removed from the dropdown, the chip, or all at once', async ({ page }) => {
+    await page.goto('/professionals');
+    await openFilters(page);
+    await choose(page, 'State', 'Maharashtra', 'Gujarat');
+
+    await chip(page, 'Gujarat', 'state').click();
+    await expect(chip(page, 'Gujarat', 'state')).toHaveCount(0);
+    await expect(historyButton(page, 'Priya Shah')).toHaveCount(0);
+
+    await filter(page, 'State').click();
+    await expect(page.getByText('1 selected')).toBeVisible();
+    await option(page, 'Gujarat').click();
+    await expect(page.getByText('2 selected')).toBeVisible();
+    await option(page, 'Gujarat').click();
+    await expect(page.getByText('1 selected')).toBeVisible();
+    await page.getByRole('button', { name: 'Clear selection' }).click();
+    await page.keyboard.press('Escape');
+
+    await expect(filter(page, 'State')).toHaveText('All states');
+    await expect(filtersButton(page)).toHaveText('Filters');
+    await expect(historyButton(page, 'Zeta Filler 01')).toBeVisible();
+  });
+
+  test('the dropdown works from the keyboard', async ({ page }) => {
+    await page.goto('/professionals');
+    await openFilters(page);
+
+    await filter(page, 'State').focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(page.getByRole('listbox')).toBeVisible();
+    await page.keyboard.type('guj');
+    await page.keyboard.press('Enter');
+
+    await expect(option(page, 'Gujarat')).toHaveAttribute('aria-selected', 'true');
+    await expect(historyButton(page, 'Priya Shah')).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('listbox')).toHaveCount(0);
+    await expect(filter(page, 'State')).toBeFocused();
+    await expect(filter(page, 'State')).toHaveText('Gujarat');
+  });
+
+  test('clicking outside closes the dropdown and keeps the selection', async ({ page }) => {
+    await page.goto('/professionals');
+    await openFilters(page);
+    await filter(page, 'State').click();
+    await option(page, 'Gujarat').click();
+
+    await page.getByRole('heading', { level: 1 }).click();
+
+    await expect(page.getByRole('listbox')).toHaveCount(0);
+    await expect(filter(page, 'State')).toHaveText('Gujarat');
   });
 
   test('search and filters work together', async ({ page }) => {
     await page.goto('/professionals');
     await openFilters(page);
 
-    await filter(page, 'State').selectOption('Maharashtra');
+    await choose(page, 'State', 'Maharashtra');
     await searchBox(page).fill('timer');
     await expect(historyButton(page, 'Old Timer')).toBeVisible();
     await expect(historyButton(page, 'Rohan Mehta')).toHaveCount(0);
@@ -332,7 +446,10 @@ test.describe('Professionals directory - public listing, filters and change hist
     await expect(historyButton(page, 'Rohan Mehta')).toBeVisible();
     await expect(historyButton(page, 'Old Timer')).toHaveCount(0);
 
-    await filter(page, 'State').selectOption('Gujarat');
+    await filter(page, 'State').click();
+    await option(page, 'Maharashtra').click();
+    await option(page, 'Gujarat').click();
+    await page.keyboard.press('Escape');
     await expect(page.getByText('No professionals match your filters.')).toBeVisible();
   });
 

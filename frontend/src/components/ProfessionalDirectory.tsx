@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { Monogram } from "@/components/Monogram";
+import { MultiSelect } from "@/components/MultiSelect";
 import { RegistrationHistoryModal } from "@/components/RegistrationHistoryModal";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getBaseHttpUrl } from "@/utils/api";
@@ -99,8 +100,8 @@ export function ProfessionalDirectory() {
   const [facets, setFacets] = useState<Facets>(NO_FACETS);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
-  const [stateFilter, setStateFilter] = useState("");
-  const [cityFilter, setCityFilter] = useState("");
+  const [stateFilter, setStateFilter] = useState<string[]>([]);
+  const [cityFilter, setCityFilter] = useState<string[]>([]);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [data, setData] = useState<RegistrationPage | null>(null);
@@ -118,9 +119,15 @@ export function ProfessionalDirectory() {
   useEffect(() => {
     const params = new URLSearchParams();
     if (sourceKey) params.set("source", sourceKey);
-    if (stateFilter) params.set("state", stateFilter);
+    stateFilter.forEach((name) => params.append("state", name));
     fetchJson<Facets>(`/api/registrations/facets?${params.toString()}`, "")
-      .then(setFacets)
+      .then((loaded) => {
+        setFacets(loaded);
+        setCityFilter((current) => {
+          const stillValid = current.filter((name) => loaded.cities.includes(name));
+          return stillValid.length === current.length ? current : stillValid;
+        });
+      })
       .catch(() => setFacets(NO_FACETS));
   }, [sourceKey, stateFilter]);
 
@@ -137,8 +144,8 @@ export function ProfessionalDirectory() {
     const params = new URLSearchParams({ page: String(page), page_size: String(PAGE_SIZE) });
     if (sourceKey) params.set("source", sourceKey);
     if (search) params.set("q", search);
-    if (stateFilter) params.set("state", stateFilter);
-    if (cityFilter) params.set("city", cityFilter);
+    stateFilter.forEach((name) => params.append("state", name));
+    cityFilter.forEach((name) => params.append("city", name));
     setLoading(true);
     setError(null);
     fetchJson<RegistrationPage>(
@@ -166,32 +173,42 @@ export function ProfessionalDirectory() {
   const hasNextPage = page * PAGE_SIZE < total;
 
   const sourceName = sources.find((candidate) => candidate.key === sourceKey)?.name ?? sourceKey;
-  const appliedFilters = [
-    sourceKey && {
-      label: sourceName,
-      clear: () => {
-        setSourceKey("");
-        setStateFilter("");
-        setCityFilter("");
-      },
-    },
-    stateFilter && {
-      label: stateFilter,
-      clear: () => {
-        setStateFilter("");
-        setCityFilter("");
-      },
-    },
-    cityFilter && { label: cityFilter, clear: () => setCityFilter("") },
-  ].filter(Boolean) as { label: string; clear: () => void }[];
+  const appliedFilters: { key: string; label: string; kind: string; clear: () => void }[] = [
+    ...(sourceKey
+      ? [
+          {
+            key: `source:${sourceKey}`,
+            label: sourceName,
+            kind: "source",
+            clear: () => {
+              setSourceKey("");
+              setStateFilter([]);
+              setCityFilter([]);
+            },
+          },
+        ]
+      : []),
+    ...stateFilter.map((name) => ({
+      key: `state:${name}`,
+      label: name,
+      kind: "state",
+      clear: () => setStateFilter((current) => current.filter((item) => item !== name)),
+    })),
+    ...cityFilter.map((name) => ({
+      key: `city:${name}`,
+      label: name,
+      kind: "city",
+      clear: () => setCityFilter((current) => current.filter((item) => item !== name)),
+    })),
+  ];
   const activeFilterCount = appliedFilters.length;
 
   const clearEverything = () => {
     setSearchInput("");
     setSearch("");
     setSourceKey("");
-    setStateFilter("");
-    setCityFilter("");
+    setStateFilter([]);
+    setCityFilter([]);
     setPage(1);
   };
 
@@ -254,31 +271,34 @@ export function ProfessionalDirectory() {
                 options={sources.map((candidate) => ({ value: candidate.key, label: candidate.name }))}
                 onChange={(value) => {
                   setSourceKey(value);
-                  setStateFilter("");
-                  setCityFilter("");
+                  setStateFilter([]);
+                  setCityFilter([]);
                   setPage(1);
                 }}
               />
-              <FilterSelect
+              <MultiSelect
                 label="State"
+                noun="states"
                 allLabel="All states"
+                options={facets.states}
                 value={stateFilter}
-                options={facets.states.map((name) => ({ value: name, label: name }))}
                 onChange={(value) => {
                   setStateFilter(value);
-                  setCityFilter("");
                   setPage(1);
                 }}
+                triggerClassName={`${CONTROL} ${FOCUS_RING}`}
               />
-              <FilterSelect
+              <MultiSelect
                 label="City"
+                noun="cities"
                 allLabel="All cities"
+                options={facets.cities}
                 value={cityFilter}
-                options={facets.cities.map((name) => ({ value: name, label: name }))}
                 onChange={(value) => {
                   setCityFilter(value);
                   setPage(1);
                 }}
+                triggerClassName={`${CONTROL} ${FOCUS_RING}`}
               />
             </div>
           )}
@@ -286,14 +306,14 @@ export function ProfessionalDirectory() {
           {appliedFilters.length > 0 && (
             <ul className="mt-4 flex flex-wrap gap-2" aria-label="Applied filters">
               {appliedFilters.map((filter) => (
-                <li key={filter.label}>
+                <li key={filter.key}>
                   <button
                     type="button"
                     onClick={() => {
                       filter.clear();
                       setPage(1);
                     }}
-                    aria-label={`Remove ${filter.label} filter`}
+                    aria-label={`Remove ${filter.label} ${filter.kind} filter`}
                     className="inline-flex items-center gap-1.5 rounded-full border border-[#BFDDD3] bg-white py-1 pl-3 pr-2 text-sm font-medium text-[#0E6B57] hover:bg-[#F6FBF9] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0E6B57]"
                   >
                     {filter.label}

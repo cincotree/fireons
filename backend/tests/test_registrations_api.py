@@ -292,6 +292,52 @@ async def test_facet_cities_are_scoped_to_the_selected_state(client, seeded):
     assert response.json()["cities"] == ["Mumbai", "Pune"]
 
 
+async def test_state_and_city_filters_accept_several_values(client, seeded):
+    two_states = await client.get(
+        "/registrations", params={"state": ["Gujarat", "maharashtra"], "page_size": 50}
+    )
+    two_cities = await client.get("/registrations", params={"city": ["Mumbai", "Ahmedabad"]})
+    states_and_city = await client.get(
+        "/registrations", params={"state": ["Maharashtra", "Gujarat"], "city": ["Pune"]}
+    )
+
+    assert two_states.json()["total"] == 5
+    assert (await client.get("/registrations", params={"state": ["Gujarat"]})).json()["total"] == 1
+    assert {i["name"] for i in two_cities.json()["items"]} == {
+        "Rohan Mehta",
+        "Priya Shah",
+        "Old Timer",
+        "Gone Adviser",
+    }
+    assert [i["name"] for i in states_and_city.json()["items"]] == ["Mehta & Sons Advisory LLP"]
+
+
+async def test_blank_filter_values_are_ignored(client, seeded):
+    response = await client.get("/registrations", params={"state": ["", "  "], "city": [" "]})
+
+    assert response.json()["total"] == 5
+
+
+async def test_unknown_filter_values_match_nothing(client, seeded):
+    response = await client.get("/registrations", params={"state": ["Atlantis", "Gujarat"], "city": ["Pune"]})
+
+    assert response.json()["total"] == 0
+
+
+async def test_too_many_filter_values_are_rejected(client, seeded):
+    response = await client.get("/registrations", params={"state": [f"State {n}" for n in range(61)]})
+
+    assert response.status_code == 422
+
+
+async def test_facet_cities_follow_every_selected_state(client, seeded):
+    one = await client.get("/registrations/facets", params={"state": ["Gujarat"]})
+    both = await client.get("/registrations/facets", params={"state": ["Gujarat", "Maharashtra"]})
+
+    assert one.json()["cities"] == ["Ahmedabad"]
+    assert both.json()["cities"] == ["Ahmedabad", "Mumbai", "Pune"]
+
+
 async def test_filters_combine_with_search(client, seeded):
     in_maharashtra = await client.get("/registrations", params={"q": "mehta", "state": "Maharashtra"})
     in_pune = await client.get("/registrations", params={"q": "mehta", "city": "Pune"})
@@ -390,3 +436,13 @@ def test_sliding_window_forgets_old_hits():
     assert limiter.check("ip") is not None
     now["t"] = 11.0
     assert limiter.check("ip") is None
+
+
+def test_public_read_limit_defaults_to_240_and_is_configurable(monkeypatch):
+    from api.config import ApiSettings
+
+    monkeypatch.delenv("PUBLIC_READ_LIMIT_PER_MINUTE", raising=False)
+    assert ApiSettings(_env_file=None).public_read_limit_per_minute == 240
+
+    monkeypatch.setenv("PUBLIC_READ_LIMIT_PER_MINUTE", "7")
+    assert ApiSettings(_env_file=None).public_read_limit_per_minute == 7

@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Any, Literal, Optional
+from typing import Annotated, Any, Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -20,9 +20,17 @@ from scraping.normalize import normalize_name
 from scraping.types import RunStatus
 
 MAX_PAGE_SIZE = 100
+MAX_FILTER_VALUES = 60
 MAX_SEARCH_TOKENS = 8
 FUZZY_MIN_TOKEN_LENGTH = 4
 FUZZY_WORD_SIMILARITY = "0.4"
+
+MultiValue = Annotated[list[str], Query(max_length=MAX_FILTER_VALUES)]
+
+
+def _lowered(values: list[str]) -> list[str]:
+    return [value.strip().lower() for value in values if value.strip()]
+
 
 router = APIRouter(
     prefix="/registrations",
@@ -229,7 +237,7 @@ async def list_sources(session: AsyncSession = Depends(get_session)):
 @router.get("/facets", response_model=FacetsResponse)
 async def get_facets(
     source: Optional[str] = None,
-    state: Optional[str] = Query(default=None, max_length=100),
+    state: MultiValue = [],
     session: AsyncSession = Depends(get_session),
 ):
     scope = []
@@ -244,8 +252,8 @@ async def get_facets(
         .order_by(ProfessionalRegistration.state)
     )
     cities_scope = list(scope)
-    if state:
-        cities_scope.append(func.lower(ProfessionalRegistration.state) == state.strip().lower())
+    if _lowered(state):
+        cities_scope.append(func.lower(ProfessionalRegistration.state).in_(_lowered(state)))
     cities_query = (
         select(ProfessionalRegistration.city)
         .where(ProfessionalRegistration.city.is_not(None), *cities_scope)
@@ -270,8 +278,8 @@ async def list_registrations(
     source: Optional[str] = None,
     profession_type: Optional[str] = None,
     q: Optional[str] = Query(default=None, max_length=200),
-    state: Optional[str] = Query(default=None, max_length=100),
-    city: Optional[str] = Query(default=None, max_length=100),
+    state: MultiValue = [],
+    city: MultiValue = [],
     status: Optional[Literal["active", "expired", "delisted"]] = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=25, ge=1, le=MAX_PAGE_SIZE),
@@ -284,10 +292,10 @@ async def list_registrations(
         conditions.append(ProfessionalRegistration.profession_type == profession_type)
     if status:
         conditions.append(ProfessionalRegistration.status == status)
-    if state and state.strip():
-        conditions.append(func.lower(ProfessionalRegistration.state) == state.strip().lower())
-    if city and city.strip():
-        conditions.append(func.lower(ProfessionalRegistration.city) == city.strip().lower())
+    if _lowered(state):
+        conditions.append(func.lower(ProfessionalRegistration.state).in_(_lowered(state)))
+    if _lowered(city):
+        conditions.append(func.lower(ProfessionalRegistration.city).in_(_lowered(city)))
 
     ranking = []
     if q and q.strip():
