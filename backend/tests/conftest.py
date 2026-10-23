@@ -3,7 +3,11 @@ Pytest fixtures for database testing with PostgreSQL.
 """
 
 import asyncio
+import os
+import subprocess
+import sys
 from datetime import date
+from pathlib import Path
 from typing import AsyncGenerator
 
 import pytest
@@ -52,6 +56,13 @@ async def setup_test_database():
 
     await admin_engine.dispose()
 
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        cwd=Path(__file__).resolve().parent.parent,
+        env={**os.environ, "DATABASE_URL": TEST_DATABASE_URL},
+        check=True,
+    )
+
     yield
 
     # Teardown: drop test database
@@ -78,15 +89,13 @@ async def engine(setup_test_database):
         echo=False,
     )
 
-    # Create all tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
     yield engine
 
-    # Drop all tables after test
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        table_names = ", ".join(
+            f'"{table.name}"' for table in Base.metadata.sorted_tables
+        )
+        await conn.execute(text(f"TRUNCATE {table_names} RESTART IDENTITY CASCADE"))
 
     await engine.dispose()
 

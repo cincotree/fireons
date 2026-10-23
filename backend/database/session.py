@@ -5,6 +5,7 @@ Async database session management.
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -54,25 +55,22 @@ def AsyncSessionLocal():
     return factory()
 
 
-async def init_db():
-    """
-    Initialize the database by creating all tables.
+class DatabaseNotReadyError(RuntimeError):
+    pass
 
-    This should be called at application startup.
-    """
-    settings = get_settings()
-    print(f"Connecting to database: {settings.postgres_db}")
-    print(f"Database URL: postgresql://{settings.postgres_host}:{settings.postgres_port}/{settings.postgres_db}")
 
+async def verify_database():
     engine = get_engine()
-    try:
-        async with engine.begin() as conn:
-            print("Creating all tables...")
-            await conn.run_sync(Base.metadata.create_all)
-            print("✓ All tables created successfully")
-    except Exception as e:
-        print(f"Error creating tables: {e}")
-        raise
+    async with engine.connect() as conn:
+        has_trgm = await conn.scalar(
+            text("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm')")
+        )
+        has_migrations = await conn.scalar(text("SELECT to_regclass('alembic_version') IS NOT NULL"))
+    if not has_migrations or not has_trgm:
+        raise DatabaseNotReadyError(
+            "Database schema is not up to date: run `uv run alembic upgrade head` "
+            "(requires the pg_trgm extension; see backend/README.md)"
+        )
 
 
 async def drop_db():

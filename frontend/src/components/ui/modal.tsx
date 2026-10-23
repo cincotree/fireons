@@ -53,13 +53,14 @@ interface DialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     children: React.ReactNode;
+    maxWidth?: string;
 }
 
 interface DialogContentProps {
     children: React.ReactNode;
 }
 
-export const Modal = ({ open, onOpenChange, children }: DialogProps) => {
+export const Modal = ({ open, onOpenChange, children, maxWidth }: DialogProps) => {
     if (!open) return null;
 
     const handleOverlayClick = (e: React.MouseEvent) => {
@@ -71,7 +72,7 @@ export const Modal = ({ open, onOpenChange, children }: DialogProps) => {
     return (
         <div style={styles.dialog} onClick={handleOverlayClick}>
             <div style={styles.dialogOverlay} />
-            <div style={styles.dialogContent}>{children}</div>
+            <div style={{ ...styles.dialogContent, ...(maxWidth ? { maxWidth, width: '100%' } : {}) }}>{children}</div>
         </div>
     );
 };

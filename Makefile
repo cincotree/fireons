@@ -1,5 +1,6 @@
-.PHONY: install db \
-	backend-setup backend backend-test \
+.PHONY: install db migrate \
+	backend-setup backend backend-test scrape scraper-worker \
+	compose-up compose-up-scraper compose-down \
 	frontend-setup frontend frontend-build frontend-lint \
 	e2e-setup e2e e2e-headed e2e-ui e2e-debug e2e-report \
 	test
@@ -10,6 +11,24 @@ db:
 	docker start fireons-postgres 2>/dev/null || docker run -d --name fireons-postgres \
 		-e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=fireons_development \
 		-p 5432:5432 postgres:16-alpine
+
+migrate:
+	cd backend && uv run alembic upgrade head
+
+scrape:
+	cd backend && uv run python -m scraping run sebi_ria
+
+scraper-worker:
+	cd backend && uv run python -m scraping worker
+
+compose-up:
+	docker compose up --build
+
+compose-up-scraper:
+	docker compose --profile scraper up --build
+
+compose-down:
+	docker compose --profile scraper down
 
 backend-setup:
 	cd backend && uv sync

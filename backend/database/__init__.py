@@ -18,7 +18,7 @@ from database.models import (
     TransactionTag,
 )
 from database.repository import AccountRepository
-from database.session import get_session, init_db, AsyncSessionLocal
+from database.session import get_session, verify_database, AsyncSessionLocal
 
 __all__ = [
     # Config
@@ -26,7 +26,7 @@ __all__ = [
     "Settings",
     # Session
     "get_session",
-    "init_db",
+    "verify_database",
     "AsyncSessionLocal",
     # Models
     "Account",

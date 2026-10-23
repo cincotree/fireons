@@ -8,12 +8,13 @@ from api.account_api import router as account_router
 from api.auth_api import router as auth_router
 from api.statements_api import router as statements_router
 from api.ingestion_test_api import router as ingestion_test_router
-from database.session import init_db
+from api.registrations_api import router as registrations_router
+from database.session import verify_database
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db()
+    await verify_database()
     yield
 
 
@@ -41,6 +42,7 @@ app.include_router(convert_router)
 app.include_router(account_router)
 app.include_router(statements_router)
 app.include_router(ingestion_test_router)
+app.include_router(registrations_router)
 
 
 @app.get("/health")

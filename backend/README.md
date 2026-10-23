@@ -188,6 +188,19 @@ uv run pytest tests/ -v
 - Each test gets fresh tables (created/dropped per test)
 - Requires PostgreSQL running with credentials from `.env` or defaults
 
+## Migrations and Deployment
+
+The schema is managed by Alembic. The application does not create tables on startup and exits with a clear error if migrations are missing.
+
+```bash
+uv run alembic upgrade head
+```
+
+- Run this as a release step before starting a new version.
+- Name search needs the `pg_trgm` Postgres extension. The migration creates it (`CREATE EXTENSION IF NOT EXISTS pg_trgm`), which works for a normal role on Postgres 13+ when the contrib package is installed. If your role cannot create extensions, run `CREATE EXTENSION pg_trgm;` once as an admin first.
+- A database created before Alembic was adopted: `uv run alembic stamp 0001`, then `uv run alembic upgrade head`.
+- Scraper: `uv run python -m scraping run sebi_ria` for a single run, `uv run python -m scraping worker` for the weekly scheduler (`SCRAPE_SCHEDULE_CRON`, default Sundays 03:00 IST). When deployed, run the worker as its own process using the same image.
+
 ## Key Features
 
 - Full double-entry accounting with balance validation
