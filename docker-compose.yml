@@ -1,9 +1,5 @@
 x-backend-environment: &backend-environment
-  POSTGRES_HOST: postgres
-  POSTGRES_PORT: "5432"
-  POSTGRES_USER: postgres
-  POSTGRES_PASSWORD: postgres
-  POSTGRES_DB: fireons_development
+  DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/fireons_development
   SECRET_KEY: ${SECRET_KEY:-local-development-only-change-me}
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
 
@@ -42,9 +38,7 @@ services:
         condition: service_completed_successfully
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.dev
+    build: ./frontend
     ports:
       - "3000:3000"
     environment:

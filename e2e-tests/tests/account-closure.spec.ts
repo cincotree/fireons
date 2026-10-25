@@ -32,7 +32,8 @@ test.describe('Account Closure - Removed Account No Longer Appears', () => {
 
     await page.waitForTimeout(1000);
     await expect(page.getByText('ClosureBugAccount')).toBeVisible();
-    await expect(page.getByText('$500.00').first()).toBeVisible();
+    // New accounts default to the page's display currency (INR by default).
+    await expect(page.getByText('₹500.00').first()).toBeVisible();
 
     await page.getByRole('button', { name: 'Edit account' }).click();
     await page.getByRole('button', { name: 'Remove account? click here' }).click();

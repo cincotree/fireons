@@ -17,7 +17,7 @@ export default function Privacy() {
             Your Privacy is Our Priority
           </h1>
           <p className="text-xl text-blue-100">
-            We're committed to protecting your financial data and maintaining your complete anonymity
+            We&apos;re committed to protecting your financial data and maintaining your complete anonymity
           </p>
         </div>
       </section>
@@ -28,7 +28,7 @@ export default function Privacy() {
 
           <h2 className="text-3xl font-bold text-gray-900 mb-6">Anonymity by Design</h2>
           <p className="text-gray-700 mb-6">
-            At Fireons, we believe your financial journey is personal. That's why we've built our platform
+            At Fireons, we believe your financial journey is personal. That&apos;s why we&apos;ve built our platform
             from the ground up with anonymity as a core principle, not an afterthought.
           </p>
 
@@ -45,7 +45,7 @@ export default function Privacy() {
                 <svg className="w-6 h-6 text-teal-600 mr-2 mt-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                <span>Optional profile information — share only what you're comfortable with</span>
+                <span>Optional profile information — share only what you&apos;re comfortable with</span>
               </li>
               <li className="flex items-start">
                 <svg className="w-6 h-6 text-teal-600 mr-2 mt-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -119,7 +119,7 @@ export default function Privacy() {
             </div>
           </div>
 
-          <h2 className="text-3xl font-bold text-gray-900 mb-6 mt-12">What We Don't Do</h2>
+          <h2 className="text-3xl font-bold text-gray-900 mb-6 mt-12">What We Don&apos;t Do</h2>
           <div className="bg-red-50 border border-red-200 p-8 rounded-xl mb-12">
             <ul className="space-y-3 text-gray-700">
               <li className="flex items-start">
@@ -132,19 +132,19 @@ export default function Privacy() {
                 <svg className="w-6 h-6 text-red-600 mr-2 mt-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
-                <span><strong>We don't share your financial details</strong> with anyone without your explicit consent</span>
+                <span><strong>We don&apos;t share your financial details</strong> with anyone without your explicit consent</span>
               </li>
               <li className="flex items-start">
                 <svg className="w-6 h-6 text-red-600 mr-2 mt-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
-                <span><strong>We don't require real names</strong> or identifying information to use our platform</span>
+                <span><strong>We don&apos;t require real names</strong> or identifying information to use our platform</span>
               </li>
               <li className="flex items-start">
                 <svg className="w-6 h-6 text-red-600 mr-2 mt-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
-                <span><strong>We don't use tracking cookies</strong> for advertising purposes</span>
+                <span><strong>We don&apos;t use tracking cookies</strong> for advertising purposes</span>
               </li>
             </ul>
           </div>
@@ -211,7 +211,7 @@ export default function Privacy() {
             <h3 className="text-lg font-semibold text-blue-900 mb-2">Questions About Privacy?</h3>
             <p className="text-gray-700">
               If you have any questions about how we protect your privacy, please contact our support team.
-              We're committed to transparency and will gladly answer any concerns.
+              We&apos;re committed to transparency and will gladly answer any concerns.
             </p>
           </div>
         </div>

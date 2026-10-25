@@ -3,20 +3,25 @@ from datetime import date
 
 import pytest
 
-from database.models import AccountType
+from database.models import AccountType, User
 from database.repository import AccountRepository
+
+REMOVED_FROM_REPOSITORY = pytest.mark.skip(
+    reason="method no longer exists on AccountRepository"
+)
 
 
 @pytest.mark.asyncio
 class TestAccountCreation:
 
-    async def test_create_account(self, account_repo: AccountRepository):
+    async def test_create_account(self, account_repo: AccountRepository, test_user: User):
         account = await account_repo.create(
             name="Assets:Bank:Checking",
             open_date=date(2024, 1, 1),
             currency="EUR",
             description="Main checking account",
             meta={"bank_number": "123456"},
+            user_id=test_user.id,
         )
 
         assert account.id is not None
@@ -36,18 +41,22 @@ class TestAccountCreation:
         ("Income:Salary", AccountType.INCOME),
         ("Expenses:Food:Groceries", AccountType.EXPENSES),
     ])
-    async def test_account_types(self, account_repo: AccountRepository, name: str, expected_type: AccountType):
+    async def test_account_types(
+        self, account_repo: AccountRepository, test_user: User, name: str, expected_type: AccountType
+    ):
         account = await account_repo.create(
             name=name,
             open_date=date(2024, 1, 1),
+            user_id=test_user.id,
         )
 
         assert account.account_type == expected_type
 
-    async def test_account_hierarchy(self, account_repo: AccountRepository):
+    async def test_account_hierarchy(self, account_repo: AccountRepository, test_user: User):
         account = await account_repo.create(
             name="Assets:Bank:Chase:Checking",
             open_date=date(2024, 1, 1),
+            user_id=test_user.id,
         )
 
         assert account.parent_name == "Assets:Bank:Chase"
@@ -56,6 +65,7 @@ class TestAccountCreation:
         top_level = await account_repo.create(
             name="Assets",
             open_date=date(2024, 1, 1),
+            user_id=test_user.id,
         )
 
         assert top_level.parent_name is None
@@ -85,20 +95,23 @@ class TestAccountRetrieval:
         assert retrieved.name == checking.name
 
     async def test_get_by_name(
-        self, account_repo: AccountRepository, sample_accounts: dict
+        self, account_repo: AccountRepository, sample_accounts: dict, test_user: User
     ):
-        account = await account_repo.get_by_name("Assets:Bank:Checking")
+        account = await account_repo.get_by_name(test_user.id, "Assets:Bank:Checking")
 
         assert account is not None
         assert account.name == "Assets:Bank:Checking"
 
-    async def test_get_nonexistent_account(self, account_repo: AccountRepository):
+    async def test_get_nonexistent_account(
+        self, account_repo: AccountRepository, test_user: User
+    ):
         account = await account_repo.get_by_id(str(uuid.uuid4()))
         assert account is None
 
-        account = await account_repo.get_by_name("Nonexistent:Account")
+        account = await account_repo.get_by_name(test_user.id, "Nonexistent:Account")
         assert account is None
 
+    @REMOVED_FROM_REPOSITORY
     async def test_get_or_create_existing(
         self, account_repo: AccountRepository, sample_accounts: dict
     ):
@@ -110,6 +123,7 @@ class TestAccountRetrieval:
         assert created is False
         assert account.id == sample_accounts["Checking"].id
 
+    @REMOVED_FROM_REPOSITORY
     async def test_get_or_create_new(self, account_repo: AccountRepository):
         account, created = await account_repo.get_or_create(
             name="Assets:Cash:Wallet",
@@ -139,6 +153,7 @@ class TestAccountListing:
         for account in expense_accounts:
             assert account.account_type == AccountType.EXPENSES
 
+    @REMOVED_FROM_REPOSITORY
     async def test_list_by_prefix(
         self, account_repo: AccountRepository, sample_accounts: dict
     ):
@@ -176,6 +191,7 @@ class TestAccountOperations:
         assert closed.is_active is False
         assert closed.close_date == date(2024, 12, 31)
 
+    @REMOVED_FROM_REPOSITORY
     async def test_delete_account(
         self, account_repo: AccountRepository, sample_accounts: dict
     ):
@@ -187,6 +203,7 @@ class TestAccountOperations:
         retrieved = await account_repo.get_by_id(checking.id)
         assert retrieved is None
 
+    @REMOVED_FROM_REPOSITORY
     async def test_delete_nonexistent_account(self, account_repo: AccountRepository):
         deleted = await account_repo.delete(str(uuid.uuid4()))
         assert deleted is False

@@ -35,7 +35,7 @@ Fireons is a personal finance tracker for managing net worth and accounts. FastA
 - `app.py`: Main server with `/api` path rewriting middleware
 - Authentication: `auth_api.py`, `auth_utils.py`, JWT-based (30min expiry)
 - API routes: `convert_currency_api.py`, `networth_api.py`
-- Package manager: uv. Python 3.10.5.
+- Package manager: uv. Python 3.12.
 - Type checking: Pyright (strict mode disabled)
 
 ### Frontend (Next.js 15/React/TypeScript)
@@ -59,13 +59,12 @@ Fireons is a personal finance tracker for managing net worth and accounts. FastA
 
 ## Database Migrations and Extensions
 
-The schema is managed by Alembic (`backend/alembic/`). The app no longer creates tables at startup; `verify_database()` in `database/session.py` refuses to start if migrations have not been applied.
+Alembic owns the schema and the app never creates tables (see Deployment settings). Migration `0001` is the baseline; `0002` adds the registry tables and the `pg_trgm` extension.
 
 - `make migrate` (`cd backend && uv run alembic upgrade head`) — apply migrations. Required before first run, after pulling new migrations, and as a release step in deployment.
 - Changing `database/models.py` requires a migration: `uv run alembic revision --autogenerate -m "description"`, review it, commit it with the model change. `tests/test_migrations.py` fails if models and migrations drift apart.
 - Never edit an applied migration; add a new one.
-- A database created before Alembic was adopted (tables exist, no `alembic_version`) must be stamped once: `cd backend && uv run alembic stamp 0001 && uv run alembic upgrade head`.
-- Tests build their database with `alembic upgrade head` once per session and truncate tables between tests.
+- `tests/conftest.py` builds the test database with `create_all` (after creating `pg_trgm`); `tests/test_migrations.py` runs the migrations on an empty database and fails if they drift from the models, which CI also checks with `alembic check`.
 - UUID primary keys and several `NOT NULL` defaults (`is_enabled`, run counters, `missing_runs`) are Python-side defaults, not database defaults. Raw SQL inserts must supply them explicitly (see `e2e-tests/tests/professionals.spec.ts`).
 
 ### pg_trgm extension (required)
@@ -75,18 +74,22 @@ Name search uses a GIN trigram index (`ix_financial_professionals_name_trgm`, `g
 - Migration `0002` runs `CREATE EXTENSION IF NOT EXISTS pg_trgm` before creating the index, so `alembic upgrade head` is the only step needed. `pg_trgm` is a trusted extension on Postgres 13+, so the normal application role can create it as long as the contrib package is installed (it is in the official `postgres` Docker images and Homebrew; managed services such as RDS, Cloud SQL, Supabase and Neon provide it).
 - If the deployment role cannot create extensions, run `CREATE EXTENSION pg_trgm;` once as an admin before `alembic upgrade head`.
 - Any new trigram index must be created in a migration that runs after the extension exists.
-- On Supabase extensions live in the `extensions` schema; confirm the index creation succeeds there when deploying.
+- Managed Postgres services (including Neon) provide `pg_trgm`; confirm migration `0002` succeeds on the first deploy.
 - The e2e teardown drops and recreates the `public` schema, which also drops the extension; `start-backend.sh` re-runs migrations, which recreates it.
 
 ## Development Commands
 
-A top-level `Makefile` wraps the commands below. `make install` runs all three `*-setup` targets; `make test` runs `backend-test` + `e2e`.
+A top-level `Makefile` wraps the commands below. `make setup` is the one-time local setup: it runs `install` (all three `*-setup` targets), `env`, `db`, `db-create` and `migrate`, and is safe to rerun. `make test` runs `backend-test` + `e2e`.
 
 ### Database
 - `make db` — start (or create, first time) a local Postgres container matching the dev defaults: `postgres:16-alpine`, user/pass `postgres`, db `fireons_development`, port 5432. Idempotent — safe to rerun.
+- `make db-create` — create the development database (from `backend/.env`) and the e2e database (from `backend/.env.test`) if missing. Works with any reachable Postgres, not only the `make db` container.
+- `make migrate` — `alembic upgrade head` on the development database.
+
+Each suite has its own database: development uses `fireons_development`, backend tests use `fireons_test` (created and dropped by `tests/conftest.py` on the server from `DATABASE_URL`), and e2e uses `fireons_e2e`.
 
 ### Docker (local)
-`docker-compose.yml` runs postgres (published on 5433 to avoid clashing with a local Postgres), a one-shot `migrate` service, backend (8000) and frontend (3000). The frontend runs `next dev` (`frontend/Dockerfile.dev`) because `npm run build` currently fails on existing lint/type errors. The compose database starts empty; run a scrape to populate it. The scheduled scraper is opt-in: `make compose-up-scraper` (`--profile scraper`). `make compose-up` / `make compose-down` wrap it.
+`docker-compose.yml` runs postgres (published on 5433 to avoid clashing with a local Postgres), a one-shot `migrate` service, backend (8000) and frontend (3000). The compose database starts empty; run a scrape to populate it. The scheduled scraper is opt-in: `make compose-up-scraper` (`--profile scraper`). `make compose-up` / `make compose-down` wrap it.
 
 ### Backend
 - `make migrate` — apply database migrations (see Database Migrations and Extensions)
@@ -113,19 +116,15 @@ Make targets wrap the Playwright suite in `e2e-tests/` (see `e2e-tests/package.j
 
 `e2e-headed` and `e2e-ui` need a display, so they only work on a local machine, not headless CI/sandboxes.
 
-Prerequisites: Postgres reachable per `backend/.env.test`, and the `fireons_test` database must already exist (`psql -U postgres -c "CREATE DATABASE fireons_test;"`) — `run-tests.sh` does not create it. (`make db` creates the dev database, not the test one.)
+Prerequisites: Postgres reachable per `backend/.env.test`, and the `fireons_e2e` database must already exist (`make db-create`, included in `make setup`). `run-tests.sh` does not create it.
 
-`run-tests.sh` starts the backend (`TESTING=true`, port 8020) and frontend (port 3020) itself, waits for both, runs the suite, then drops and recreates the `fireons_test` schema in teardown. Because of that teardown, don't run `npx playwright test` directly against an already-running backend from a prior `run-tests.sh` invocation — the tables will be gone and every test will fail with "relation does not exist". Always go through `run-tests.sh` (i.e. `make e2e`), or restart the backend first if running Playwright manually.
+`run-tests.sh` starts the backend (`TESTING=true`, port 8020) and frontend (port 3020) itself, waits for both, runs the suite, then drops and recreates the `fireons_e2e` schema in teardown. Because of that teardown, don't run `npx playwright test` directly against an already-running backend from a prior `run-tests.sh` invocation — the tables will be gone and every test will fail with "relation does not exist". Always go through `run-tests.sh` (i.e. `make e2e`), or restart the backend first if running Playwright manually.
 
 ## Environment Variables
 
 ### Backend `.env` (optional)
 ```env
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=fireons_development
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/fireons_development
 SECRET_KEY=your-secret-key-change-this-in-production
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30

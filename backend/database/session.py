@@ -5,19 +5,30 @@ Async database session management.
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.pool import NullPool
 
-from database.config import get_settings
+from database.config import Settings, get_settings
 from database.models import Base
 
 # Global engine and session factory
 _engine = None
 _async_session_factory = None
+
+
+def engine_options(settings: Settings) -> dict:
+    if settings.db_null_pool:
+        return {"poolclass": NullPool}
+    return {
+        "pool_pre_ping": True,
+        "pool_size": settings.pool_size,
+        "max_overflow": settings.max_overflow,
+        "pool_timeout": settings.pool_timeout,
+    }
 
 
 def get_engine():
@@ -28,9 +39,7 @@ def get_engine():
         _engine = create_async_engine(
             settings.database_url,
             echo=False,  # Set to True for SQL debugging
-            pool_size=settings.pool_size,
-            max_overflow=settings.max_overflow,
-            pool_timeout=settings.pool_timeout,
+            **engine_options(settings),
         )
     return _engine
 
@@ -53,24 +62,6 @@ def AsyncSessionLocal():
     """Create a new async session."""
     factory = get_session_factory()
     return factory()
-
-
-class DatabaseNotReadyError(RuntimeError):
-    pass
-
-
-async def verify_database():
-    engine = get_engine()
-    async with engine.connect() as conn:
-        has_trgm = await conn.scalar(
-            text("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm')")
-        )
-        has_migrations = await conn.scalar(text("SELECT to_regclass('alembic_version') IS NOT NULL"))
-    if not has_migrations or not has_trgm:
-        raise DatabaseNotReadyError(
-            "Database schema is not up to date: run `uv run alembic upgrade head` "
-            "(requires the pg_trgm extension; see backend/README.md)"
-        )
 
 
 async def drop_db():

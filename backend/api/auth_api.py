@@ -1,4 +1,3 @@
-from datetime import timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -14,7 +13,6 @@ from auth_utils import (
     decode_token,
     get_password_hash,
     verify_password,
-    ACCESS_TOKEN_EXPIRE_MINUTES,
 )
 from database.models import User
 from database.session import get_session
@@ -152,14 +150,12 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={
             "sub": user.id,
             "username": user.username,
             "email": user.email
-        },
-        expires_delta=access_token_expires
+        }
     )
 
     return {"access_token": access_token, "token_type": "bearer"}

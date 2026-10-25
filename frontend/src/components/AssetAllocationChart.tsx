@@ -24,6 +24,7 @@ interface AllocationResponse {
   total: number;
   currency: string;
   breakdown: AllocationEntry[];
+  excluded_count: number;
 }
 
 interface AssetAllocationChartProps {
@@ -31,7 +32,7 @@ interface AssetAllocationChartProps {
   currency?: string;
 }
 
-export function AssetAllocationChart({ asOfDate, currency = "USD" }: AssetAllocationChartProps) {
+export function AssetAllocationChart({ asOfDate, currency = "INR" }: AssetAllocationChartProps) {
   const [data, setData] = useState<AllocationResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -101,7 +102,9 @@ export function AssetAllocationChart({ asOfDate, currency = "USD" }: AssetAlloca
     return (
       <div className="flex items-center justify-center h-64">
         <p className="text-gray-500">
-          No asset data available. Add assets to see allocation.
+          {data && data.excluded_count > 0
+            ? `${data.excluded_count} account(s) excluded — exchange rate unavailable for ${currency}.`
+            : "No asset data available. Add assets to see allocation."}
         </p>
       </div>
     );
@@ -173,6 +176,11 @@ export function AssetAllocationChart({ asOfDate, currency = "USD" }: AssetAlloca
 
   return (
     <div className="h-64">
+      {data.excluded_count > 0 && (
+        <p className="text-xs text-amber-600 mb-1">
+          {data.excluded_count} account(s) excluded — exchange rate unavailable for {currency}.
+        </p>
+      )}
       <Doughnut data={chartData} options={options} />
     </div>
   );

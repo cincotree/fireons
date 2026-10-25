@@ -1,8 +1,15 @@
+"""baseline
+
+Revision ID: 0001
+Revises: 
+Create Date: 2026-10-21 09:17:33.755694
+
+"""
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
+
 
 revision: str = '0001'
 down_revision: Union[str, Sequence[str], None] = None
@@ -74,6 +81,26 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_accounts_name'), 'accounts', ['name'], unique=False)
     op.create_index('ix_accounts_user_id', 'accounts', ['user_id'], unique=False)
+    op.create_table('ingestion_runs',
+    sa.Column('id', sa.UUID(as_uuid=False), nullable=False),
+    sa.Column('user_id', sa.UUID(as_uuid=False), nullable=False),
+    sa.Column('status', sa.Enum('PENDING', 'PROCESSING', 'SUCCEEDED', 'FAILED', name='ingestionrunstatus'), nullable=False),
+    sa.Column('file_count', sa.Integer(), nullable=False),
+    sa.Column('positions_count', sa.Integer(), nullable=True),
+    sa.Column('warnings', sa.JSON(), nullable=True),
+    sa.Column('error_message', sa.Text(), nullable=True),
+    sa.Column('llm_call_count', sa.Integer(), nullable=True),
+    sa.Column('llm_input_tokens', sa.Integer(), nullable=True),
+    sa.Column('llm_output_tokens', sa.Integer(), nullable=True),
+    sa.Column('llm_cache_creation_tokens', sa.Integer(), nullable=True),
+    sa.Column('llm_cache_read_tokens', sa.Integer(), nullable=True),
+    sa.Column('llm_estimated_cost_usd', sa.Numeric(precision=10, scale=6), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('completed_at', sa.DateTime(timezone=True), nullable=True),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index('ix_ingestion_runs_user_id', 'ingestion_runs', ['user_id'], unique=False)
     op.create_table('transaction_links',
     sa.Column('id', sa.UUID(as_uuid=False), nullable=False),
     sa.Column('transaction_id', sa.UUID(as_uuid=False), nullable=False),
@@ -92,19 +119,16 @@ def upgrade() -> None:
     sa.UniqueConstraint('transaction_id', 'tag', name='uq_transaction_tag')
     )
     op.create_index(op.f('ix_transaction_tags_tag'), 'transaction_tags', ['tag'], unique=False)
-    op.create_table('balances',
+    op.create_table('ingested_documents',
     sa.Column('id', sa.UUID(as_uuid=False), nullable=False),
-    sa.Column('account_id', sa.UUID(as_uuid=False), nullable=False),
-    sa.Column('date', sa.Date(), nullable=False),
-    sa.Column('amount', sa.Numeric(precision=20, scale=4), nullable=False),
-    sa.Column('currency', sa.String(length=10), nullable=False),
-    sa.Column('is_verified', sa.Boolean(), nullable=False),
+    sa.Column('ingestion_run_id', sa.UUID(as_uuid=False), nullable=False),
+    sa.Column('source', sa.String(length=255), nullable=True),
+    sa.Column('doc_issued_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['account_id'], ['accounts.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('account_id', 'date', 'currency', name='uq_balance_account_date_currency')
+    sa.ForeignKeyConstraint(['ingestion_run_id'], ['ingestion_runs.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
     )
-    op.create_index('ix_balances_account_date', 'balances', ['account_id', 'date'], unique=False)
+    op.create_index('ix_ingested_documents_run_source_date', 'ingested_documents', ['ingestion_run_id', 'source', 'doc_issued_at'], unique=False)
     op.create_table('postings',
     sa.Column('id', sa.UUID(as_uuid=False), nullable=False),
     sa.Column('transaction_id', sa.UUID(as_uuid=False), nullable=False),
@@ -124,18 +148,37 @@ def upgrade() -> None:
     )
     op.create_index('ix_postings_account_id', 'postings', ['account_id'], unique=False)
     op.create_index('ix_postings_transaction_id', 'postings', ['transaction_id'], unique=False)
+    op.create_table('balances',
+    sa.Column('id', sa.UUID(as_uuid=False), nullable=False),
+    sa.Column('account_id', sa.UUID(as_uuid=False), nullable=False),
+    sa.Column('date', sa.Date(), nullable=False),
+    sa.Column('amount', sa.Numeric(precision=20, scale=4), nullable=False),
+    sa.Column('currency', sa.String(length=10), nullable=False),
+    sa.Column('is_verified', sa.Boolean(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('source_document_id', sa.UUID(as_uuid=False), nullable=True),
+    sa.ForeignKeyConstraint(['account_id'], ['accounts.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['source_document_id'], ['ingested_documents.id'], ondelete='SET NULL'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('account_id', 'date', 'currency', name='uq_balance_account_date_currency')
+    )
+    op.create_index('ix_balances_account_date', 'balances', ['account_id', 'date'], unique=False)
 
 
 def downgrade() -> None:
+    op.drop_index('ix_balances_account_date', table_name='balances')
+    op.drop_table('balances')
     op.drop_index('ix_postings_transaction_id', table_name='postings')
     op.drop_index('ix_postings_account_id', table_name='postings')
     op.drop_table('postings')
-    op.drop_index('ix_balances_account_date', table_name='balances')
-    op.drop_table('balances')
+    op.drop_index('ix_ingested_documents_run_source_date', table_name='ingested_documents')
+    op.drop_table('ingested_documents')
     op.drop_index(op.f('ix_transaction_tags_tag'), table_name='transaction_tags')
     op.drop_table('transaction_tags')
     op.drop_index(op.f('ix_transaction_links_link'), table_name='transaction_links')
     op.drop_table('transaction_links')
+    op.drop_index('ix_ingestion_runs_user_id', table_name='ingestion_runs')
+    op.drop_table('ingestion_runs')
     op.drop_index('ix_accounts_user_id', table_name='accounts')
     op.drop_index(op.f('ix_accounts_name'), table_name='accounts')
     op.drop_table('accounts')
@@ -151,3 +194,5 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_exchange_rates_date'), table_name='exchange_rates')
     op.drop_index('ix_exchange_rates_currencies', table_name='exchange_rates')
     op.drop_table('exchange_rates')
+    op.execute("DROP TYPE IF EXISTS accounttype")
+    op.execute("DROP TYPE IF EXISTS ingestionrunstatus")

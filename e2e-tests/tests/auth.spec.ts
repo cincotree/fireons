@@ -1,17 +1,23 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Authentication Feature - Critical User Journeys', () => {
-  const timestamp = Date.now();
-  const testUser = {
-    email: `testuser${timestamp}@example.com`,
-    username: `testuser${timestamp}`,
-    password: 'Test123!@#',
-    fullName: 'Test User',
-    location: 'San Francisco, CA',
-    currency: 'USD'
-  };
+  // Each test builds its own user from a fresh timestamp — a single shared
+  // user across tests in this file caused "Username already registered"
+  // failures whenever more than one test tried to register it.
+  function makeUser(prefix: string) {
+    const timestamp = Date.now();
+    return {
+      email: `${prefix}${timestamp}@example.com`,
+      username: `${prefix}${timestamp}`,
+      password: 'Test123!@#',
+      fullName: 'Test User',
+      location: 'San Francisco, CA',
+      currency: 'USD'
+    };
+  }
 
   test('complete workflow: user registration with all fields', async ({ page }) => {
+    const testUser = makeUser('testuser');
     await page.goto('/register');
 
     // Verify we're on the registration page
@@ -37,6 +43,7 @@ test.describe('Authentication Feature - Critical User Journeys', () => {
   });
 
   test('complete workflow: user login', async ({ page }) => {
+    const testUser = makeUser('loginuser');
     // First register a user
     await page.goto('/register');
     await page.getByLabel(/Email/i).fill(testUser.email);
@@ -63,6 +70,7 @@ test.describe('Authentication Feature - Critical User Journeys', () => {
   });
 
   test('logout redirects to login page', async ({ page, context }) => {
+    const testUser = makeUser('logoutuser');
     // Register and login a user
     await page.goto('/register');
     await page.getByLabel(/Email/i).fill(testUser.email);
@@ -98,6 +106,7 @@ test.describe('Authentication Feature - Critical User Journeys', () => {
   });
 
   test('authenticated user accessing root redirects to networth', async ({ page }) => {
+    const testUser = makeUser('rootredirect');
     // Register a user
     await page.goto('/register');
     await page.getByLabel(/Email/i).fill(testUser.email);
@@ -114,6 +123,7 @@ test.describe('Authentication Feature - Critical User Journeys', () => {
   });
 
   test('registration validation: short password', async ({ page }) => {
+    const testUser = makeUser('shortpw');
     await page.goto('/register');
 
     await page.getByLabel(/Email/i).fill(testUser.email);
@@ -150,6 +160,7 @@ test.describe('Authentication Feature - Critical User Journeys', () => {
   });
 
   test('registration with minimal required fields only', async ({ page }) => {
+    const timestamp = Date.now();
     const minimalUser = {
       email: `minimal${timestamp}@example.com`,
       username: `minimal${timestamp}`,

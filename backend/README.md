@@ -142,11 +142,7 @@ statement = await txn_repo.get_account_statement(
 Set environment variables or create `.env`:
 
 ```bash
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=aimoney
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/aimoney
 ```
 
 **Connection URL**:
@@ -157,7 +153,7 @@ postgresql://postgres:postgres@localhost:5432/aimoney
 ## Development Setup
 
 ### Prerequisites
-- Python 3.10.5 or higher
+- Python 3.12
 - PostgreSQL 14+
 - [uv](https://docs.astral.sh/uv/) package manager
 
@@ -190,7 +186,7 @@ uv run pytest tests/ -v
 
 ## Migrations and Deployment
 
-The schema is managed by Alembic. The application does not create tables on startup and exits with a clear error if migrations are missing.
+The schema is managed by Alembic only; the application never creates tables.
 
 ```bash
 uv run alembic upgrade head
@@ -198,8 +194,7 @@ uv run alembic upgrade head
 
 - Run this as a release step before starting a new version.
 - Name search needs the `pg_trgm` Postgres extension. The migration creates it (`CREATE EXTENSION IF NOT EXISTS pg_trgm`), which works for a normal role on Postgres 13+ when the contrib package is installed. If your role cannot create extensions, run `CREATE EXTENSION pg_trgm;` once as an admin first.
-- A database created before Alembic was adopted: `uv run alembic stamp 0001`, then `uv run alembic upgrade head`.
-- Scraper: `uv run python -m scraping run sebi_ria` for a single run, `uv run python -m scraping worker` for the weekly scheduler (`SCRAPE_SCHEDULE_CRON`, default Sundays 03:00 IST). When deployed, run the worker as its own process using the same image.
+- Scraper: `uv run python -m scraping run sebi_ria` runs once; `uv run python -m scraping worker` is a long-running weekly scheduler (`SCRAPE_SCHEDULE_CRON`, default Sundays 03:00 IST). The API runs on Lambda, which cannot host a long-running process, so in production either trigger `run sebi_ria` from an external schedule (for example EventBridge starting a container task) or run the worker as its own always-on service. Not set up yet.
 
 ## Key Features
 

@@ -439,10 +439,10 @@ def test_sliding_window_forgets_old_hits():
 
 
 def test_public_read_limit_defaults_to_240_and_is_configurable(monkeypatch):
-    from api.config import ApiSettings
+    from app_config import AppSettings
 
     monkeypatch.delenv("PUBLIC_READ_LIMIT_PER_MINUTE", raising=False)
-    assert ApiSettings(_env_file=None).public_read_limit_per_minute == 240
+    assert AppSettings(_env_file=None).public_read_limit_per_minute == 240
 
     monkeypatch.setenv("PUBLIC_READ_LIMIT_PER_MINUTE", "7")
-    assert ApiSettings(_env_file=None).public_read_limit_per_minute == 7
+    assert AppSettings(_env_file=None).public_read_limit_per_minute == 7

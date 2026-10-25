@@ -4,7 +4,7 @@ from typing import Callable
 
 from fastapi import HTTPException, Request
 
-from api.config import get_api_settings
+from app_config import get_app_settings
 
 PUBLIC_READ_WINDOW_SECONDS = 60
 
@@ -36,7 +36,7 @@ class SlidingWindowLimiter:
 
 
 public_read_limiter = SlidingWindowLimiter(
-    get_api_settings().public_read_limit_per_minute, PUBLIC_READ_WINDOW_SECONDS
+    get_app_settings().public_read_limit_per_minute, PUBLIC_READ_WINDOW_SECONDS
 )
 
 

@@ -4,36 +4,33 @@ Pytest fixtures for database testing with PostgreSQL.
 
 import asyncio
 import os
-import subprocess
-import sys
 from datetime import date
-from pathlib import Path
 from typing import AsyncGenerator
 
 import pytest
 import pytest_asyncio
 from sqlalchemy import text
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     create_async_engine,
     async_sessionmaker,
 )
 
+os.environ.setdefault("SECRET_KEY", "pytest-secret-key")
+os.environ.setdefault(
+    "DATABASE_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/fireons_development"
+)
+
 from database.config import get_settings
-from database.models import Base, Account
+from database.models import Base, Account, User
 from database.repository import AccountRepository, TransactionRepository
 
 # Test database configuration
-settings = get_settings()
-TEST_DB_NAME = f"{settings.postgres_db}_test"
-TEST_DATABASE_URL = (
-    f"postgresql+psycopg://{settings.postgres_user}:{settings.postgres_password}"
-    f"@{settings.postgres_host}:{settings.postgres_port}/{TEST_DB_NAME}"
-)
-ADMIN_DATABASE_URL = (
-    f"postgresql+psycopg://{settings.postgres_user}:{settings.postgres_password}"
-    f"@{settings.postgres_host}:{settings.postgres_port}/postgres"
-)
+_base_url = make_url(get_settings().database_url)
+TEST_DB_NAME = "fireons_test"
+TEST_DATABASE_URL = _base_url.set(database=TEST_DB_NAME).render_as_string(hide_password=False)
+ADMIN_DATABASE_URL = _base_url.set(database="postgres").render_as_string(hide_password=False)
 
 
 @pytest.fixture(scope="session")
@@ -56,12 +53,10 @@ async def setup_test_database():
 
     await admin_engine.dispose()
 
-    subprocess.run(
-        [sys.executable, "-m", "alembic", "upgrade", "head"],
-        cwd=Path(__file__).resolve().parent.parent,
-        env={**os.environ, "DATABASE_URL": TEST_DATABASE_URL},
-        check=True,
-    )
+    test_engine = create_async_engine(TEST_DATABASE_URL, isolation_level="AUTOCOMMIT")
+    async with test_engine.connect() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+    await test_engine.dispose()
 
     yield
 
@@ -89,13 +84,15 @@ async def engine(setup_test_database):
         echo=False,
     )
 
+    # Create all tables
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
     yield engine
 
+    # Drop all tables after test
     async with engine.begin() as conn:
-        table_names = ", ".join(
-            f'"{table.name}"' for table in Base.metadata.sorted_tables
-        )
-        await conn.execute(text(f"TRUNCATE {table_names} RESTART IDENTITY CASCADE"))
+        await conn.run_sync(Base.metadata.drop_all)
 
     await engine.dispose()
 
@@ -125,7 +122,19 @@ async def transaction_repo(session: AsyncSession) -> TransactionRepository:
 
 
 @pytest_asyncio.fixture
-async def sample_accounts(account_repo: AccountRepository) -> dict[str, Account]:
+async def test_user(session: AsyncSession) -> User:
+    user = User(
+        email="fixture-test@example.com",
+        username="fixture_test_user",
+        hashed_password="unused-in-these-tests",
+    )
+    session.add(user)
+    await session.flush()
+    return user
+
+
+@pytest_asyncio.fixture
+async def sample_accounts(account_repo: AccountRepository, test_user: User) -> dict[str, Account]:
     accounts = {}
 
     account_data = [
@@ -145,6 +154,7 @@ async def sample_accounts(account_repo: AccountRepository) -> dict[str, Account]
             open_date=date(2024, 1, 1),
             currency=currency,
             description=description,
+            user_id=test_user.id,
         )
         key = name.split(":")[-1]
         accounts[key] = account

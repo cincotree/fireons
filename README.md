@@ -9,6 +9,17 @@ A personal finance tracker for managing net worth and accounts.
 
 ### Setup
 
+#### Quick start
+With [uv](https://docs.astral.sh/uv/), Node.js 22 and Docker installed, run from the repository root:
+
+```bash
+make setup
+```
+
+This installs backend, frontend and e2e dependencies, creates `backend/.env` and `frontend/.env.local` from the samples if missing, starts a Postgres container on port 5432, creates the `fireons_development` and `fireons_e2e` databases, and applies migrations. It is safe to rerun. Backend tests create and drop their own `fireons_test` database.
+
+The sections below describe the same steps by hand, for example to use a Postgres you installed yourself.
+
 #### PostgreSQL Database
 The application requires PostgreSQL to be installed and running. Set up the database:
 
@@ -21,7 +32,11 @@ The application requires PostgreSQL to be installed and running. Set up the data
 psql postgres -c "CREATE ROLE postgres WITH LOGIN PASSWORD 'postgres' SUPERUSER CREATEDB CREATEROLE;"
 ```
 
-3. The application will automatically create the database when it runs.
+3. Create the databases and apply migrations (after the backend setup below):
+```bash
+make db-create
+make migrate
+```
 
 #### Backend
 - Install [uv](https://docs.astral.sh/uv/) package manager

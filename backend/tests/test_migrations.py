@@ -1,13 +1,53 @@
-import os
-import subprocess
-import sys
-from pathlib import Path
+import asyncio
 
+from alembic import command
+from alembic.config import Config
+from alembic.runtime.migration import MigrationContext
+from alembic.autogenerate import compare_metadata
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
 
+from database.models import Base
 from tests.conftest import TEST_DATABASE_URL
 
-BACKEND_DIR = Path(__file__).resolve().parent.parent
+
+def _alembic_config() -> Config:
+    return Config("alembic.ini")
+
+
+async def _schema_diff() -> list:
+    engine = create_async_engine(TEST_DATABASE_URL)
+    try:
+        async with engine.connect() as connection:
+            return await connection.run_sync(
+                lambda sync_connection: compare_metadata(MigrationContext.configure(sync_connection), Base.metadata)
+            )
+    finally:
+        await engine.dispose()
+
+
+def test_migrations_build_the_schema_the_models_describe(engine, monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", TEST_DATABASE_URL)
+    from database.config import get_settings
+
+    get_settings.cache_clear()
+    try:
+        asyncio.run(_drop_all())
+        command.upgrade(_alembic_config(), "head")
+        assert asyncio.run(_schema_diff()) == []
+        command.downgrade(_alembic_config(), "base")
+        command.upgrade(_alembic_config(), "head")
+    finally:
+        get_settings.cache_clear()
+
+
+async def _drop_all() -> None:
+    engine = create_async_engine(TEST_DATABASE_URL)
+    try:
+        async with engine.begin() as connection:
+            await connection.run_sync(Base.metadata.drop_all)
+    finally:
+        await engine.dispose()
 
 
 async def test_pg_trgm_extension_is_installed(engine):
@@ -39,14 +79,3 @@ async def test_trigram_index_is_usable_for_substring_search(engine):
             )
         ).all()
     assert "ix_financial_professionals_name_trgm" in "\n".join(row[0] for row in plan)
-
-
-def test_models_and_migrations_are_in_sync(setup_test_database):
-    result = subprocess.run(
-        [sys.executable, "-m", "alembic", "check"],
-        cwd=BACKEND_DIR,
-        env={**os.environ, "DATABASE_URL": TEST_DATABASE_URL},
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0, result.stdout + result.stderr

@@ -24,13 +24,9 @@ const NAMED: SeedRegistration[] = [
 ];
 
 async function connect() {
-  const client = new Client({
-    host: process.env.POSTGRES_HOST || 'localhost',
-    port: parseInt(process.env.POSTGRES_PORT || '5432'),
-    database: process.env.POSTGRES_DB || 'fireons_test',
-    user: process.env.POSTGRES_USER || 'postgres',
-    password: process.env.POSTGRES_PASSWORD || 'postgres',
-  });
+  const databaseUrl =
+    process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/fireons_e2e';
+  const client = new Client({ connectionString: databaseUrl.replace('+psycopg', '') });
   await client.connect();
   return client;
 }

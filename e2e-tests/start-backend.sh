@@ -1,9 +1,14 @@
 #!/bin/bash
 
+set -e
+
 cd ../backend
 
-echo "Applying database migrations..."
-TESTING=true uv run alembic upgrade head
+export TESTING=true
+export PUBLIC_READ_LIMIT_PER_MINUTE=100000
+
+echo "Migrating test database..."
+uv run alembic upgrade head
 
 echo "Starting backend server on port 8020..."
-PUBLIC_READ_LIMIT_PER_MINUTE=100000 TESTING=true uv run uvicorn app:app --port 8020
+uv run uvicorn app:app --port 8020

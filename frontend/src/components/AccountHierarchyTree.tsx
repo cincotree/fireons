@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ChevronRight, ChevronDown, Pencil } from "lucide-react";
+import { getCurrencyColor, getCurrencySymbol } from "@/utils/currencies";
 
 interface Account {
   id: string;
@@ -10,27 +11,28 @@ interface Account {
   currency: string;
   balance: number | null;
   balance_in_display_currency: number | null;
+  rate_available: boolean;
 }
 
-interface TreeNode {
+interface TreeNode<T extends Account> {
   name: string;
   fullPath: string;
-  children: Map<string, TreeNode>;
-  account: Account | null;
+  children: Map<string, TreeNode<T>>;
+  account: T | null;
   isExpanded: boolean;
 }
 
-interface AccountHierarchyTreeProps {
-  accounts: Account[];
-  onAccountClick?: (account: Account) => void;
+interface AccountHierarchyTreeProps<T extends Account> {
+  accounts: T[];
+  onAccountClick?: (account: T) => void;
   currency?: string;
 }
 
-export function AccountHierarchyTree({
+export function AccountHierarchyTree<T extends Account>({
   accounts,
   onAccountClick,
-  currency = "USD",
-}: AccountHierarchyTreeProps) {
+  currency = "INR",
+}: AccountHierarchyTreeProps<T>) {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => {
     const allPaths = new Set<string>();
     accounts.forEach((account) => {
@@ -46,28 +48,8 @@ export function AccountHierarchyTree({
     return allPaths;
   });
 
-  const getCurrencyColor = (currencyCode: string): string => {
-    const colors: Record<string, string> = {
-      USD: "#22c55e", // green
-      INR: "#f97316", // orange
-      EUR: "#3b82f6", // blue
-      GBP: "#a855f7", // purple
-    };
-    return colors[currencyCode] || "#6b7280"; // default gray
-  };
-
-  const getCurrencySymbol = (currencyCode: string): string => {
-    const symbols: Record<string, string> = {
-      USD: "$",
-      INR: "₹",
-      EUR: "€",
-      GBP: "£",
-    };
-    return symbols[currencyCode] || currencyCode;
-  };
-
-  const buildTree = (): Map<string, TreeNode> => {
-    const root = new Map<string, TreeNode>();
+  const buildTree = (): Map<string, TreeNode<T>> => {
+    const root = new Map<string, TreeNode<T>>();
 
     accounts.forEach((account) => {
       const parts = account.name.split(":");
@@ -119,7 +101,7 @@ export function AccountHierarchyTree({
     }).format(amount);
   };
 
-  const calculateNodeTotal = (node: TreeNode): number => {
+  const calculateNodeTotal = (node: TreeNode<T>): number => {
     if (node.account) {
       const balance = node.account.balance_in_display_currency;
       if (balance === null || balance === undefined) {
@@ -140,7 +122,7 @@ export function AccountHierarchyTree({
     return total;
   };
 
-  const renderNode = (node: TreeNode, level: number = 0) => {
+  const renderNode = (node: TreeNode<T>, level: number = 0) => {
     const hasChildren = node.children.size > 0;
     const isExpanded = expandedNodes.has(node.fullPath);
     const paddingLeft = level * 24;
@@ -200,13 +182,15 @@ export function AccountHierarchyTree({
             )}
           </div>
           <div className="col-span-3 text-right text-sm text-gray-600">
-            {node.account && node.account.balance !== null
-              ? new Intl.NumberFormat("en-US", {
-                  style: "currency",
-                  currency: node.account.currency,
-                  minimumFractionDigits: 2,
-                }).format(node.account.balance)
-              : ""}
+            {node.account && !node.account.rate_available ? (
+              <span className="text-amber-600" title="Exchange rate unavailable">
+                rate unavailable
+              </span>
+            ) : node.account && node.account.balance_in_display_currency !== null ? (
+              formatCurrency(node.account.balance_in_display_currency)
+            ) : (
+              ""
+            )}
           </div>
           <div className="col-span-3 text-right text-sm font-semibold text-gray-700">
             {hasChildren && nodeTotal !== 0 ? formatCurrency(nodeTotal) : ""}

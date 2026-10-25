@@ -23,10 +23,10 @@ npm run report        # View HTML test report
 
 ## Database Setup
 
-Tests use a separate `fireons_test` database for complete isolation:
+Tests use a separate `fireons_e2e` database for complete isolation. `make setup` (or `make db-create`) from the repository root creates it:
 
 ```bash
-createdb fireons_test
+make db-create
 ```
 
 Test data is automatically cleaned up after each run.
@@ -35,7 +35,7 @@ Test data is automatically cleaned up after each run.
 
 - Frontend: `http://localhost:3020`
 - Backend: `http://localhost:8020`
-- Test Database: `fireons_test`
+- Test Database: `fireons_e2e`
 
 Override with environment variables:
 ```bash

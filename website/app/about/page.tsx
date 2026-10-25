@@ -27,7 +27,7 @@ export default function About() {
         <div className="prose prose-lg max-w-none">
           <h2 className="text-3xl font-bold text-gray-900 mb-4">The FIRE Movement</h2>
           <p className="text-gray-700 mb-6">
-            FIRE stands for <strong>Financial Independence, Retire Early</strong>. It's a lifestyle movement focused on
+            FIRE stands for <strong>Financial Independence, Retire Early</strong>. It&apos;s a lifestyle movement focused on
             extreme savings and investment that allows people to retire far earlier than traditional budgets and
             retirement plans would permit.
           </p>
