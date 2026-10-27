@@ -1,7 +1,9 @@
+from scraping.sources.amfi_arn import AmfiArnSource
 from scraping.sources.base import Source
 from scraping.sources.sebi_ria import SebiRiaSource
 
 SOURCES: dict[str, type[Source]] = {
+    AmfiArnSource.definition.key: AmfiArnSource,
     SebiRiaSource.definition.key: SebiRiaSource,
 }
 

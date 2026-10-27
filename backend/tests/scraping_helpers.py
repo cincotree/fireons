@@ -53,3 +53,36 @@ def sebi_client(pages: list[str], **kwargs) -> PoliteClient:
         return None
 
     return PoliteClient(fast_settings(), transport=sebi_transport(pages, **kwargs), sleep=no_sleep)
+
+
+def amfi_transport(
+    rows_by_city: dict[str, list[dict]],
+    cities: list[str],
+    page_size: int = 50,
+    api_status: int = 200,
+    locate_status: int = 200,
+) -> httpx.MockTransport:
+    from tests.fixtures.generate_amfi_fixtures import render_api_page, render_locate_page
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/locate-distributor":
+            if locate_status != 200:
+                return httpx.Response(locate_status, text="unavailable")
+            return httpx.Response(200, text=render_locate_page(cities))
+        if api_status != 200:
+            return httpx.Response(api_status, text="unavailable")
+        params = request.url.params
+        city = params["city"]
+        payload = render_api_page(rows_by_city, city, int(params["page"]), page_size)
+        return httpx.Response(200, json=payload)
+
+    return httpx.MockTransport(handler)
+
+
+def amfi_client(rows_by_city: dict[str, list[dict]], cities: list[str], **kwargs) -> PoliteClient:
+    async def no_sleep(_: float) -> None:
+        return None
+
+    return PoliteClient(
+        fast_settings(), transport=amfi_transport(rows_by_city, cities, **kwargs), sleep=no_sleep
+    )
