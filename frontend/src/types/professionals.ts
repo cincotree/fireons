@@ -1,3 +1,36 @@
+export interface NriSummary {
+  confidence: "high" | "medium" | "low";
+  signal_count: number;
+  confirmed: boolean;
+  website_url: string | null;
+}
+
+export interface NriSignal {
+  id: string;
+  page_url: string;
+  signal_type: string;
+  matched_text: string;
+  location: string;
+  confidence: "high" | "medium" | "low";
+  review_status: "pending" | "confirmed" | "rejected";
+  last_seen_at: string;
+}
+
+export interface NriWebsite {
+  url: string;
+  domain: string;
+  derived_from: string;
+  check_status: string;
+  pages_checked: number;
+  last_checked_at: string | null;
+}
+
+export interface NriDetail {
+  registration_id: string;
+  website: NriWebsite | null;
+  signals: NriSignal[];
+}
+
 export interface Registration {
   id: string;
   professional_id: string;
@@ -23,6 +56,7 @@ export interface Registration {
   first_seen_at: string;
   last_seen_at: string;
   last_changed_at: string;
+  nri: NriSummary | null;
 }
 
 export interface RegistrationPage {

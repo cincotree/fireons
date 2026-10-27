@@ -11,7 +11,9 @@ from api.public_rate_limit import limit_public_reads
 from database.models import (
     DataSource,
     FinancialProfessional,
+    NriSignal,
     ProfessionalRegistration,
+    ProfessionalWebsite,
     RegistrationVersion,
     ScrapeRun,
 )
@@ -25,6 +27,13 @@ MAX_SEARCH_TOKENS = 8
 FUZZY_MIN_TOKEN_LENGTH = 4
 FUZZY_WORD_SIMILARITY = "0.4"
 
+NRI_CONFIDENCE_RANK = {"high": 3, "medium": 2, "low": 1}
+NRI_MIN_CONFIDENCES = {
+    "high": ["high"],
+    "medium": ["high", "medium"],
+    "low": ["high", "medium", "low"],
+}
+
 MultiValue = Annotated[list[str], Query(max_length=MAX_FILTER_VALUES)]
 
 
@@ -37,6 +46,13 @@ router = APIRouter(
     tags=["registrations"],
     dependencies=[Depends(limit_public_reads)],
 )
+
+
+class NriSummary(BaseModel):
+    confidence: str
+    signal_count: int
+    confirmed: bool
+    website_url: Optional[str]
 
 
 class RegistrationResponse(BaseModel):
@@ -64,6 +80,7 @@ class RegistrationResponse(BaseModel):
     first_seen_at: datetime
     last_seen_at: datetime
     last_changed_at: datetime
+    nri: Optional[NriSummary] = None
 
 
 class RegistrationPage(BaseModel):
@@ -89,6 +106,32 @@ class SourceResponse(BaseModel):
     total_registrations: int
     last_run: Optional[RunInfo]
     last_success_at: Optional[datetime]
+
+
+class NriSignalResponse(BaseModel):
+    id: str
+    page_url: str
+    signal_type: str
+    matched_text: str
+    location: str
+    confidence: str
+    review_status: str
+    last_seen_at: datetime
+
+
+class NriWebsiteResponse(BaseModel):
+    url: str
+    domain: str
+    derived_from: str
+    check_status: str
+    pages_checked: int
+    last_checked_at: Optional[datetime]
+
+
+class NriDetailResponse(BaseModel):
+    registration_id: str
+    website: Optional[NriWebsiteResponse]
+    signals: list[NriSignalResponse]
 
 
 class FacetsResponse(BaseModel):
@@ -148,6 +191,44 @@ def _to_response(
         last_seen_at=registration.last_seen_at,
         last_changed_at=registration.last_changed_at,
     )
+
+
+async def _nri_summaries(
+    session: AsyncSession, professional_ids: list[str]
+) -> dict[str, NriSummary]:
+    if not professional_ids:
+        return {}
+    rows = (
+        await session.execute(
+            select(
+                NriSignal.professional_id,
+                NriSignal.confidence,
+                NriSignal.review_status,
+                ProfessionalWebsite.url,
+            )
+            .join(ProfessionalWebsite, ProfessionalWebsite.id == NriSignal.website_id)
+            .where(
+                NriSignal.professional_id.in_(professional_ids),
+                NriSignal.review_status != "rejected",
+            )
+        )
+    ).all()
+    summaries: dict[str, NriSummary] = {}
+    for professional_id, confidence, review_status, website_url in rows:
+        current = summaries.get(professional_id)
+        if current is None:
+            summaries[professional_id] = NriSummary(
+                confidence=confidence,
+                signal_count=1,
+                confirmed=review_status == "confirmed",
+                website_url=website_url,
+            )
+            continue
+        current.signal_count += 1
+        current.confirmed = current.confirmed or review_status == "confirmed"
+        if NRI_CONFIDENCE_RANK[confidence] > NRI_CONFIDENCE_RANK[current.confidence]:
+            current.confidence = confidence
+    return summaries
 
 
 def _base_query():
@@ -281,6 +362,7 @@ async def list_registrations(
     state: MultiValue = [],
     city: MultiValue = [],
     status: Optional[Literal["active", "expired", "delisted"]] = None,
+    nri: Optional[Literal["high", "medium", "low"]] = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=25, ge=1, le=MAX_PAGE_SIZE),
     session: AsyncSession = Depends(get_session),
@@ -296,6 +378,17 @@ async def list_registrations(
         conditions.append(func.lower(ProfessionalRegistration.state).in_(_lowered(state)))
     if _lowered(city):
         conditions.append(func.lower(ProfessionalRegistration.city).in_(_lowered(city)))
+
+    if nri:
+        conditions.append(
+            select(NriSignal.id)
+            .where(
+                NriSignal.professional_id == ProfessionalRegistration.professional_id,
+                NriSignal.review_status != "rejected",
+                NriSignal.confidence.in_(NRI_MIN_CONFIDENCES[nri]),
+            )
+            .exists()
+        )
 
     ranking = []
     if q and q.strip():
@@ -328,8 +421,15 @@ async def list_registrations(
         .offset((page - 1) * page_size)
         .limit(page_size)
     )
+    results = rows.all()
+    summaries = await _nri_summaries(session, [row[1].id for row in results])
+    items = []
+    for row in results:
+        item = _to_response(*row)
+        item.nri = summaries.get(row[1].id)
+        items.append(item)
     return RegistrationPage(
-        items=[_to_response(*row) for row in rows.all()],
+        items=items,
         total=total or 0,
         page=page,
         page_size=page_size,
@@ -354,6 +454,52 @@ async def _load_registration(session: AsyncSession, registration_id: str):
 @router.get("/{registration_id}", response_model=RegistrationResponse)
 async def get_registration(registration_id: str, session: AsyncSession = Depends(get_session)):
     return _to_response(*await _load_registration(session, registration_id))
+
+
+@router.get("/{registration_id}/nri", response_model=NriDetailResponse)
+async def get_registration_nri(registration_id: str, session: AsyncSession = Depends(get_session)):
+    registration, professional, _ = await _load_registration(session, registration_id)
+    website = await session.scalar(
+        select(ProfessionalWebsite)
+        .where(ProfessionalWebsite.professional_id == professional.id)
+        .order_by(ProfessionalWebsite.domain)
+        .limit(1)
+    )
+    signals = (
+        await session.scalars(
+            select(NriSignal)
+            .where(NriSignal.professional_id == professional.id, NriSignal.review_status != "rejected")
+        )
+    ).all()
+    signals = sorted(
+        signals, key=lambda signal: (-NRI_CONFIDENCE_RANK[signal.confidence], signal.page_url)
+    )
+    return NriDetailResponse(
+        registration_id=registration.id,
+        website=NriWebsiteResponse(
+            url=website.url,
+            domain=website.domain,
+            derived_from=website.derived_from,
+            check_status=website.check_status,
+            pages_checked=website.pages_checked,
+            last_checked_at=website.last_checked_at,
+        )
+        if website
+        else None,
+        signals=[
+            NriSignalResponse(
+                id=signal.id,
+                page_url=signal.page_url,
+                signal_type=signal.signal_type,
+                matched_text=signal.matched_text,
+                location=signal.location,
+                confidence=signal.confidence,
+                review_status=signal.review_status,
+                last_seen_at=signal.last_seen_at,
+            )
+            for signal in signals
+        ],
+    )
 
 
 @router.get("/{registration_id}/history", response_model=HistoryResponse)

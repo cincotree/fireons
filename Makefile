@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 
 .PHONY: help setup install env db db-create migrate \
-	backend-setup backend backend-test scrape scraper-worker \
+	backend-setup backend backend-test scrape enrich-nri scraper-worker \
 	compose-up compose-up-scraper compose-down \
 	frontend-setup frontend frontend-build frontend-lint \
 	e2e-setup e2e e2e-headed e2e-ui e2e-debug e2e-report \
@@ -26,8 +26,9 @@ help:
 	@echo "  frontend         Start the frontend dev server"
 	@echo ""
 	@echo "Registry scraper"
-	@echo "  scrape              Run the SEBI scraper once"
+	@echo "  scrape              Run one scraper once (SOURCE=sebi_ria or amfi_arn)"
 	@echo "  scraper-worker      Run the weekly scraper scheduler in the foreground"
+	@echo "  enrich-nri          Check firm websites for NRI signals (python -m enrichment review-queue to review)"
 	@echo ""
 	@echo "Docker (local)"
 	@echo "  compose-up          Start Postgres, migrations, backend and frontend in Docker"
@@ -64,8 +65,13 @@ db-create:
 migrate:
 	cd backend && uv run alembic upgrade head
 
+SOURCE ?= sebi_ria
+
 scrape:
-	cd backend && uv run python -m scraping run sebi_ria
+	cd backend && uv run python -m scraping run $(SOURCE)
+
+enrich-nri:
+	cd backend && uv run python -m enrichment nri
 
 scraper-worker:
 	cd backend && uv run python -m scraping worker

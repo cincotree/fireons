@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Monogram } from "@/components/Monogram";
 import { MultiSelect } from "@/components/MultiSelect";
+import { NriBadge } from "@/components/NriBadge";
 import { RegistrationHistoryModal } from "@/components/RegistrationHistoryModal";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getBaseHttpUrl } from "@/utils/api";
@@ -27,6 +28,11 @@ import { Facets, ProfessionalSource, Registration, RegistrationPage } from "@/ty
 const PAGE_SIZE = 25;
 const SEARCH_DEBOUNCE_MS = 300;
 const NO_FACETS: Facets = { states: [], cities: [], profession_types: [] };
+const NRI_FILTER_OPTIONS = [
+  { value: "high", label: "NRI: high confidence" },
+  { value: "medium", label: "NRI: medium or higher" },
+  { value: "low", label: "NRI: any signal" },
+];
 const FOCUS_RING =
   "focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0E6B57] focus-visible:ring-offset-2 focus-visible:ring-offset-[#E8F0ED]";
 const CONTROL =
@@ -79,7 +85,7 @@ function SkeletonRows() {
     <>
       {Array.from({ length: 6 }).map((_, index) => (
         <TableRow key={index} className="block border-[#E6ECE9] md:table-row">
-          <TableCell className="block px-5 py-4 md:table-cell" colSpan={5}>
+          <TableCell className="block px-5 py-4 md:table-cell" colSpan={6}>
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 animate-pulse rounded-xl bg-[#E8F0ED] motion-reduce:animate-none" />
               <div className="space-y-2">
@@ -102,6 +108,7 @@ export function ProfessionalDirectory() {
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState<string[]>([]);
   const [cityFilter, setCityFilter] = useState<string[]>([]);
+  const [nriFilter, setNriFilter] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [data, setData] = useState<RegistrationPage | null>(null);
@@ -146,6 +153,7 @@ export function ProfessionalDirectory() {
     if (search) params.set("q", search);
     stateFilter.forEach((name) => params.append("state", name));
     cityFilter.forEach((name) => params.append("city", name));
+    if (nriFilter) params.set("nri", nriFilter);
     setLoading(true);
     setError(null);
     fetchJson<RegistrationPage>(
@@ -164,7 +172,7 @@ export function ProfessionalDirectory() {
     return () => {
       cancelled = true;
     };
-  }, [sourceKey, search, stateFilter, cityFilter, page, reloadToken]);
+  }, [sourceKey, search, stateFilter, cityFilter, nriFilter, page, reloadToken]);
 
   const total = data?.total ?? 0;
   const firstShown = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
@@ -200,6 +208,16 @@ export function ProfessionalDirectory() {
       kind: "city",
       clear: () => setCityFilter((current) => current.filter((item) => item !== name)),
     })),
+    ...(nriFilter
+      ? [
+          {
+            key: `nri:${nriFilter}`,
+            label: NRI_FILTER_OPTIONS.find((option) => option.value === nriFilter)?.label ?? nriFilter,
+            kind: "NRI",
+            clear: () => setNriFilter(""),
+          },
+        ]
+      : []),
   ];
   const activeFilterCount = appliedFilters.length;
 
@@ -209,6 +227,7 @@ export function ProfessionalDirectory() {
     setSourceKey("");
     setStateFilter([]);
     setCityFilter([]);
+    setNriFilter("");
     setPage(1);
   };
 
@@ -300,6 +319,16 @@ export function ProfessionalDirectory() {
                 }}
                 triggerClassName={`${CONTROL} ${FOCUS_RING}`}
               />
+              <FilterSelect
+                label="NRI signals"
+                allLabel="Any NRI signal status"
+                value={nriFilter}
+                options={NRI_FILTER_OPTIONS}
+                onChange={(value) => {
+                  setNriFilter(value);
+                  setPage(1);
+                }}
+              />
             </div>
           )}
 
@@ -355,6 +384,7 @@ export function ProfessionalDirectory() {
                 <TableHead className="h-11 px-4 text-xs font-semibold text-[#66766F]">Registration no.</TableHead>
                 <TableHead className="h-11 px-4 text-xs font-semibold text-[#66766F]">Location</TableHead>
                 <TableHead className="h-11 px-4 text-xs font-semibold text-[#66766F]">Contact</TableHead>
+                <TableHead className="h-11 px-4 text-xs font-semibold text-[#66766F]">NRI</TableHead>
                 <TableHead className="h-11 px-4 text-xs font-semibold text-[#66766F]">Source</TableHead>
               </TableRow>
             </TableHeader>
@@ -425,6 +455,17 @@ export function ProfessionalDirectory() {
                       )}
                       {!registration.email && !registration.phone && <span className="text-[#7D8C86]">—</span>}
                     </div>
+                  </TableCell>
+                  <TableCell className="block p-0 pt-2 md:table-cell md:px-4 md:py-4">
+                    {registration.nri ? (
+                      <NriBadge
+                        nri={registration.nri}
+                        name={registration.name}
+                        onClick={() => setSelected(registration)}
+                      />
+                    ) : (
+                      <span className="text-sm text-[#7D8C86]">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="block p-0 pt-2 md:table-cell md:px-4 md:py-4">
                     <a

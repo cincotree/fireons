@@ -13,6 +13,10 @@ class ScrapeSettings(BaseSettings):
     scrape_schedule_timezone: str = "Asia/Kolkata"
     scrape_completeness_ratio: float = 0.98
     scrape_delist_after_missed_runs: int = 2
+    nri_max_pages_per_site: int = 5
+    nri_recheck_days: int = 30
+    nri_shared_domain_limit: int = 3
+    nri_max_page_bytes: int = 1_500_000
 
     class Config:
         env_file = ".env"

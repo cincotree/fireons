@@ -550,3 +550,80 @@ class RegistrationVersion(Base):
         UniqueConstraint("registration_id", "run_id", name="uq_version_registration_run"),
         Index("ix_versions_registration_scraped", "registration_id", "scraped_at"),
     )
+
+
+class ProfessionalWebsite(Base):
+    __tablename__ = "professional_websites"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    professional_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("financial_professionals.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    domain: Mapped[str] = mapped_column(String(255), nullable=False)
+    url: Mapped[str] = mapped_column(Text, nullable=False)
+    derived_from: Mapped[str] = mapped_column(String(50), nullable=False)
+    check_status: Mapped[str] = mapped_column(String(30), nullable=False)
+    pages_checked: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    last_checked_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    professional: Mapped["FinancialProfessional"] = relationship()
+    signals: Mapped[list["NriSignal"]] = relationship(
+        back_populates="website", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        UniqueConstraint("professional_id", "domain", name="uq_website_professional_domain"),
+        Index("ix_websites_last_checked", "last_checked_at"),
+    )
+
+
+class NriSignal(Base):
+    __tablename__ = "nri_signals"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    website_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("professional_websites.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    professional_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("financial_professionals.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    page_url: Mapped[str] = mapped_column(Text, nullable=False)
+    signal_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    matched_text: Mapped[str] = mapped_column(Text, nullable=False)
+    text_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    location: Mapped[str] = mapped_column(String(30), nullable=False)
+    confidence: Mapped[str] = mapped_column(String(10), nullable=False)
+    review_status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    first_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    website: Mapped["ProfessionalWebsite"] = relationship(back_populates="signals")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "website_id", "page_url", "signal_type", "text_hash", name="uq_signal_identity"
+        ),
+        Index("ix_nri_signals_professional", "professional_id"),
+        Index("ix_nri_signals_review", "review_status", "confidence"),
+    )

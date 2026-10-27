@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { BadgeCheck, ExternalLink, Mail, MapPin, Phone, User, X } from "lucide-react";
 import { Monogram } from "@/components/Monogram";
 import { getBaseHttpUrl } from "@/utils/api";
-import { Registration, RegistrationHistory } from "@/types/professionals";
+import { CONFIDENCE_LABELS } from "@/components/NriBadge";
+import { NriDetail, Registration, RegistrationHistory } from "@/types/professionals";
 
 const FIELD_LABELS: Record<string, string> = {
   name: "Name",
@@ -58,6 +59,8 @@ export function RegistrationHistoryModal({ registration, onClose }: Props) {
   const [history, setHistory] = useState<RegistrationHistory | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [nriDetail, setNriDetail] = useState<NriDetail | null>(null);
+  const [nriError, setNriError] = useState<string | null>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -79,6 +82,27 @@ export function RegistrationHistoryModal({ registration, onClose }: Props) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Could not load history.");
       } finally {
         if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [registration]);
+
+  useEffect(() => {
+    setNriDetail(null);
+    setNriError(null);
+    if (!registration?.nri) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const baseUrl = await getBaseHttpUrl();
+        const response = await fetch(`${baseUrl}/api/registrations/${registration.id}/nri`);
+        if (!response.ok) throw new Error("Could not load NRI signals. Please try again.");
+        const data: NriDetail = await response.json();
+        if (!cancelled) setNriDetail(data);
+      } catch (err) {
+        if (!cancelled) setNriError(err instanceof Error ? err.message : "Could not load NRI signals.");
       }
     })();
     return () => {
@@ -174,6 +198,64 @@ export function RegistrationHistoryModal({ registration, onClose }: Props) {
               </a>
             </DetailRow>
           </dl>
+
+          {registration.nri && (
+            <section aria-label="NRI signals" className="mt-8">
+              <h3 className="text-base font-semibold text-[#12211D]">NRI signals</h3>
+              <p className="mt-1 text-sm text-[#66766F]">
+                Found automatically on the firm&apos;s website. Wording, not a verified claim: each signal is
+                marked until someone reviews it.
+              </p>
+              {nriError && (
+                <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                  {nriError}
+                </div>
+              )}
+              {nriDetail?.website && (
+                <p className="mt-3 text-sm text-[#2A3A35]">
+                  Website checked:{" "}
+                  <a
+                    href={nriDetail.website.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#0E6B57] hover:underline"
+                  >
+                    {nriDetail.website.domain}
+                  </a>
+                  {nriDetail.website.last_checked_at && ` on ${formatDateTime(nriDetail.website.last_checked_at)}`}
+                </p>
+              )}
+              <ul className="mt-4 space-y-3">
+                {nriDetail?.signals.map((signal) => (
+                  <li key={signal.id} className="rounded-xl border border-[#DCE5E1] bg-[#FAFCFB] p-3">
+                    <div className="flex flex-wrap items-center gap-2 text-xs font-medium">
+                      <span className="rounded-full bg-[#DDEEE8] px-2 py-0.5 text-[#0B5846]">
+                        {CONFIDENCE_LABELS[signal.confidence]} confidence
+                      </span>
+                      <span className="rounded-full bg-[#F0F4F2] px-2 py-0.5 text-[#4D5D57]">
+                        {signal.review_status === "confirmed" ? "Reviewed: confirmed" : "Not yet reviewed"}
+                      </span>
+                      <span className="text-[#66766F]">
+                        {signal.signal_type.replace(/_/g, " ")} in {signal.location}
+                      </span>
+                    </div>
+                    <blockquote className="mt-2 break-words text-sm text-[#12211D]">
+                      &ldquo;{signal.matched_text}&rdquo;
+                    </blockquote>
+                    <a
+                      href={signal.page_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1.5 inline-flex max-w-full items-center gap-1 text-xs text-[#0E6B57] hover:underline"
+                    >
+                      <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
+                      <span className="truncate">{signal.page_url}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           <h3 className="mt-8 text-base font-semibold text-[#12211D]">Change history</h3>
           <p className="mt-1 text-sm text-[#66766F]">Every time the published record changed, newest first.</p>

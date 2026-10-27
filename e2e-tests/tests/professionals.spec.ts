@@ -31,6 +31,43 @@ async function connect() {
   return client;
 }
 
+async function insertNri(
+  client: pg.Client,
+  registrationId: string,
+  domain: string,
+  signals: { confidence: string; text: string; reviewStatus?: string; location?: string }[]
+) {
+  const professional = await client.query(
+    `SELECT professional_id FROM professional_registrations WHERE id = $1`,
+    [registrationId]
+  );
+  const professionalId = professional.rows[0].professional_id as string;
+  const website = await client.query(
+    `INSERT INTO professional_websites
+       (id, professional_id, domain, url, derived_from, check_status, pages_checked, last_checked_at)
+     VALUES (gen_random_uuid(), $1, $2, $3, 'email_domain', 'checked', 2, now()) RETURNING id`,
+    [professionalId, domain, `https://${domain}/`]
+  );
+  for (const [index, signal] of signals.entries()) {
+    await client.query(
+      `INSERT INTO nri_signals
+         (id, website_id, professional_id, page_url, signal_type, matched_text, text_hash, location, confidence,
+          review_status)
+       VALUES (gen_random_uuid(), $1, $2, $3, 'nri_mention', $4, $5, $6, $7, $8)`,
+      [
+        website.rows[0].id,
+        professionalId,
+        `https://${domain}/nri-${index}`,
+        signal.text,
+        `${domain}-${index}`.padEnd(64, '0'),
+        signal.location ?? 'heading',
+        signal.confidence,
+        signal.reviewStatus ?? 'pending',
+      ]
+    );
+  }
+}
+
 async function insertRegistration(client: pg.Client, sourceId: string, runId: string, row: SeedRegistration) {
   const professional = await client.query(
     `INSERT INTO financial_professionals (id, display_name, name_normalized, kind)
@@ -96,6 +133,22 @@ test.describe('Professionals directory - public listing, filters and change hist
 
       for (const row of NAMED) {
         const registrationId = await insertRegistration(client, sourceId, runId, row);
+        if (row.name === 'Rohan Mehta') {
+          await insertNri(client, registrationId, 'mehta-wealth.example.com', [
+            { confidence: 'high', text: 'Wealth advisory for NRIs and overseas Indians' },
+            { confidence: 'low', text: 'We understand FEMA rules', location: 'body' },
+          ]);
+        }
+        if (row.name === 'Priya Shah') {
+          await insertNri(client, registrationId, 'shah-invest.example.com', [
+            { confidence: 'medium', text: 'We also serve NRI clients', reviewStatus: 'confirmed', location: 'body' },
+          ]);
+        }
+        if (row.name === 'Old Timer') {
+          await insertNri(client, registrationId, 'oldtimer.example.com', [
+            { confidence: 'high', text: 'Rejected NRI claim', reviewStatus: 'rejected' },
+          ]);
+        }
         if (row.name === 'Rohan Mehta') {
           await client.query(
             `INSERT INTO registration_versions (id, registration_id, run_id, scraped_at, content_hash, snapshot)
@@ -168,7 +221,7 @@ test.describe('Professionals directory - public listing, filters and change hist
     await expect(page.getByRole('link', { name: 'Find professionals' })).toBeVisible();
   });
 
-  test('the table shows only name, registration, location, contact and source', async ({ page }) => {
+  test('the table shows name, registration, location, contact, NRI signals and source', async ({ page }) => {
     await page.goto('/professionals');
     await expect(historyButton(page, 'Rohan Mehta')).toBeVisible();
 
@@ -177,6 +230,7 @@ test.describe('Professionals directory - public listing, filters and change hist
       'Registration no.',
       'Location',
       'Contact',
+      'NRI',
       'Source',
     ]);
     await expect(page.getByText('on record')).toHaveCount(0);
@@ -195,8 +249,9 @@ test.describe('Professionals directory - public listing, filters and change hist
 
     await openFilters(page);
 
-    await expect(page.getByRole('combobox')).toHaveCount(3);
+    await expect(page.getByRole('combobox')).toHaveCount(4);
     await expect(filter(page, 'Source')).toBeVisible();
+    await expect(filter(page, 'NRI signals')).toBeVisible();
     await expect(filter(page, 'State')).toBeVisible();
     await expect(filter(page, 'City')).toBeVisible();
     await expect(page.getByRole('combobox', { name: 'Status' })).toHaveCount(0);
@@ -506,5 +561,87 @@ test.describe('Professionals directory - public listing, filters and change hist
     await page.getByRole('button', { name: 'View history for Rohan Mehta' }).click();
 
     await expect(page.getByRole('alert').filter({ hasText: 'Could not load history' })).toBeVisible();
+  });
+
+  const nriBadge = (page: Page, name: string) =>
+    page.getByRole('button', { name: new RegExp(`^NRI signals for ${name}`) });
+
+  test('listings show an NRI badge with confidence and count only where signals exist', async ({ page }) => {
+    await page.goto('/professionals');
+
+    await expect(nriBadge(page, 'Rohan Mehta')).toHaveText(/NRI High\s*\(2\)/);
+    await expect(nriBadge(page, 'Priya Shah')).toHaveText(/NRI Medium\s*\(1\)/);
+    await expect(nriBadge(page, 'Old Timer')).toHaveCount(0);
+    await expect(nriBadge(page, 'Zulu Otherperson')).toHaveCount(0);
+  });
+
+  test('the NRI filter narrows to a minimum confidence and shows a removable chip', async ({ page }) => {
+    await page.goto('/professionals');
+    await openFilters(page);
+
+    await filter(page, 'NRI signals').selectOption('high');
+    await expect(page.getByText('Showing 1–1 of 1')).toBeVisible();
+    await expect(historyButton(page, 'Rohan Mehta')).toBeVisible();
+
+    await filter(page, 'NRI signals').selectOption('medium');
+    await expect(page.getByText('Showing 1–2 of 2')).toBeVisible();
+    await expect(historyButton(page, 'Priya Shah')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Remove NRI: medium or higher NRI filter' }).click();
+    await expect(page.getByText(`Showing 1–25 of ${TOTAL}`)).toBeVisible();
+  });
+
+  test('the NRI filter combines with search and rejected signals never match', async ({ page }) => {
+    await page.goto('/professionals');
+    await openFilters(page);
+    await filter(page, 'NRI signals').selectOption('low');
+
+    await searchBox(page).fill('Old Timer');
+
+    await expect(page.getByText('No professionals match your filters.')).toBeVisible();
+  });
+
+  test('opening the NRI badge shows the matched text, page, confidence and review state', async ({ page }) => {
+    await page.goto('/professionals');
+
+    await nriBadge(page, 'Rohan Mehta').click();
+
+    const section = page.getByRole('region', { name: 'NRI signals' });
+    await expect(section.getByText('Wealth advisory for NRIs and overseas Indians')).toBeVisible();
+    await expect(section.getByText('We understand FEMA rules')).toBeVisible();
+    await expect(section.getByText('High confidence')).toBeVisible();
+    await expect(section.getByText('Not yet reviewed').first()).toBeVisible();
+    await expect(section.getByRole('link', { name: 'mehta-wealth.example.com', exact: true })).toHaveAttribute(
+      'href',
+      'https://mehta-wealth.example.com/'
+    );
+    await expect(section.getByRole('link', { name: /mehta-wealth.example.com\/nri-0/ })).toBeVisible();
+  });
+
+  test('a reviewed signal is labelled confirmed', async ({ page }) => {
+    await page.goto('/professionals');
+
+    await nriBadge(page, 'Priya Shah').click();
+
+    await expect(page.getByRole('region', { name: 'NRI signals' }).getByText('Reviewed: confirmed')).toBeVisible();
+  });
+
+  test('professionals without signals have no NRI section in the panel', async ({ page }) => {
+    await page.goto('/professionals');
+    await searchBox(page).fill('Zulu Otherperson');
+
+    await historyButton(page, 'Zulu Otherperson').click();
+
+    await expect(page.getByRole('heading', { name: 'Change history' })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'NRI signals' })).toHaveCount(0);
+  });
+
+  test('an NRI detail failure shows an error inside the panel', async ({ page }) => {
+    await page.route(/\/nri$/, (route) => route.fulfill({ status: 500, body: 'boom' }));
+    await page.goto('/professionals');
+
+    await nriBadge(page, 'Rohan Mehta').click();
+
+    await expect(page.getByRole('alert').filter({ hasText: 'Could not load NRI signals' })).toBeVisible();
   });
 });
