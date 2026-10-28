@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Raleway } from "next/font/google";
 import "./globals.css";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
+import SiteChrome from "@/components/SiteChrome";
 
 const raleway = Raleway({
   variable: "--font-raleway",
@@ -25,11 +24,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={raleway.variable}>
       <body className="antialiased font-sans">
-        <Header />
-        <main className="min-h-screen">
-          {children}
-        </main>
-        <Footer />
+        <SiteChrome>{children}</SiteChrome>
       </body>
     </html>
   );

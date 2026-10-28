@@ -87,6 +87,23 @@ export default function Calculators() {
               </p>
               <span className="text-indigo-700 font-semibold group-hover:underline">Try it now →</span>
             </Link>
+            <Link
+              href={appRoutes.cityFireCalculator}
+              className="group bg-rose-50/60 hover:bg-rose-50 p-8 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-rose-100 hover:-translate-y-1"
+            >
+              <div className="w-14 h-14 bg-gradient-to-br from-rose-500 to-rose-600 rounded-xl flex items-center justify-center mb-6 shadow-lg group-hover:scale-110 transition-transform">
+                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </div>
+              <p className="text-xs font-semibold text-rose-700 uppercase tracking-wide mb-2">FIRE Number by City</p>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">What does FIRE cost where I live?</h3>
+              <p className="text-slate-600 leading-relaxed mb-4">
+                Pick your city and see your FIRE number based on its cost of living.
+              </p>
+              <span className="text-rose-700 font-semibold group-hover:underline">Try it now →</span>
+            </Link>
           </div>
 
           <p className="text-center text-slate-500 mt-12">More tools on the way.</p>

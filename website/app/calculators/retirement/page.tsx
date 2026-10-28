@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Metadata } from 'next';
 import { appRoutes } from '@/lib/config';
 import RetirementCalculator from '@/components/RetirementCalculator';
+import EmbedCodeSnippet from '@/components/EmbedCodeSnippet';
 
 export const metadata: Metadata = {
   title: 'Retirement Calculator - Fireons',
@@ -25,6 +26,11 @@ export default function RetirementCalculatorPage() {
       {/* Calculator */}
       <section className="py-16 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <RetirementCalculator />
+      </section>
+
+      {/* Embed */}
+      <section className="pb-16 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <EmbedCodeSnippet slug="retirement" title="Retirement Calculator" />
       </section>
 
       {/* CTA */}

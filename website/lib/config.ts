@@ -15,4 +15,5 @@ export const appRoutes = {
   retirementCalculator: '/calculators/retirement',
   coastFireCalculator: '/calculators/coast-fire',
   savingsRateCalculator: '/calculators/savings-rate',
+  cityFireCalculator: '/calculators/fire-by-city',
 };
