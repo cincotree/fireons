@@ -1,0 +1,59 @@
+x-backend-environment: &backend-environment
+  DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/fireons_development
+  SECRET_KEY: ${SECRET_KEY:-local-development-only-change-me}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: fireons_development
+    ports:
+      - "${POSTGRES_PUBLISHED_PORT:-5433}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fireons_development"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build: ./backend
+    command: ["uv", "run", "alembic", "upgrade", "head"]
+    environment: *backend-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment: *backend-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      BACKEND_HOST: localhost:8000
+    depends_on:
+      - backend
+
+  scraper-worker:
+    build: ./backend
+    command: ["uv", "run", "python", "-m", "scraping", "worker"]
+    profiles: ["scraper"]
+    environment: *backend-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  postgres-data:

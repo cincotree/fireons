@@ -10,6 +10,7 @@ from api.account_api import router as account_router
 from api.auth_api import router as auth_router
 from api.ingestion_test_api import router as ingestion_test_router
 from api.ingestion_api import router as ingestion_router
+from api.registrations_api import router as registrations_router
 from app_config import AppSettings, get_app_settings
 from jobs.config import get_exchange_rate_sync_settings
 from jobs.exchange_rate_sync import sync_exchange_rates
@@ -70,6 +71,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     if settings.ingestion_test_enabled:
         app.include_router(ingestion_test_router)
     app.include_router(ingestion_router)
+    app.include_router(registrations_router)
     app.get("/health")(health)
 
     return app

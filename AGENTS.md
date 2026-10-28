@@ -43,6 +43,40 @@ Fireons is a personal finance tracker for managing net worth and accounts. FastA
 - Auth: `AuthContext.tsx` with JWT token management
 - Tech: Next.js 15, React 18, TanStack Table, Chart.js, Tailwind CSS, Radix UI, Ant Design
 
+### Registry data and scraping (`backend/scraping/`)
+- Purpose: periodically scrape public regulator registers of financial professionals into Postgres, shown on the public `/professionals` page (nav link "Find professionals", tab title "Find a registered financial professional | Fireons"; the copy is deliberately not tied to one regulator, and the source chip shows each source's `regulator`). First source: SEBI Registered Investment Advisers (`sebi_ria`).
+- Tables: `data_sources` (one per register), `financial_professionals` (who someone is, across sources), `professional_registrations` (one row per register entry, `UNIQUE (source_id, registration_number)`, `profession_type` says what kind of professional), `registration_versions` (append-only history, written on first sight and on every content change), `scrape_runs` (one row per execution).
+- Add a source: implement a `Source` (a `SourceDefinition` plus `fetch_pages(client)` yielding normalized `ScrapedRegistration` records) in `scraping/sources/`, register it in `scraping/sources/__init__.py`. No schema change is needed.
+- Idempotent by `content_hash`: a rerun with unchanged data writes no versions and only bumps `last_seen_at`.
+- Delisting: a registration missing from a run is only counted as missing when that run `succeeded` (all pages fetched, zero parse errors, record count within 98% of the register's own total). After 2 consecutive missed succeeded runs it becomes `delisted`. Partial or failed runs never change status.
+- A per-source Postgres advisory lock prevents overlapping runs.
+- Politeness: minimum 3s between requests (`SCRAPE_MIN_INTERVAL_SECONDS`), identifying User-Agent, retry with backoff honouring `Retry-After`. Do not lower the interval or remove the retry cap.
+- Schedule: `SCRAPE_SCHEDULE_CRON`, default `0 3 * * sun` in `Asia/Kolkata`. APScheduler numbers weekdays from Monday = 0, so use weekday names, not digits.
+- Run it: `make scrape` (once), `make scraper-worker` (scheduler in the foreground), or `docker compose --profile scraper up` (worker in Docker). A deployed worker is not set up yet.
+- Public API: `GET /registrations`, `/registrations/{id}`, `/registrations/{id}/history`, `/registrations/sources`, `/registrations/facets`. No auth (SEBI publishes this data), per-IP rate limit (`PUBLIC_READ_LIMIT_PER_MINUTE`, default 240; the e2e backend raises it because one test run is one IP), `page_size` capped at 100, no bulk export.
+- Search: `q` is one fuzzy box. It is split into words (max 8); every word must match at least one of name, city, state, source name (substring, or `pg_trgm` word similarity >= 0.4 for words of 4+ letters) or part of the registration number. Results rank by closeness. Exact filters `source`, `state`, `city`, `status`, `profession_type` combine with it. `/registrations/facets` returns the states and cities (scoped by `source`/`state`) for the dropdowns. The UI is one search box plus a Filters button that reveals Source, State and City dropdowns (there is no status filter in the UI; the API still accepts `status`).
+- Test fixtures are synthetic (`backend/tests/fixtures/generate_sebi_fixtures.py`). Never commit scraped pages or rows: they contain real people's names and contact details (see Handling Personal Data).
+
+## Database Migrations and Extensions
+
+Alembic owns the schema and the app never creates tables (see Deployment settings). Migration `0001` is the baseline; `0002` adds the registry tables and the `pg_trgm` extension.
+
+- `make migrate` (`cd backend && uv run alembic upgrade head`) — apply migrations. Required before first run, after pulling new migrations, and as a release step in deployment.
+- Changing `database/models.py` requires a migration: `uv run alembic revision --autogenerate -m "description"`, review it, commit it with the model change. `tests/test_migrations.py` fails if models and migrations drift apart.
+- Never edit an applied migration; add a new one.
+- `tests/conftest.py` builds the test database with `create_all` (after creating `pg_trgm`); `tests/test_migrations.py` runs the migrations on an empty database and fails if they drift from the models, which CI also checks with `alembic check`.
+- UUID primary keys and several `NOT NULL` defaults (`is_enabled`, run counters, `missing_runs`) are Python-side defaults, not database defaults. Raw SQL inserts must supply them explicitly (see `e2e-tests/tests/professionals.spec.ts`).
+
+### pg_trgm extension (required)
+
+Name search uses a GIN trigram index (`ix_financial_professionals_name_trgm`, `gin_trgm_ops`), which needs the `pg_trgm` extension.
+
+- Migration `0002` runs `CREATE EXTENSION IF NOT EXISTS pg_trgm` before creating the index, so `alembic upgrade head` is the only step needed. `pg_trgm` is a trusted extension on Postgres 13+, so the normal application role can create it as long as the contrib package is installed (it is in the official `postgres` Docker images and Homebrew; managed services such as RDS, Cloud SQL, Supabase and Neon provide it).
+- If the deployment role cannot create extensions, run `CREATE EXTENSION pg_trgm;` once as an admin before `alembic upgrade head`.
+- Any new trigram index must be created in a migration that runs after the extension exists.
+- Managed Postgres services (including Neon) provide `pg_trgm`; confirm migration `0002` succeeds on the first deploy.
+- The e2e teardown drops and recreates the `public` schema, which also drops the extension; `start-backend.sh` re-runs migrations, which recreates it.
+
 ## Development Commands
 
 A top-level `Makefile` wraps the commands below. `make setup` is the one-time local setup: it runs `install` (all three `*-setup` targets), `env`, `db`, `db-create` and `migrate`, and is safe to rerun. `make test` runs `backend-test` + `e2e`.
@@ -54,7 +88,11 @@ A top-level `Makefile` wraps the commands below. `make setup` is the one-time lo
 
 Each suite has its own database: development uses `fireons_development`, backend tests use `fireons_test` (created and dropped by `tests/conftest.py` on the server from `DATABASE_URL`), and e2e uses `fireons_e2e`.
 
+### Docker (local)
+`docker-compose.yml` runs postgres (published on 5433 to avoid clashing with a local Postgres), a one-shot `migrate` service, backend (8000) and frontend (3000). The compose database starts empty; run a scrape to populate it. The scheduled scraper is opt-in: `make compose-up-scraper` (`--profile scraper`). `make compose-up` / `make compose-down` wrap it.
+
 ### Backend
+- `make migrate` — apply database migrations (see Database Migrations and Extensions)
 - `make backend-setup` (`cd backend && uv sync`) — install deps
 - `make backend` (`uv run uvicorn app:app --reload`) — dev server
 - `make backend-test` (`uv run pytest`) — run tests
@@ -90,6 +128,14 @@ DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/fireons_devel
 SECRET_KEY=your-secret-key-change-this-in-production
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
+```
+
+### Scraper settings (optional, backend `.env`)
+```env
+SCRAPE_MIN_INTERVAL_SECONDS=3.0
+SCRAPE_MAX_RETRIES=4
+SCRAPE_SCHEDULE_CRON=0 3 * * sun
+SCRAPE_SCHEDULE_TIMEZONE=Asia/Kolkata
 ```
 
 ### Frontend `.env.local` (required)

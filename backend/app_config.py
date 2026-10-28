@@ -12,6 +12,7 @@ class AppSettings(SecretsManagerSettings):
     access_token_expire_minutes: int = 30
     cors_origins: str = "http://localhost:3000,http://localhost:3020"
     ingestion_test_enabled: bool = True
+    public_read_limit_per_minute: int = 240
 
     class Config:
         env_file = ".env"

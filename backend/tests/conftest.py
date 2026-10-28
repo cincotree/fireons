@@ -53,6 +53,11 @@ async def setup_test_database():
 
     await admin_engine.dispose()
 
+    test_engine = create_async_engine(TEST_DATABASE_URL, isolation_level="AUTOCOMMIT")
+    async with test_engine.connect() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+    await test_engine.dispose()
+
     yield
 
     # Teardown: drop test database
