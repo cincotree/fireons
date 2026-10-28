@@ -61,6 +61,26 @@ export interface CoastFireResult {
   series: RetirementSeriesPoint[];
 }
 
+export interface CityFireInputs {
+  currentAge: number;
+  retirementAge: number;
+  currentSavings: number;
+  monthlyExpenseToday: number;
+  withdrawalRatePct: number;
+  inflationPct: number;
+  equityReturnPct: number;
+  debtReturnPct: number;
+  allocation: AllocationChoice;
+}
+
+export interface CityFireResult {
+  fireNumberToday: number;
+  fireNumberAtRetirement: number;
+  requiredMonthlySip: number;
+  isAlreadyOnTrack: boolean;
+  series: RetirementSeriesPoint[];
+}
+
 function blendedAnnualReturn(inputs: RetirementInputs, allocation: AllocationChoice): number {
   const equityWeight = ALLOCATION_EQUITY_WEIGHT[allocation];
   const blendedPct = equityWeight * inputs.equityReturnPct + (1 - equityWeight) * inputs.debtReturnPct;
@@ -174,5 +194,67 @@ export function simulateCoastFire(inputs: CoastFireInputs): CoastFireResult {
     isAlreadyCoastFire,
     projectedCorpusAtRetirement: actual.corpusAtRetirement,
     series: actual.series,
+  };
+}
+
+function toCityFireRetirementInputs(inputs: CityFireInputs): RetirementInputs {
+  return {
+    currentAge: inputs.currentAge,
+    contributionEndAge: inputs.retirementAge,
+    retirementAge: inputs.retirementAge,
+    lifeExpectancy: inputs.retirementAge,
+    monthlyExpenseToday: inputs.monthlyExpenseToday,
+    currentSavings: inputs.currentSavings,
+    inflationPct: inputs.inflationPct,
+    equityReturnPct: inputs.equityReturnPct,
+    debtReturnPct: inputs.debtReturnPct,
+    preRetirementAllocation: inputs.allocation,
+    postRetirementAllocation: inputs.allocation,
+    stepUpEnabled: false,
+    stepUpPct: 0,
+  };
+}
+
+export function calculateCityFire(inputs: CityFireInputs): CityFireResult {
+  const yearsToRetire = inputs.retirementAge - inputs.currentAge;
+  const inflation = inputs.inflationPct / 100;
+  const withdrawalRate = inputs.withdrawalRatePct / 100;
+
+  const fireNumberToday = (inputs.monthlyExpenseToday * 12) / withdrawalRate;
+  const fireNumberAtRetirement = fireNumberToday * Math.pow(1 + inflation, yearsToRetire);
+
+  const retirementInputs = toCityFireRetirementInputs(inputs);
+
+  const zeroSip = simulate(retirementInputs, 0);
+  if (zeroSip.corpusAtRetirement >= fireNumberAtRetirement) {
+    return {
+      fireNumberToday,
+      fireNumberAtRetirement,
+      requiredMonthlySip: 0,
+      isAlreadyOnTrack: true,
+      series: zeroSip.series,
+    };
+  }
+
+  let lo = 0;
+  let hi = MAX_MONTHLY_SIP;
+  for (let i = 0; i < BINARY_SEARCH_ITERATIONS; i++) {
+    const mid = (lo + hi) / 2;
+    const { corpusAtRetirement } = simulate(retirementInputs, mid);
+    if (corpusAtRetirement > fireNumberAtRetirement) {
+      hi = mid;
+    } else {
+      lo = mid;
+    }
+  }
+
+  const requiredMonthlySip = (lo + hi) / 2;
+  const { series } = simulate(retirementInputs, requiredMonthlySip);
+  return {
+    fireNumberToday,
+    fireNumberAtRetirement,
+    requiredMonthlySip,
+    isAlreadyOnTrack: false,
+    series,
   };
 }
