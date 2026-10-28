@@ -304,3 +304,20 @@ async def test_review_cli_updates_status_and_rejects_unknown_ids(engine, capsys)
     async with AsyncSession(engine) as session:
         stored = await session.get(NriSignal, signal.id)
     assert (stored.review_status, stored.reviewed_at is not None) == ("rejected", True)
+
+
+async def test_website_listed_by_the_source_is_checked_even_without_an_email(engine):
+    pid = await add_professional(engine, "Listed Planner", None)
+    async with AsyncSession(engine) as session:
+        registration = await session.scalar(
+            select(ProfessionalRegistration).where(ProfessionalRegistration.professional_id == pid)
+        )
+        registration.attributes = {"website": "https://www.listedplanner.com/home"}
+        await session.commit()
+    client, transport = client_for({"listedplanner.com": {"/": html(PLAIN_HOME)}})
+    async with client:
+        summary = await enrich_nri(client=client, settings=fast_settings(), now=NOW)
+
+    site = await website_for(engine, pid)
+    assert summary.websites_checked == 1
+    assert (site.domain, site.derived_from) == ("listedplanner.com", "source_listing")

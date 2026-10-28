@@ -21,10 +21,12 @@ from scraping.types import (
     SourceDefinition,
 )
 
-LISTING_URL = "https://www.sebi.gov.in/sebiweb/other/OtherAction.do?doRecognisedFpi=yes&intmId=13"
+LISTING_URL_TEMPLATE = "https://www.sebi.gov.in/sebiweb/other/OtherAction.do?doRecognisedFpi=yes&intmId={intermediary_id}"
 AJAX_URL = "https://www.sebi.gov.in/sebiweb/ajax/other/getintmfpiinfo.jsp"
+LISTING_URL = LISTING_URL_TEMPLATE.format(intermediary_id="13")
 INTERMEDIARY_ID = "13"
 REGISTRATION_NUMBER_PATTERN = re.compile(r"^INA(\d{9}|IFSC\d{5})$")
+RESEARCH_ANALYST_NUMBER_PATTERN = re.compile(r"^INH(\d{9}|IFSC\d{5})$")
 RECORD_RANGE_PATTERN = re.compile(r"(\d+)\s+to\s+(\d+)\s+of\s+(\d+)\s+records", re.IGNORECASE)
 
 logger = logging.getLogger("scraping.sebi_ria")
@@ -52,9 +54,14 @@ def _card_fields(card) -> dict[str, str]:
     return fields
 
 
-def _to_registration(fields: dict[str, str]) -> ScrapedRegistration:
+def _to_registration(
+    fields: dict[str, str],
+    definition: SourceDefinition = DEFINITION,
+    number_pattern: re.Pattern[str] = REGISTRATION_NUMBER_PATTERN,
+    listing_url: str = LISTING_URL,
+) -> ScrapedRegistration:
     registration_number = (fields.get("registration no.") or "").upper()
-    if not REGISTRATION_NUMBER_PATTERN.match(registration_number):
+    if not number_pattern.match(registration_number):
         raise ParseError(f"Invalid registration number: {registration_number!r}")
     name = fields.get("name")
     if not name:
@@ -79,7 +86,7 @@ def _to_registration(fields: dict[str, str]) -> ScrapedRegistration:
         registration_number=registration_number,
         name=name,
         kind=classify_kind(name),
-        profession_type=DEFINITION.default_profession_type,
+        profession_type=definition.default_profession_type,
         valid_from=valid_from,
         valid_until=valid_until,
         validity_raw=validity_raw,
@@ -90,12 +97,17 @@ def _to_registration(fields: dict[str, str]) -> ScrapedRegistration:
         email=email.lower() if email else None,
         phone=fields.get("telephone"),
         contact_person=fields.get("contact person"),
-        source_url=LISTING_URL,
+        source_url=listing_url,
         attributes=attributes,
     )
 
 
-def parse_listing_page(html: str) -> FetchedPage:
+def parse_listing_page(
+    html: str,
+    definition: SourceDefinition = DEFINITION,
+    number_pattern: re.Pattern[str] = REGISTRATION_NUMBER_PATTERN,
+    listing_url: str = LISTING_URL,
+) -> FetchedPage:
     soup = BeautifulSoup(html, "lxml")
     page_text = soup.select_one("div.pagination_inner")
     expected_total = None
@@ -110,7 +122,7 @@ def parse_listing_page(html: str) -> FetchedPage:
     parse_errors = 0
     for card in soup.select("div.card-table-left"):
         try:
-            records.append(_to_registration(_card_fields(card)))
+            records.append(_to_registration(_card_fields(card), definition, number_pattern, listing_url))
         except ParseError as exc:
             logger.warning("skipping unparseable record: %s", exc)
             parse_errors += 1
@@ -119,13 +131,22 @@ def parse_listing_page(html: str) -> FetchedPage:
     return page
 
 
-class SebiRiaSource:
-    definition = DEFINITION
+class SebiListingSource:
+    definition: SourceDefinition = DEFINITION
+    intermediary_id = INTERMEDIARY_ID
+    number_pattern = REGISTRATION_NUMBER_PATTERN
+
+    @property
+    def listing_url(self) -> str:
+        return LISTING_URL_TEMPLATE.format(intermediary_id=self.intermediary_id)
+
+    def _parse(self, html: str) -> FetchedPage:
+        return parse_listing_page(html, self.definition, self.number_pattern, self.listing_url)
 
     async def fetch_pages(self, client: PoliteClient) -> AsyncIterator[FetchedPage]:
         max_pages = get_scrape_settings().scrape_max_pages
-        first_response = await client.get(LISTING_URL)
-        first_page = parse_listing_page(first_response.text)
+        first_response = await client.get(self.listing_url)
+        first_page = self._parse(first_response.text)
         yield first_page
         if not first_page.expected_total or not first_page.page_size:
             return
@@ -136,7 +157,7 @@ class SebiRiaSource:
                 data={
                     "nextValue": "1",
                     "next": "n",
-                    "intmId": INTERMEDIARY_ID,
+                    "intmId": self.intermediary_id,
                     "contPer": "",
                     "name": "",
                     "regNo": "",
@@ -148,9 +169,13 @@ class SebiRiaSource:
                     "doDirect": str(page_index),
                     "intmIds": "",
                 },
-                headers={"Referer": LISTING_URL, "X-Requested-With": "XMLHttpRequest"},
+                headers={"Referer": self.listing_url, "X-Requested-With": "XMLHttpRequest"},
             )
-            page = parse_listing_page(response.text)
+            page = self._parse(response.text)
             yield page
             if not page.records and not page.parse_errors:
                 return
+
+
+class SebiRiaSource(SebiListingSource):
+    pass

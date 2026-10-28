@@ -8,13 +8,14 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from database.models import NriSignal, ProfessionalRegistration, ProfessionalWebsite
 from database.session import session_context
 from enrichment.crawler import CHECKED, SiteResult, check_site
-from enrichment.domains import candidate_domains
+from enrichment.domains import candidate_domains, domain_from_url, is_public_firm_domain
 from scraping.config import ScrapeSettings, get_scrape_settings
 from scraping.http import PoliteClient
 
 logger = logging.getLogger("enrichment.runner")
 
 DERIVED_FROM_EMAIL = "email_domain"
+DERIVED_FROM_LISTING = "source_listing"
 PENDING = "pending"
 
 
@@ -27,6 +28,22 @@ class EnrichmentSummary:
     crawl_errors: int = 0
     signals_found: int = 0
     signals_removed: int = 0
+
+
+async def _add_website(session, professional_id: str, domain: str, url: str, derived_from: str) -> None:
+    statement = (
+        pg_insert(ProfessionalWebsite)
+        .values(
+            professional_id=professional_id,
+            domain=domain,
+            url=url,
+            derived_from=derived_from,
+            check_status=PENDING,
+            pages_checked=0,
+        )
+        .on_conflict_do_nothing(constraint="uq_website_professional_domain")
+    )
+    await session.execute(statement)
 
 
 async def register_websites(settings: ScrapeSettings) -> int:
@@ -44,19 +61,22 @@ async def register_websites(settings: ScrapeSettings) -> int:
             emails.setdefault(professional_id, []).append(email)
         for professional_id, domains in candidate_domains(emails, settings.nri_shared_domain_limit).items():
             for domain in domains:
-                statement = (
-                    pg_insert(ProfessionalWebsite)
-                    .values(
-                        professional_id=professional_id,
-                        domain=domain,
-                        url=f"https://{domain}/",
-                        derived_from=DERIVED_FROM_EMAIL,
-                        check_status=PENDING,
-                        pages_checked=0,
-                    )
-                    .on_conflict_do_nothing(constraint="uq_website_professional_domain")
+                await _add_website(session, professional_id, domain, f"https://{domain}/", DERIVED_FROM_EMAIL)
+        listed = (
+            await session.execute(
+                select(
+                    ProfessionalRegistration.professional_id,
+                    ProfessionalRegistration.attributes["website"].astext,
+                ).where(
+                    ProfessionalRegistration.attributes["website"].astext.is_not(None),
+                    ProfessionalRegistration.status != "delisted",
                 )
-                await session.execute(statement)
+            )
+        ).all()
+        for professional_id, website in listed:
+            domain = domain_from_url(website)
+            if domain and is_public_firm_domain(domain):
+                await _add_website(session, professional_id, domain, website, DERIVED_FROM_LISTING)
         count = len((await session.scalars(select(ProfessionalWebsite.id))).all())
     return count
 

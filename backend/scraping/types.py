@@ -8,6 +8,7 @@ class ProfessionType(str, Enum):
     INVESTMENT_ADVISER = "investment_adviser"
     RESEARCH_ANALYST = "research_analyst"
     MF_DISTRIBUTOR = "mf_distributor"
+    FEE_ONLY_PLANNER = "fee_only_planner"
     INSURANCE_AGENT = "insurance_agent"
 
 

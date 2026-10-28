@@ -1,6 +1,7 @@
 import ipaddress
 import re
 from collections import Counter
+from urllib.parse import urlparse
 
 GENERIC_EMAIL_DOMAINS = {
     "gmail.com",
@@ -48,6 +49,16 @@ def domain_from_email(email: str | None) -> str | None:
     if domain.startswith("www."):
         domain = domain[4:]
     return domain or None
+
+
+def domain_from_url(url: str | None) -> str | None:
+    if not url:
+        return None
+    parsed = urlparse(url.strip())
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        return None
+    host = parsed.hostname.lower().rstrip(".")
+    return host.removeprefix("www.") or None
 
 
 def is_public_firm_domain(domain: str) -> bool:

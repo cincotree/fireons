@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings
 
 class ScrapeSettings(BaseSettings):
     scrape_min_interval_seconds: float = 3.0
-    scrape_max_pages: int = 80
+    scrape_max_pages: int = 200
     scrape_max_retries: int = 4
     scrape_timeout_seconds: float = 30.0
     scrape_user_agent: str = "Fireons-Registry-Scraper/1.0"
