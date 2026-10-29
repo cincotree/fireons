@@ -6,6 +6,7 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app_config import AppSettings, get_app_settings
 from auth_utils import (
     Token,
     TokenData,
@@ -14,7 +15,6 @@ from auth_utils import (
     get_password_hash,
     verify_password,
 )
-from app_config import AppSettings, get_app_settings
 from database.models import Invite, InviteRedemption, User
 from database.session import get_session
 
@@ -89,20 +89,21 @@ async def get_current_user(
 
 
 async def consume_invite(session: AsyncSession, code: Optional[str]) -> str:
-    if not code or not code.strip():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired invite code")
-    result = await session.execute(
-        update(Invite)
-        .where(
-            Invite.code == code.strip(),
-            Invite.revoked_at.is_(None),
-            Invite.use_count < Invite.max_uses,
-            or_(Invite.expires_at.is_(None), Invite.expires_at > func.now()),
+    code = (code or "").strip()
+    invite_id = None
+    if code:
+        result = await session.execute(
+            update(Invite)
+            .where(
+                Invite.code == code,
+                Invite.revoked_at.is_(None),
+                Invite.use_count < Invite.max_uses,
+                or_(Invite.expires_at.is_(None), Invite.expires_at > func.now()),
+            )
+            .values(use_count=Invite.use_count + 1)
+            .returning(Invite.id)
         )
-        .values(use_count=Invite.use_count + 1)
-        .returning(Invite.id)
-    )
-    invite_id = result.scalar_one_or_none()
+        invite_id = result.scalar_one_or_none()
     if invite_id is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired invite code")
     return invite_id
