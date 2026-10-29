@@ -35,3 +35,11 @@ variable "enable_custom_domains" {
 variable "lambda_web_adapter_layer_arn" {
   type = string
 }
+
+variable "api_reserved_concurrency" {
+  type = number
+}
+
+variable "captcha_enabled" {
+  type = bool
+}

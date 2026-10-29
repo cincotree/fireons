@@ -112,6 +112,7 @@ jobs:
       WEBAPP_DISTRIBUTION_ID: ${{ vars.WEBAPP_DISTRIBUTION_ID }}
       WEBAPP_URL: ${{ vars.WEBAPP_URL }}
       NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

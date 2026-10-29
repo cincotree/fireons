@@ -6,6 +6,8 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.captcha import verify_turnstile
+from app_config import AppSettings, get_app_settings
 from auth_utils import (
     Token,
     TokenData,
@@ -31,6 +33,10 @@ class UserFields(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class RegisterRequest(UserFields):
+    captcha_token: Optional[str] = None
 
 
 class LoginCreds(BaseModel):
@@ -81,9 +87,17 @@ async def get_current_user(
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(
-    user_data: UserFields,
-    session: AsyncSession = Depends(get_session)
+    user_data: RegisterRequest,
+    session: AsyncSession = Depends(get_session),
+    settings: AppSettings = Depends(get_app_settings),
 ):
+    if settings.captcha_enabled and not await verify_turnstile(
+        user_data.captcha_token, settings.turnstile_secret_key
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Captcha verification failed"
+        )
 
     if not user_data.password:
         raise HTTPException(

@@ -36,3 +36,13 @@ variable "lambda_web_adapter_layer_arn" {
   type    = string
   default = "arn:aws:lambda:ap-southeast-1:753240598075:layer:LambdaAdapterLayerArm64:25"
 }
+
+variable "api_reserved_concurrency" {
+  type    = number
+  default = 10
+}
+
+variable "captcha_enabled" {
+  type    = bool
+  default = true
+}

@@ -19,4 +19,6 @@ module "fireons" {
   api_domain                   = var.api_domain
   enable_custom_domains        = var.enable_custom_domains
   lambda_web_adapter_layer_arn = var.lambda_web_adapter_layer_arn
+  api_reserved_concurrency     = var.api_reserved_concurrency
+  captcha_enabled              = var.captcha_enabled
 }

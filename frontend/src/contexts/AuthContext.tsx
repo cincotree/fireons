@@ -29,6 +29,7 @@ interface RegisterData {
   full_name?: string;
   location?: string;
   primary_currency?: string;
+  captcha_token?: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);

@@ -3,7 +3,10 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
+import TurnstileWidget from "@/components/TurnstileWidget";
 import { SUPPORTED_CURRENCIES } from "@/utils/currencies";
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -16,6 +19,8 @@ export default function RegisterPage() {
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaAttempt, setCaptchaAttempt] = useState(0);
 
   const { register } = useAuth();
 
@@ -35,6 +40,11 @@ export default function RegisterPage() {
       return;
     }
 
+    if (TURNSTILE_SITE_KEY && !captchaToken) {
+      setError("Please complete the captcha");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -45,9 +55,12 @@ export default function RegisterPage() {
         full_name: formData.full_name || undefined,
         location: formData.location || undefined,
         primary_currency: formData.primary_currency,
+        captcha_token: captchaToken ?? undefined,
       });
     } catch (err) {
       setError((err instanceof Error && err.message) || "Registration failed. Please try again.");
+      setCaptchaToken(null);
+      setCaptchaAttempt((attempt) => attempt + 1);
     } finally {
       setLoading(false);
     }
@@ -183,6 +196,10 @@ export default function RegisterPage() {
               </div>
             </div>
           </div>
+
+          {TURNSTILE_SITE_KEY && (
+            <TurnstileWidget key={captchaAttempt} siteKey={TURNSTILE_SITE_KEY} onToken={setCaptchaToken} />
+          )}
 
           <div>
             <button

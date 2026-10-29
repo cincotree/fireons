@@ -48,17 +48,18 @@ resource "aws_cloudwatch_log_group" "api" {
 }
 
 resource "aws_lambda_function" "api" {
-  function_name    = "${local.name}-api"
-  role             = aws_iam_role.api.arn
-  runtime          = "python3.12"
-  architectures    = ["arm64"]
-  handler          = "run.sh"
-  memory_size      = 512
-  timeout          = 30
-  publish          = true
-  layers           = [var.lambda_web_adapter_layer_arn]
-  filename         = data.archive_file.api_placeholder.output_path
-  source_code_hash = data.archive_file.api_placeholder.output_base64sha256
+  function_name                  = "${local.name}-api"
+  role                           = aws_iam_role.api.arn
+  runtime                        = "python3.12"
+  architectures                  = ["arm64"]
+  handler                        = "run.sh"
+  memory_size                    = 512
+  timeout                        = 30
+  publish                        = true
+  reserved_concurrent_executions = var.api_reserved_concurrency
+  layers                         = [var.lambda_web_adapter_layer_arn]
+  filename                       = data.archive_file.api_placeholder.output_path
+  source_code_hash               = data.archive_file.api_placeholder.output_base64sha256
 
   environment {
     variables = {
@@ -68,6 +69,7 @@ resource "aws_lambda_function" "api" {
       APP_ENV                      = var.environment
       CORS_ORIGINS                 = local.webapp_url
       INGESTION_TEST_ENABLED       = "false"
+      CAPTCHA_ENABLED              = tostring(var.captcha_enabled)
       DB_NULL_POOL                 = "true"
       EXCHANGE_RATE_SYNC_ENABLED   = "false"
     }
