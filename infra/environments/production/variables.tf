@@ -39,7 +39,7 @@ variable "lambda_web_adapter_layer_arn" {
 
 variable "api_reserved_concurrency" {
   type    = number
-  default = 10
+  default = 3
 }
 
 variable "captcha_enabled" {
