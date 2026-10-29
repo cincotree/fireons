@@ -47,9 +47,10 @@ test.describe('Invite-only registration', () => {
 
     await page.getByRole('link', { name: 'Invites' }).click();
     await expect(page).toHaveURL(/.*admin\/invites/);
-    await expect(page.getByText('No invites yet')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Invites' })).toBeVisible();
 
-    await page.getByLabel('Label').fill('for Asha');
+    const label = `for Asha ${Date.now()}`;
+    await page.getByLabel('Label').fill(label);
     await page.getByLabel('Max uses').fill('2');
     await page.getByRole('button', { name: 'Generate invite' }).click();
 
@@ -57,7 +58,7 @@ test.describe('Invite-only registration', () => {
     expect(code.length).toBeGreaterThanOrEqual(12);
     await expect(page.getByTestId('new-invite-link')).toContainText(`/register?invite=${code}`);
 
-    const row = page.getByTestId('invite-row').filter({ hasText: 'for Asha' });
+    const row = page.getByTestId('invite-row').filter({ hasText: label });
     await expect(row).toContainText('active');
     await expect(row).toContainText('0/2');
 
@@ -65,22 +66,29 @@ test.describe('Invite-only registration', () => {
     await expect(page.getByTestId('new-invite-code')).toHaveCount(0);
     await expect(page.getByText(code)).toHaveCount(0);
 
-    await page.getByTestId('invite-row').filter({ hasText: 'for Asha' }).getByRole('button', { name: 'Revoke' }).click();
-    await expect(page.getByTestId('invite-row').filter({ hasText: 'for Asha' })).toContainText('revoked');
+    await page.getByTestId('invite-row').filter({ hasText: label }).getByRole('button', { name: 'Revoke' }).click();
+    await expect(page.getByTestId('invite-row').filter({ hasText: label })).toContainText('revoked');
     await expect(page.getByRole('button', { name: 'Revoke' })).toHaveCount(0);
   });
 
   test('out of range invite settings are not submitted', async ({ page }) => {
     const admin = await registerUser(page, 'adminbad');
     await promoteToSuperadmin(admin.username);
+    const creations: string[] = [];
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && request.url().endsWith('/api/admin/invites')) {
+        creations.push(request.url());
+      }
+    });
     await page.goto('/admin/invites');
-    await expect(page.getByText('No invites yet')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Invites' })).toBeVisible();
 
     await page.getByLabel('Max uses').fill('5000');
     await page.getByRole('button', { name: 'Generate invite' }).click();
 
     await expect(page.getByTestId('new-invite-code')).toHaveCount(0);
-    await expect(page.getByText('No invites yet')).toBeVisible();
+    await page.waitForTimeout(500);
+    expect(creations).toEqual([]);
   });
 
   test('a server rejection while generating an invite is shown to the admin', async ({ page }) => {
