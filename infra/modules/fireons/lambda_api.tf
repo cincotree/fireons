@@ -66,7 +66,7 @@ resource "aws_lambda_function" "api" {
       AWS_LWA_PORT                 = "8000"
       AWS_LWA_READINESS_CHECK_PATH = "/health"
       APP_ENV                      = var.environment
-      CORS_ORIGINS                 = local.cors_origin
+      CORS_ORIGINS                 = local.webapp_url
       INGESTION_TEST_ENABLED       = "false"
       DB_NULL_POOL                 = "true"
       EXCHANGE_RATE_SYNC_ENABLED   = "false"
