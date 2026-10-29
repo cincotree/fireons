@@ -1,5 +1,12 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {};
+const isProduction = process.env.NODE_ENV === "production";
+
+const nextConfig: NextConfig = {
+  output: "export",
+  trailingSlash: true,
+  images: { unoptimized: true },
+  pageExtensions: isProduction ? ["tsx", "ts", "jsx", "js"] : ["tsx", "ts", "jsx", "js", "dev.tsx"],
+};
 
 export default nextConfig;

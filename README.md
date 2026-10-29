@@ -54,7 +54,7 @@ Install
 - cd frontend
 - npm install
 - cp .env.local.sample .env.local
-- Edit `.env.local` and set `BACKEND_HOST` (defaults to `localhost:8000` for local development)
+- Edit `.env.local` and set `NEXT_PUBLIC_API_BASE_URL` (for example `http://localhost:8000`)
 
 ### Run
 
@@ -91,5 +91,5 @@ Visit localhost:3000
 Build and run using Docker:
 ```bash
 docker build -t fireons/frontend .
-docker run -p 3000:3000 -e BACKEND_HOST=localhost:8000 fireons/frontend
+docker run -p 3000:3000 fireons/frontend
 ```

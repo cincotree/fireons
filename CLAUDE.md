@@ -106,7 +106,7 @@ npm install
 
 # Create .env.local from sample
 cp .env.local.sample .env.local
-# Edit .env.local and set BACKEND_HOST if needed (defaults to localhost:8000)
+# Edit .env.local and set NEXT_PUBLIC_API_BASE_URL if needed (for example http://localhost:8000)
 ```
 
 ### Frontend Development
@@ -127,7 +127,7 @@ npm run lint
 docker build -t fireons/frontend .
 
 # Run Docker container
-docker run -p 3000:3000 -e BACKEND_HOST=localhost:8000 fireons/frontend
+docker run -p 3000:3000 fireons/frontend
 ```
 
 ### E2E Tests
@@ -177,5 +177,5 @@ When `APP_ENV` is set (e.g. `APP_ENV=production` on the Lambda), settings missin
 
 ### Frontend `.env.local` (required)
 ```bash
-BACKEND_HOST=localhost:8000
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```

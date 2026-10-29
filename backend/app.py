@@ -8,8 +8,8 @@ from apscheduler.triggers.cron import CronTrigger
 
 from api.account_api import router as account_router
 from api.auth_api import router as auth_router
-from api.ingestion_test_api import router as ingestion_test_router
-from api.ingestion_api import router as ingestion_router
+from api.health_api import router as health_router
+from api.ingestion_disabled_api import router as ingestion_disabled_router
 from app_config import AppSettings, get_app_settings
 from jobs.config import get_exchange_rate_sync_settings
 from jobs.exchange_rate_sync import sync_exchange_rates
@@ -47,10 +47,6 @@ async def rewrite_api_path(request: Request, call_next: Callable[[Request], Awai
     return response
 
 
-async def health():
-    return {"status": "ok"}
-
-
 def create_app(settings: AppSettings | None = None) -> FastAPI:
     settings = settings or get_app_settings()
 
@@ -68,9 +64,16 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(account_router)
     if settings.ingestion_test_enabled:
+        from api.ingestion_test_api import router as ingestion_test_router
+
         app.include_router(ingestion_test_router)
-    app.include_router(ingestion_router)
-    app.get("/health")(health)
+    if settings.ingestion_enabled:
+        from api.ingestion_api import router as ingestion_router
+
+        app.include_router(ingestion_router)
+    else:
+        app.include_router(ingestion_disabled_router)
+    app.include_router(health_router)
 
     return app
 
