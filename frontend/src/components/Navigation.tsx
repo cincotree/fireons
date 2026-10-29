@@ -32,18 +32,6 @@ export default function Navigation() {
                 Net Worth
               </Link>
             )}
-            {isAuthenticated && user?.is_superadmin && (
-              <Link
-                href="/admin/invites"
-                className={`px-4 py-1.5 text-sm font-medium transition-all border-b ${
-                  pathname.startsWith("/admin/invites")
-                    ? "text-blue-400 border-blue-400"
-                    : "text-gray-300 border-transparent hover:text-white hover:border-gray-500"
-                }`}
-              >
-                Invites
-              </Link>
-            )}
           </div>
 
           {isAuthenticated && user && (

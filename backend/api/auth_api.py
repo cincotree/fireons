@@ -1,4 +1,3 @@
-import hashlib
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -55,14 +54,9 @@ class UserResponse(BaseModel):
     full_name: Optional[str] = None
     location: Optional[str] = None
     primary_currency: str = "USD"
-    is_superadmin: bool = False
 
     class Config:
         from_attributes = True
-
-
-def hash_invite_code(code: str) -> str:
-    return hashlib.sha256(code.strip().encode()).hexdigest()
 
 
 async def get_current_user(
@@ -94,19 +88,13 @@ async def get_current_user(
     return user
 
 
-async def get_current_superadmin(current_user: User = Depends(get_current_user)) -> User:
-    if not current_user.is_superadmin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Superadmin access required")
-    return current_user
-
-
 async def consume_invite(session: AsyncSession, code: Optional[str]) -> str:
     if not code or not code.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired invite code")
     result = await session.execute(
         update(Invite)
         .where(
-            Invite.code_hash == hash_invite_code(code),
+            Invite.code == code.strip(),
             Invite.revoked_at.is_(None),
             Invite.use_count < Invite.max_uses,
             or_(Invite.expires_at.is_(None), Invite.expires_at > func.now()),
@@ -181,7 +169,6 @@ async def register(
         full_name=new_user.full_name,
         location=new_user.location,
         primary_currency=new_user.primary_currency,
-        is_superadmin=new_user.is_superadmin,
     )
 
 
@@ -224,5 +211,4 @@ async def get_current_user_info(
         full_name=current_user.full_name,
         location=current_user.location,
         primary_currency=current_user.primary_currency,
-        is_superadmin=current_user.is_superadmin,
     )

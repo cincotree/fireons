@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: deploy-api deploy-webapp create-superadmin help setup install env db db-create migrate \
+.PHONY: deploy-api deploy-webapp help setup install env db db-create migrate \
 	backend-setup backend backend-test \
 	frontend-setup frontend frontend-build frontend-lint \
 	e2e-setup e2e e2e-headed e2e-ui e2e-debug e2e-report \
@@ -27,7 +27,6 @@ help:
 	@echo "Deploy (needs AWS credentials, see infra/README.md)"
 	@echo "  deploy-api       Build and release the API to Lambda"
 	@echo "  deploy-webapp    Build and release the frontend to S3 and CloudFront"
-	@echo "  create-superadmin  Create or promote a superadmin (ARGS=\"--email a@b.c --username name\")"
 	@echo ""
 	@echo "Test and check"
 	@echo "  test             Run backend tests and e2e tests"
@@ -105,6 +104,3 @@ deploy-api:
 
 deploy-webapp:
 	./scripts/deploy-webapp.sh
-
-create-superadmin:
-	./scripts/create-superadmin.sh $(ARGS)

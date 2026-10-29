@@ -9,7 +9,6 @@ from apscheduler.triggers.cron import CronTrigger
 from api.account_api import router as account_router
 from api.auth_api import router as auth_router
 from api.health_api import router as health_router
-from api.invite_api import router as invite_router
 from api.ingestion_disabled_api import router as ingestion_disabled_router
 from app_config import AppSettings, get_app_settings
 from jobs.config import get_exchange_rate_sync_settings
@@ -64,7 +63,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     app.include_router(auth_router)
     app.include_router(account_router)
-    app.include_router(invite_router)
     if settings.ingestion_test_enabled:
         from api.ingestion_test_api import router as ingestion_test_router
 
