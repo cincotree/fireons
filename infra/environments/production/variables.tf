@@ -42,7 +42,7 @@ variable "api_reserved_concurrency" {
   default = 3
 }
 
-variable "captcha_enabled" {
+variable "invite_only" {
   type    = bool
   default = true
 }

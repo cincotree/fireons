@@ -167,6 +167,8 @@ Every environment is configured the same way, through env vars (locally from `.e
 ```bash
 CORS_ORIGINS=http://localhost:3000,http://localhost:3020   # comma-separated
 INGESTION_TEST_ENABLED=true                    # mounts the /ingestion-test debug router
+INGESTION_ENABLED=false                        # false makes /ingestion/* return 503
+INVITE_ONLY=false                              # true requires a superadmin-issued invite code to register
 DATABASE_URL=postgresql+psycopg://...          # used exactly as given by the app and Alembic (add ?sslmode=require for Neon)
 DB_NULL_POOL=false                             # NullPool instead of QueuePool (Lambda)
 EXCHANGE_RATE_SYNC_ENABLED=true                # in-process APScheduler job

@@ -69,7 +69,7 @@ resource "aws_lambda_function" "api" {
       APP_ENV                      = var.environment
       CORS_ORIGINS                 = local.webapp_url
       INGESTION_TEST_ENABLED       = "false"
-      CAPTCHA_ENABLED              = tostring(var.captcha_enabled)
+      INVITE_ONLY                  = tostring(var.invite_only)
       DB_NULL_POOL                 = "true"
       EXCHANGE_RATE_SYNC_ENABLED   = "false"
     }

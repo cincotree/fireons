@@ -11,6 +11,7 @@ interface User {
   full_name?: string;
   location?: string;
   primary_currency: string;
+  is_superadmin?: boolean;
 }
 
 interface AuthContextType {
@@ -29,7 +30,7 @@ interface RegisterData {
   full_name?: string;
   location?: string;
   primary_currency?: string;
-  captcha_token?: string;
+  invite_code?: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);

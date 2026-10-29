@@ -1,13 +1,12 @@
+import hashlib
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.captcha import verify_turnstile
-from app_config import AppSettings, get_app_settings
 from auth_utils import (
     Token,
     TokenData,
@@ -16,7 +15,8 @@ from auth_utils import (
     get_password_hash,
     verify_password,
 )
-from database.models import User
+from app_config import AppSettings, get_app_settings
+from database.models import Invite, InviteRedemption, User
 from database.session import get_session
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
@@ -36,7 +36,11 @@ class UserFields(BaseModel):
 
 
 class RegisterRequest(UserFields):
-    captcha_token: Optional[str] = None
+    invite_code: Optional[str] = None
+
+
+class RegistrationInfo(BaseModel):
+    invite_required: bool
 
 
 class LoginCreds(BaseModel):
@@ -51,9 +55,14 @@ class UserResponse(BaseModel):
     full_name: Optional[str] = None
     location: Optional[str] = None
     primary_currency: str = "USD"
+    is_superadmin: bool = False
 
     class Config:
         from_attributes = True
+
+
+def hash_invite_code(code: str) -> str:
+    return hashlib.sha256(code.strip().encode()).hexdigest()
 
 
 async def get_current_user(
@@ -85,20 +94,43 @@ async def get_current_user(
     return user
 
 
+async def get_current_superadmin(current_user: User = Depends(get_current_user)) -> User:
+    if not current_user.is_superadmin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Superadmin access required")
+    return current_user
+
+
+async def consume_invite(session: AsyncSession, code: Optional[str]) -> str:
+    if not code or not code.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired invite code")
+    result = await session.execute(
+        update(Invite)
+        .where(
+            Invite.code_hash == hash_invite_code(code),
+            Invite.revoked_at.is_(None),
+            Invite.use_count < Invite.max_uses,
+            or_(Invite.expires_at.is_(None), Invite.expires_at > func.now()),
+        )
+        .values(use_count=Invite.use_count + 1)
+        .returning(Invite.id)
+    )
+    invite_id = result.scalar_one_or_none()
+    if invite_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired invite code")
+    return invite_id
+
+
+@router.get("/registration", response_model=RegistrationInfo)
+async def get_registration_info(settings: AppSettings = Depends(get_app_settings)):
+    return RegistrationInfo(invite_required=settings.invite_only)
+
+
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     user_data: RegisterRequest,
     session: AsyncSession = Depends(get_session),
     settings: AppSettings = Depends(get_app_settings),
 ):
-    if settings.captcha_enabled and not await verify_turnstile(
-        user_data.captcha_token, settings.turnstile_secret_key
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Captcha verification failed"
-        )
-
     if not user_data.password:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -123,6 +155,8 @@ async def register(
             detail="Email already registered"
         )
 
+    invite_id = await consume_invite(session, user_data.invite_code) if settings.invite_only else None
+
     hashed_password = get_password_hash(user_data.password)
     new_user = User(
         email=user_data.email,
@@ -134,6 +168,9 @@ async def register(
     )
 
     session.add(new_user)
+    await session.flush()
+    if invite_id is not None:
+        session.add(InviteRedemption(invite_id=invite_id, user_id=new_user.id))
     await session.commit()
     await session.refresh(new_user)
 
@@ -144,6 +181,7 @@ async def register(
         full_name=new_user.full_name,
         location=new_user.location,
         primary_currency=new_user.primary_currency,
+        is_superadmin=new_user.is_superadmin,
     )
 
 
@@ -186,4 +224,5 @@ async def get_current_user_info(
         full_name=current_user.full_name,
         location=current_user.location,
         primary_currency=current_user.primary_currency,
+        is_superadmin=current_user.is_superadmin,
     )

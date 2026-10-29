@@ -12,11 +12,13 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Index,
+    Integer,
     JSON,
     Numeric,
     String,
     Text,
     UniqueConstraint,
+    false,
     func,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -370,6 +372,9 @@ class User(Base):
     full_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     location: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     primary_currency: Mapped[str] = mapped_column(String(10), default="USD", nullable=False)
+    is_superadmin: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -383,3 +388,40 @@ class User(Base):
 
     def __repr__(self) -> str:
         return f"<User(username={self.username}, email={self.email})>"
+
+
+class Invite(Base):
+    __tablename__ = "invites"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    code_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    label: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    max_uses: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    use_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_by: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class InviteRedemption(Base):
+    __tablename__ = "invite_redemptions"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    invite_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("invites.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

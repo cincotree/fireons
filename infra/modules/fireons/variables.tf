@@ -40,6 +40,6 @@ variable "api_reserved_concurrency" {
   type = number
 }
 
-variable "captcha_enabled" {
+variable "invite_only" {
   type = bool
 }
