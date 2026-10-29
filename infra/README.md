@@ -52,32 +52,7 @@ Checks: `terraform plan` is clean after apply, the budget alert test email arriv
 
 ## Invite-only registration
 
-Sign-ups need an invite code that exists in the `invites` table. There is no admin page yet, so you add invites with SQL (Neon SQL editor or `psql`).
-
-Create an invite:
-
-```sql
-insert into invites (id, code, label, max_uses, expires_at)
-values (gen_random_uuid(), '<code>', 'for Asha', 1, now() + interval '14 days');
-```
-
-Generate the code with `openssl rand -base64 12 | tr '+/' '-_' | tr -d '='`. Leave `expires_at` out for no expiry. Send the person `https://app.fireons.com/register?invite=<code>`, which prefills the code on the register page.
-
-Other operations:
-
-```sql
-update invites set revoked_at = now() where code = '<code>';
-
-select i.label, i.use_count, i.max_uses, i.expires_at, i.revoked_at, u.username as used_by
-from invites i
-left join invite_redemptions r on r.invite_id = i.id
-left join users u on u.id = r.user_id
-order by i.created_at desc;
-```
-
-An invite works until it is revoked, expired or used `max_uses` times. A failed registration (for example a taken username) does not use up the invite.
-
-The API runs with `INVITE_ONLY=true` (`invite_only` in Terraform, default true). Local development and the e2e suite leave it unset, so registration stays open there.
+Production registration needs an invite code from the `invites` table, which you manage with SQL. See [docs/invite-only-registration.md](../docs/invite-only-registration.md) for how to create, revoke and inspect invites.
 
 ## Notes
 
