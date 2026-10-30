@@ -30,7 +30,7 @@ Apply, phase 1 (CloudFront default domains):
 4. `./bootstrap.sh` creates the versioned, encrypted state bucket and writes `environments/production/backend.hcl` (gitignored).
 5. `cd environments/production`, `cp terraform.tfvars.example terraform.tfvars` and set `budget_email`.
 6. `terraform init -backend-config=backend.hcl`, then `terraform plan` and `terraform apply`.
-7. Fill the secret with `aws secretsmanager put-secret-value --secret-id fireons/production --secret-string file://secret.json`, keys `SECRET_KEY`, `DATABASE_URL` (Neon direct URL as `postgresql+psycopg://...?sslmode=require`) and `ANTHROPIC_API_KEY`. Delete `secret.json` afterwards. To change or add one key later without touching the others, run `./scripts/put-secret.sh KEY_NAME`, which asks for the value and merges it into the secret.
+7. Fill the secret with `aws secretsmanager put-secret-value --secret-id fireons/production --secret-string file://secret.json`, keys `SECRET_KEY`, `DATABASE_URL` (Neon direct URL as `postgresql+psycopg://...?sslmode=require`) and `ANTHROPIC_API_KEY`. Delete `secret.json` afterwards.
 
 First deploy from your machine (AWS credentials for the same account, `uv`, Node, `zip`):
 8. `make deploy-api` (names derive from `DEPLOY_ENV`, default `production`) builds the zip, runs migrations against Neon, publishes a version, smoke tests `/health` and `/health/ready`, then moves alias `live`.

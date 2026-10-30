@@ -39,12 +39,14 @@ async def lifespan(app: FastAPI):
 
 
 async def rewrite_api_path(request: Request, call_next: Callable[[Request], Awaitable[Response]]):
-    if request.url.path.startswith("/api"):
-        scope = request.scope
-        scope["path"] = request.url.path[len("/api") :]
-        request = Request(scope, request.receive)
-    response = await call_next(request)
-    return response
+    scope = request.scope
+    path = scope["path"]
+    if path == "/api" or path.startswith("/api/"):
+        scope["path"] = path[len("/api") :] or "/"
+        raw_path = scope.get("raw_path")
+        if raw_path:
+            scope["raw_path"] = raw_path[len(b"/api") :] or b"/"
+    return await call_next(request)
 
 
 def create_app(settings: AppSettings | None = None) -> FastAPI:

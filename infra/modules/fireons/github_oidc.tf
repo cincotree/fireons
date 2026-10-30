@@ -41,7 +41,8 @@ data "aws_iam_policy_document" "github_deploy" {
       "lambda:InvokeFunction",
     ]
     resources = [
-      "arn:aws:lambda:${var.region}:${data.aws_caller_identity.current.account_id}:function:${local.name}-*",
+      aws_lambda_function.api.arn,
+      "${aws_lambda_function.api.arn}:*",
     ]
   }
 
@@ -54,19 +55,19 @@ data "aws_iam_policy_document" "github_deploy" {
   statement {
     sid       = "StaticSiteObjects"
     actions   = ["s3:PutObject", "s3:DeleteObject", "s3:GetObject"]
-    resources = ["arn:aws:s3:::${local.name}-*/*"]
+    resources = ["${aws_s3_bucket.webapp.arn}/*"]
   }
 
   statement {
     sid       = "StaticSiteBucketList"
     actions   = ["s3:ListBucket", "s3:GetBucketLocation"]
-    resources = ["arn:aws:s3:::${local.name}-*"]
+    resources = [aws_s3_bucket.webapp.arn]
   }
 
   statement {
     sid       = "CloudFrontInvalidate"
     actions   = ["cloudfront:CreateInvalidation", "cloudfront:GetInvalidation"]
-    resources = ["arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/*"]
+    resources = [aws_cloudfront_distribution.webapp.arn]
   }
 }
 

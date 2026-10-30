@@ -1,7 +1,3 @@
-"""
-Database configuration settings.
-"""
-
 import os
 from functools import lru_cache
 
@@ -11,11 +7,8 @@ from secrets_source import SecretsManagerSettings
 
 
 class Settings(SecretsManagerSettings):
-    """Database configuration settings."""
-
     database_url: str
 
-    # Connection pool settings
     pool_size: int = 5
     max_overflow: int = 10
     pool_timeout: int = 30
@@ -37,7 +30,6 @@ class Settings(SecretsManagerSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    """Get cached settings instance."""
     if os.getenv("TESTING", "").lower() == "true":
         return Settings(_env_file=".env.test")
     return Settings()

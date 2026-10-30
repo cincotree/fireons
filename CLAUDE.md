@@ -36,6 +36,7 @@ Fireons is a personal finance tracker for managing net worth and accounts. The s
 - **Ledger data model** (`database/models.py`): a double-entry, beancount-style schema — `Account` (hierarchical colon-separated names like `Assets:Bank:HDFC:6789`, typed `Assets`/`Liabilities`/`Equity`/`Income`/`Expenses`), `Transaction`/`Posting` (balanced double-entry postings), and `Balance` (point-in-time verified balances, one row per `account_id`+`date`+`currency`, optionally linked to the `IngestedDocument` it came from).
 - **Authentication**: `auth_api.py` (register/login/`/api/auth/me`), `auth_utils.py` (bcrypt hashing, JWT), 30-minute token expiry.
 - **`account_api.py` / `networth_api.py`**: manual account and balance CRUD, and net worth calculation, against the ledger tables above.
+- **Migrations** are applied before the new code is released, so they must stay backward compatible (see `backend/alembic/README.md`).
 - **Invite-only registration**: with `INVITE_ONLY=true`, `auth_api.register` requires an invite code from the `invites` table (managed with SQL, see `docs/invite-only-registration.md`).
 - **`convert_currency_api.py`**: USD/INR conversion using `ExchangeRate` rows.
 - **Statement ingestion — two independent pipelines, do not conflate them:**

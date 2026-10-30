@@ -1,4 +1,5 @@
 import pytest
+from fastapi import Request
 from httpx import ASGITransport, AsyncClient
 from pydantic import ValidationError
 
@@ -97,3 +98,49 @@ async def test_health_does_not_need_database():
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def _probe_app():
+    app = create_app(AppSettings(_env_file=None, secret_key="k" * 32, cors_origins=APP_ORIGIN))
+
+    @app.get("/probe")
+    async def probe(request: Request):
+        return {"path": request.scope["path"], "raw_path": request.scope["raw_path"].decode()}
+
+    return app
+
+
+async def _probe(path: str):
+    transport = ASGITransport(app=_probe_app())
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        return await client.get(path)
+
+
+@pytest.mark.asyncio
+async def test_api_prefix_is_stripped_from_path_and_raw_path():
+    response = await _probe("/api/probe")
+
+    assert response.status_code == 200
+    assert response.json() == {"path": "/probe", "raw_path": "/probe"}
+
+
+@pytest.mark.asyncio
+async def test_unprefixed_path_is_left_alone():
+    response = await _probe("/probe")
+
+    assert response.json() == {"path": "/probe", "raw_path": "/probe"}
+
+
+@pytest.mark.asyncio
+async def test_prefix_lookalikes_are_not_rewritten():
+    for path in ("/apiprobe", "/api-probe", "/apix/probe"):
+        response = await _probe(path)
+        assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_bare_api_path_maps_to_root():
+    async with _client() as client:
+        response = await client.get("/api")
+
+    assert response.status_code == 404
