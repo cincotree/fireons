@@ -24,3 +24,12 @@ def test_plain_postgres_urls_use_the_psycopg_driver():
 
 def test_explicit_driver_is_left_alone():
     assert _settings().database_url == "postgresql+psycopg://app:pw@db.example.com/fireons"
+
+
+def test_small_pool_settings_reach_the_engine():
+    options = engine_options(_settings(db_null_pool=False, pool_size=1, max_overflow=1))
+
+    assert options["pool_size"] == 1
+    assert options["max_overflow"] == 1
+    assert options["pool_pre_ping"] is True
+    assert "poolclass" not in options

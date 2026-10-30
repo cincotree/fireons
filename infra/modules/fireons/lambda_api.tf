@@ -53,7 +53,7 @@ resource "aws_lambda_function" "api" {
   runtime                        = "python3.12"
   architectures                  = ["arm64"]
   handler                        = "run.sh"
-  memory_size                    = 512
+  memory_size                    = var.api_memory_mb
   timeout                        = 30
   publish                        = true
   reserved_concurrent_executions = var.api_reserved_concurrency
@@ -70,7 +70,9 @@ resource "aws_lambda_function" "api" {
       CORS_ORIGINS                 = local.webapp_url
       INGESTION_TEST_ENABLED       = "false"
       INVITE_ONLY                  = tostring(var.invite_only)
-      DB_NULL_POOL                 = "true"
+      DB_NULL_POOL                 = "false"
+      POOL_SIZE                    = "1"
+      MAX_OVERFLOW                 = "1"
       EXCHANGE_RATE_SYNC_ENABLED   = "false"
     }
   }

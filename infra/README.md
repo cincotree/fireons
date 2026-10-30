@@ -60,4 +60,6 @@ Production registration needs an invite code from the `invites` table, which you
 - The deploy role can only update Lambda code and aliases for `fireons-production-*` functions, write objects to `fireons-production-*` buckets, and create CloudFront invalidations.
 - Certificate validation resources are intentionally omitted so `apply` does not block on DNS, and the distributions only use the certificates once `enable_custom_domains` is true.
 - Terraform owns the Lambda configuration and the alias target is ignored after creation, so the release workflow moves `live` without causing drift. The initial code is a placeholder that the first `make deploy-api` replaces.
+- The Lambda has 1769 MB of memory (one full vCPU), which makes password hashing and cold starts faster. Each Lambda instance keeps one database connection (`POOL_SIZE=1`, `MAX_OVERFLOW=1`) between requests, checked with a ping before use, instead of reconnecting on every request.
+- Terraform changes to Lambda memory or environment variables only reach production after the next `make deploy-api`, because a published version keeps the settings it was created with.
 - Releases never run Terraform.

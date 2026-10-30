@@ -21,4 +21,5 @@ module "fireons" {
   lambda_web_adapter_layer_arn = var.lambda_web_adapter_layer_arn
   api_reserved_concurrency     = var.api_reserved_concurrency
   invite_only                  = var.invite_only
+  api_memory_mb                = var.api_memory_mb
 }
