@@ -41,8 +41,8 @@ data "aws_iam_policy_document" "github_deploy" {
       "lambda:InvokeFunction",
     ]
     resources = [
-      aws_lambda_function.api.arn,
-      "${aws_lambda_function.api.arn}:*",
+      "arn:aws:lambda:${var.region}:${data.aws_caller_identity.current.account_id}:function:${local.api_function}",
+      "arn:aws:lambda:${var.region}:${data.aws_caller_identity.current.account_id}:function:${local.api_function}:*",
     ]
   }
 

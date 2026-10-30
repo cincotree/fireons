@@ -20,7 +20,7 @@ data "aws_iam_policy_document" "lambda_trust" {
 }
 
 resource "aws_iam_role" "api" {
-  name               = "${local.name}-api"
+  name               = local.api_function
   assume_role_policy = data.aws_iam_policy_document.lambda_trust.json
 }
 
@@ -43,12 +43,12 @@ resource "aws_iam_role_policy" "api_secret" {
 }
 
 resource "aws_cloudwatch_log_group" "api" {
-  name              = "/aws/lambda/${local.name}-api"
+  name              = "/aws/lambda/${local.api_function}"
   retention_in_days = 14
 }
 
 resource "aws_lambda_function" "api" {
-  function_name                  = "${local.name}-api"
+  function_name                  = local.api_function
   role                           = aws_iam_role.api.arn
   runtime                        = "python3.12"
   architectures                  = ["arm64"]
