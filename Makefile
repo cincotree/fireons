@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup install env db db-create migrate \
+.PHONY: deploy-api deploy-webapp help setup install env db db-create migrate \
 	backend-setup backend backend-test \
 	frontend-setup frontend frontend-build frontend-lint \
 	e2e-setup e2e e2e-headed e2e-ui e2e-debug e2e-report \
@@ -23,6 +23,10 @@ help:
 	@echo "Run"
 	@echo "  backend          Apply migrations and start the backend with reload"
 	@echo "  frontend         Start the frontend dev server"
+	@echo ""
+	@echo "Deploy (needs AWS credentials, see infra/README.md)"
+	@echo "  deploy-api       Build and release the API to Lambda"
+	@echo "  deploy-webapp    Build and release the frontend to S3 and CloudFront"
 	@echo ""
 	@echo "Test and check"
 	@echo "  test             Run backend tests and e2e tests"
@@ -94,3 +98,9 @@ e2e-report:
 	cd e2e-tests && npm run report
 
 test: backend-test e2e
+
+deploy-api:
+	./scripts/deploy-api.sh
+
+deploy-webapp:
+	./scripts/deploy-webapp.sh

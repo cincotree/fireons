@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 os.environ.setdefault("SECRET_KEY", "pytest-secret-key")
+os.environ.setdefault("INGESTION_ENABLED", "true")
 os.environ.setdefault(
     "DATABASE_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/fireons_development"
 )

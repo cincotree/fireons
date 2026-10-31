@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
+import { getBaseHttpUrl } from "@/utils/api";
 import { SUPPORTED_CURRENCIES } from "@/utils/currencies";
 
 export default function RegisterPage() {
@@ -16,6 +17,16 @@ export default function RegisterPage() {
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [inviteRequired, setInviteRequired] = useState(false);
+  const [inviteCode, setInviteCode] = useState("");
+
+  useEffect(() => {
+    setInviteCode(new URLSearchParams(window.location.search).get("invite") ?? "");
+    fetch(`${getBaseHttpUrl()}/api/auth/registration`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((info) => setInviteRequired(Boolean(info?.invite_required)))
+      .catch(() => setInviteRequired(false));
+  }, []);
 
   const { register } = useAuth();
 
@@ -45,6 +56,7 @@ export default function RegisterPage() {
         full_name: formData.full_name || undefined,
         location: formData.location || undefined,
         primary_currency: formData.primary_currency,
+        invite_code: inviteRequired ? inviteCode.trim() : undefined,
       });
     } catch (err) {
       setError((err instanceof Error && err.message) || "Registration failed. Please try again.");
@@ -76,6 +88,24 @@ export default function RegisterPage() {
           <div className="space-y-6">
             {/* Required Fields */}
             <div className="space-y-4">
+              {inviteRequired && (
+                <div>
+                  <label htmlFor="invite_code" className="block text-sm font-medium text-gray-700">
+                    Invite code <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="invite_code"
+                    name="invite_code"
+                    type="text"
+                    required
+                    className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    placeholder="Paste your invite code"
+                    value={inviteCode}
+                    onChange={(e) => setInviteCode(e.target.value)}
+                    disabled={loading}
+                  />
+                </div>
+              )}
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700">
                   Email <span className="text-red-500">*</span>

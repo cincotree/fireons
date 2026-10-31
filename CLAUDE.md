@@ -36,6 +36,8 @@ Fireons is a personal finance tracker for managing net worth and accounts. The s
 - **Ledger data model** (`database/models.py`): a double-entry, beancount-style schema — `Account` (hierarchical colon-separated names like `Assets:Bank:HDFC:6789`, typed `Assets`/`Liabilities`/`Equity`/`Income`/`Expenses`), `Transaction`/`Posting` (balanced double-entry postings), and `Balance` (point-in-time verified balances, one row per `account_id`+`date`+`currency`, optionally linked to the `IngestedDocument` it came from).
 - **Authentication**: `auth_api.py` (register/login/`/api/auth/me`), `auth_utils.py` (bcrypt hashing, JWT), 30-minute token expiry.
 - **`account_api.py` / `networth_api.py`**: manual account and balance CRUD, and net worth calculation, against the ledger tables above.
+- **Migrations** are applied before the new code is released, so they must stay backward compatible (see `backend/alembic/README.md`).
+- **Invite-only registration**: with `INVITE_ONLY=true`, `auth_api.register` requires an invite code from the `invites` table (managed with SQL, see `docs/invite-only-registration.md`).
 - **`convert_currency_api.py`**: USD/INR conversion using `ExchangeRate` rows.
 - **Statement ingestion — two independent pipelines, do not conflate them:**
   - `statements/parsers/` — the older pipeline. Regex-based, single-institution-at-a-time (currently HDFC), caller supplies the bank code, single-holding output. Exposed via `statements_api.py`.
@@ -106,7 +108,7 @@ npm install
 
 # Create .env.local from sample
 cp .env.local.sample .env.local
-# Edit .env.local and set BACKEND_HOST if needed (defaults to localhost:8000)
+# Edit .env.local and set NEXT_PUBLIC_API_BASE_URL if needed (for example http://localhost:8000)
 ```
 
 ### Frontend Development
@@ -127,7 +129,7 @@ npm run lint
 docker build -t fireons/frontend .
 
 # Run Docker container
-docker run -p 3000:3000 -e BACKEND_HOST=localhost:8000 fireons/frontend
+docker run -p 3000:3000 fireons/frontend
 ```
 
 ### E2E Tests
@@ -167,6 +169,8 @@ Every environment is configured the same way, through env vars (locally from `.e
 ```bash
 CORS_ORIGINS=http://localhost:3000,http://localhost:3020   # comma-separated
 INGESTION_TEST_ENABLED=true                    # mounts the /ingestion-test debug router
+INGESTION_ENABLED=false                        # false makes /ingestion/* return 503
+INVITE_ONLY=false                              # true requires a valid invite code (invites table) to register
 DATABASE_URL=postgresql+psycopg://...          # used exactly as given by the app and Alembic (add ?sslmode=require for Neon)
 DB_NULL_POOL=false                             # NullPool instead of QueuePool (Lambda)
 EXCHANGE_RATE_SYNC_ENABLED=true                # in-process APScheduler job
@@ -177,5 +181,5 @@ When `APP_ENV` is set (e.g. `APP_ENV=production` on the Lambda), settings missin
 
 ### Frontend `.env.local` (required)
 ```bash
-BACKEND_HOST=localhost:8000
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```

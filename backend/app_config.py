@@ -12,6 +12,8 @@ class AppSettings(SecretsManagerSettings):
     access_token_expire_minutes: int = 30
     cors_origins: str = "http://localhost:3000,http://localhost:3020"
     ingestion_test_enabled: bool = True
+    ingestion_enabled: bool = False
+    invite_only: bool = False
 
     class Config:
         env_file = ".env"

@@ -64,7 +64,7 @@ Each suite has its own database: development uses `fireons_development`, backend
 - `make frontend` (`npm run dev`) — dev server on localhost:3000
 - `make frontend-build` (`npm run build`) — production build
 - `make frontend-lint` (`npm run lint`) — lint
-- Needs `.env.local` with `BACKEND_HOST=localhost:8000`
+- Needs `.env.local` with `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000`
 
 ### E2E tests
 Make targets wrap the Playwright suite in `e2e-tests/` (see `e2e-tests/package.json` for the underlying scripts):
@@ -94,5 +94,5 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 
 ### Frontend `.env.local` (required)
 ```env
-BACKEND_HOST=localhost:8000
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```

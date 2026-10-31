@@ -8,7 +8,7 @@ from app_config import AppSettings
 from database.config import Settings as DatabaseSettings
 from secrets_source import ENV_VAR, fetch_secret, secret_id_for
 
-SECRET = {"SECRET_KEY": "from-secrets-manager", "DATABASE_URL": "postgresql://app:pw@db.example.com/fireons"}
+SECRET = {"SECRET_KEY": "from-secrets-manager", "DATABASE_URL": "postgresql+psycopg://app:pw@db.example.com/fireons"}
 
 
 @pytest.fixture
