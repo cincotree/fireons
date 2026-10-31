@@ -28,7 +28,26 @@ async def test_ready_returns_200_when_database_answers(client):
     response = await client.get("/health/ready")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert response.json()["status"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_health_and_ready_report_the_build_version(client, monkeypatch):
+    info = {"version": "abc123", "built_at": "2026-10-31T05:00:00Z"}
+    monkeypatch.setattr("api.health_api.get_build_info", lambda: info)
+
+    health = await client.get("/health")
+    ready = await client.get("/health/ready")
+
+    assert health.json() == {"status": "ok", **info}
+    assert ready.json() == {"status": "ok", **info}
+
+
+@pytest.mark.asyncio
+async def test_health_reports_dev_when_not_built(client):
+    response = await client.get("/health")
+
+    assert response.json()["version"] == "dev"
 
 
 @pytest.mark.asyncio

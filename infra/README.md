@@ -54,6 +54,14 @@ Checks: `terraform plan` is clean after apply, the budget alert test email arriv
 
 Production registration needs an invite code from the `invites` table, which you manage with SQL. See [docs/invite-only-registration.md](../docs/invite-only-registration.md) for how to create, revoke and inspect invites.
 
+## Which version is deployed
+
+Every build records its git commit.
+- API: `curl https://api.fireons.com/health` returns `{"status":"ok","version":"<commit>","built_at":"<time>"}`. The same fields are in `/health/ready`. A local run reports `"version":"dev"`.
+- Web app: `curl https://app.fireons.com/version.json` returns the same two fields.
+- A `-dirty` suffix means the build had uncommitted changes, which only happens for manual `make deploy-*` runs.
+- The release scripts check these: the API smoke test fails, and the alias stays put, if the new version does not report the commit that was built, and the web app step fails if the site does not serve the new `version.json`.
+
 ## Notes
 
 - State locking uses the S3 native lockfile, so no DynamoDB table is needed (Terraform or OpenTofu 1.10+).

@@ -12,20 +12,25 @@ cd "$ROOT/frontend"
 npm run build
 
 OUT="$ROOT/frontend/out"
+COMMIT="$(git -C "$ROOT" rev-parse HEAD)"
+if [ -n "$(git -C "$ROOT" status --porcelain)" ]; then
+  COMMIT="$COMMIT-dirty"
+fi
+printf '{"version": "%s", "built_at": "%s"}\n' "$COMMIT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$OUT/version.json"
 TARGET="s3://$WEBAPP_BUCKET"
 
-aws s3 sync "$OUT/_next" "$TARGET/_next" \
+aws s3 sync --only-show-errors "$OUT/_next" "$TARGET/_next" \
   --cache-control "public,max-age=31536000,immutable"
 
-aws s3 sync "$OUT" "$TARGET" \
-  --exclude "_next/*" --exclude "*.html" --exclude "*.txt" \
+aws s3 sync --only-show-errors "$OUT" "$TARGET" \
+  --exclude "_next/*" --exclude "*.html" --exclude "*.txt" --exclude "version.json" \
   --cache-control "public,max-age=3600"
 
-aws s3 sync "$OUT" "$TARGET" \
-  --exclude "*" --include "*.html" --include "*.txt" \
+aws s3 sync --only-show-errors "$OUT" "$TARGET" \
+  --exclude "*" --include "*.html" --include "*.txt" --include "version.json" \
   --cache-control "no-cache"
 
-aws s3 sync "$OUT" "$TARGET" --delete --exclude "_next/*"
+aws s3 sync --only-show-errors "$OUT" "$TARGET" --delete --exclude "_next/*"
 
 INVALIDATION_ID="$(aws cloudfront create-invalidation \
   --distribution-id "$WEBAPP_DISTRIBUTION_ID" \
@@ -37,3 +42,6 @@ aws cloudfront wait invalidation-completed \
 
 curl -fsS --retry 5 --retry-delay 3 -o /dev/null "${WEBAPP_URL%/}/login/"
 echo "Smoke check ${WEBAPP_URL%/}/login/ ok"
+
+curl -fsS --retry 5 --retry-delay 3 "${WEBAPP_URL%/}/version.json" | grep -q "\"$COMMIT\""
+echo "Deployed version is $COMMIT"

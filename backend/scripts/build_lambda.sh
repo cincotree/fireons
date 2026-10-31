@@ -17,8 +17,14 @@ uv pip install \
   --no-compile \
   -r build/requirements.txt
 
-cp app.py app_config.py auth_utils.py secrets_source.py run.sh build/package/
+cp app.py app_config.py auth_utils.py build_info.py secrets_source.py run.sh build/package/
 cp -R api database ingestion jobs build/package/
+
+COMMIT="$(git rev-parse HEAD)"
+if [ -n "$(git status --porcelain)" ]; then
+  COMMIT="$COMMIT-dirty"
+fi
+printf '{"version": "%s", "built_at": "%s"}\n' "$COMMIT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > build/package/build_info.json
 
 find build/package -name '__pycache__' -type d -prune -exec rm -rf {} +
 chmod +x build/package/run.sh

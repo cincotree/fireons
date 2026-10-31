@@ -8,6 +8,7 @@ ALIAS_NAME="${API_ALIAS_NAME:-live}"
 SECRET_ID="${SECRET_ID:-fireons/$DEPLOY_ENV}"
 
 "$ROOT/backend/scripts/build_lambda.sh"
+EXPECTED_COMMIT="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$ROOT/backend/build/package/build_info.json")"
 
 DATABASE_URL="$(aws secretsmanager get-secret-value --secret-id "$SECRET_ID" --query SecretString --output text \
   | python3 -c '
@@ -48,6 +49,13 @@ smoke_test() {
     "$out")"
   local status
   status="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("statusCode"))' "$out")"
+  local deployed
+  deployed="$(python3 -c 'import json,sys; print(json.loads(json.load(open(sys.argv[1])).get("body") or "{}").get("version"))' "$out" 2>/dev/null || echo unknown)"
+  if [ "$status" = "200" ] && [ "$deployed" != "$EXPECTED_COMMIT" ]; then
+    echo "Smoke test $path on version $VERSION reports commit $deployed, expected $EXPECTED_COMMIT; alias $ALIAS_NAME unchanged" >&2
+    rm -f "$out"
+    exit 1
+  fi
   if [ "$status" != "200" ]; then
     echo "Smoke test $path returned $status on version $VERSION; alias $ALIAS_NAME unchanged" >&2
     echo "Response:" >&2
