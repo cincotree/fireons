@@ -1,6 +1,8 @@
 name: Release
 
 on:
+  push:
+    branches: [ao/implement-shortcut-story/infra-foundation]
   workflow_run:
     workflows: [CI]
     types: [completed]
@@ -28,7 +30,7 @@ jobs:
     name: Detect changes
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     outputs:
       ref: ${{ steps.target.outputs.ref }}
       api: ${{ steps.diff.outputs.api }}
@@ -37,7 +39,7 @@ jobs:
       - name: Resolve target ref
         id: target
         env:
-          TARGET_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.event.workflow_run.head_sha }}
+          TARGET_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.event_name == 'push' && github.sha || github.event.workflow_run.head_sha }}
         run: echo "ref=$TARGET_REF" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
@@ -49,7 +51,7 @@ jobs:
       - name: Diff paths
         id: diff
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" != "workflow_run" ]; then
             echo "api=true" >> "$GITHUB_OUTPUT"
             echo "webapp=true" >> "$GITHUB_OUTPUT"
             exit 0
