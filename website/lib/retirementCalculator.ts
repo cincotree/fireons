@@ -129,6 +129,32 @@ function simulate(inputs: RetirementInputs, monthlySip: number): {
 const MAX_MONTHLY_SIP = 10_000_000;
 const BINARY_SEARCH_ITERATIONS = 60;
 
+function solveMonthlySipForTargetCorpus(
+  inputs: RetirementInputs,
+  targetCorpus: number
+): { requiredMonthlySip: number; isAlreadyOnTrack: boolean; series: RetirementSeriesPoint[] } {
+  const zeroSip = simulate(inputs, 0);
+  if (zeroSip.corpusAtRetirement >= targetCorpus) {
+    return { requiredMonthlySip: 0, isAlreadyOnTrack: true, series: zeroSip.series };
+  }
+
+  let lo = 0;
+  let hi = MAX_MONTHLY_SIP;
+  for (let i = 0; i < BINARY_SEARCH_ITERATIONS; i++) {
+    const mid = (lo + hi) / 2;
+    const { corpusAtRetirement } = simulate(inputs, mid);
+    if (corpusAtRetirement > targetCorpus) {
+      hi = mid;
+    } else {
+      lo = mid;
+    }
+  }
+
+  const requiredMonthlySip = (lo + hi) / 2;
+  const { series } = simulate(inputs, requiredMonthlySip);
+  return { requiredMonthlySip, isAlreadyOnTrack: false, series };
+}
+
 export function simulateRetirement(inputs: RetirementInputs): RetirementResult {
   if (simulate(inputs, 0).finalBalance >= 0) {
     const { corpusAtRetirement, series, finalMonthlySip } = simulate(inputs, 0);
@@ -224,37 +250,86 @@ export function calculateCityFire(inputs: CityFireInputs): CityFireResult {
   const fireNumberAtRetirement = fireNumberToday * Math.pow(1 + inflation, yearsToRetire);
 
   const retirementInputs = toCityFireRetirementInputs(inputs);
+  const { requiredMonthlySip, isAlreadyOnTrack, series } = solveMonthlySipForTargetCorpus(
+    retirementInputs,
+    fireNumberAtRetirement
+  );
 
-  const zeroSip = simulate(retirementInputs, 0);
-  if (zeroSip.corpusAtRetirement >= fireNumberAtRetirement) {
-    return {
-      fireNumberToday,
-      fireNumberAtRetirement,
-      requiredMonthlySip: 0,
-      isAlreadyOnTrack: true,
-      series: zeroSip.series,
-    };
-  }
-
-  let lo = 0;
-  let hi = MAX_MONTHLY_SIP;
-  for (let i = 0; i < BINARY_SEARCH_ITERATIONS; i++) {
-    const mid = (lo + hi) / 2;
-    const { corpusAtRetirement } = simulate(retirementInputs, mid);
-    if (corpusAtRetirement > fireNumberAtRetirement) {
-      hi = mid;
-    } else {
-      lo = mid;
-    }
-  }
-
-  const requiredMonthlySip = (lo + hi) / 2;
-  const { series } = simulate(retirementInputs, requiredMonthlySip);
   return {
     fireNumberToday,
     fireNumberAtRetirement,
     requiredMonthlySip,
-    isAlreadyOnTrack: false,
+    isAlreadyOnTrack,
+    series,
+  };
+}
+
+export interface ReturnToIndiaInputs {
+  currentAge: number;
+  returnAge: number;
+  currentSavingsUsd: number;
+  monthlyExpenseInrToday: number;
+  exchangeRateInrPerUsd: number;
+  inrDepreciationPct: number;
+  withdrawalRatePct: number;
+  inflationPct: number;
+  usdEquityReturnPct: number;
+  usdDebtReturnPct: number;
+  allocation: AllocationChoice;
+}
+
+export interface ReturnToIndiaResult {
+  fireNumberInrToday: number;
+  fireNumberInrAtReturn: number;
+  fireNumberUsdAtReturn: number;
+  exchangeRateAtReturn: number;
+  requiredMonthlySipUsd: number;
+  isAlreadyOnTrack: boolean;
+  series: RetirementSeriesPoint[];
+}
+
+function toReturnToIndiaRetirementInputs(inputs: ReturnToIndiaInputs): RetirementInputs {
+  return {
+    currentAge: inputs.currentAge,
+    contributionEndAge: inputs.returnAge,
+    retirementAge: inputs.returnAge,
+    lifeExpectancy: inputs.returnAge,
+    monthlyExpenseToday: 0,
+    currentSavings: inputs.currentSavingsUsd,
+    inflationPct: inputs.inflationPct,
+    equityReturnPct: inputs.usdEquityReturnPct,
+    debtReturnPct: inputs.usdDebtReturnPct,
+    preRetirementAllocation: inputs.allocation,
+    postRetirementAllocation: inputs.allocation,
+    stepUpEnabled: false,
+    stepUpPct: 0,
+  };
+}
+
+export function calculateReturnToIndia(inputs: ReturnToIndiaInputs): ReturnToIndiaResult {
+  const yearsToReturn = inputs.returnAge - inputs.currentAge;
+  const inflation = inputs.inflationPct / 100;
+  const depreciation = inputs.inrDepreciationPct / 100;
+  const withdrawalRate = inputs.withdrawalRatePct / 100;
+
+  const fireNumberInrToday = (inputs.monthlyExpenseInrToday * 12) / withdrawalRate;
+  const fireNumberInrAtReturn = fireNumberInrToday * Math.pow(1 + inflation, yearsToReturn);
+  const exchangeRateAtReturn = inputs.exchangeRateInrPerUsd * Math.pow(1 + depreciation, yearsToReturn);
+  const fireNumberUsdAtReturn = fireNumberInrAtReturn / exchangeRateAtReturn;
+
+  const retirementInputs = toReturnToIndiaRetirementInputs(inputs);
+  const { requiredMonthlySip, isAlreadyOnTrack, series } = solveMonthlySipForTargetCorpus(
+    retirementInputs,
+    fireNumberUsdAtReturn
+  );
+
+  return {
+    fireNumberInrToday,
+    fireNumberInrAtReturn,
+    fireNumberUsdAtReturn,
+    exchangeRateAtReturn,
+    requiredMonthlySipUsd: requiredMonthlySip,
+    isAlreadyOnTrack,
     series,
   };
 }

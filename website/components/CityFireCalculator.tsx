@@ -8,6 +8,7 @@ import { decodeParamsToInputs, encodeInputsToParams, isAllocationChoice } from '
 import CityFireCalculatorForm from './CityFireCalculatorForm';
 import RetirementCalculatorChart from './RetirementCalculatorChart';
 import ShareButton from './ShareButton';
+import EmailResultForm from './EmailResultForm';
 
 type CityFireFormState = CityFireInputs & { regionId: string; cityId: string };
 
@@ -153,6 +154,15 @@ export default function CityFireCalculator() {
             }
             buildUrl={() =>
               `${window.location.origin}${window.location.pathname}?${encodeInputsToParams(inputs).toString()}`
+            }
+          />
+
+          <EmailResultForm
+            calculatorTitle="FIRE Number by City Calculator"
+            resultSummary={
+              result.isAlreadyOnTrack
+                ? `Your FIRE number in ${cityName} is ${formatRupees(result.fireNumberAtRetirement)} at age ${inputs.retirementAge}, and you're already on track!`
+                : `Your FIRE number in ${cityName} is ${formatRupees(result.fireNumberAtRetirement)} at age ${inputs.retirementAge}. Invest ${formatRupees(result.requiredMonthlySip)}/mo to get there.`
             }
           />
         </div>

@@ -16,4 +16,10 @@ export const appRoutes = {
   coastFireCalculator: '/calculators/coast-fire',
   savingsRateCalculator: '/calculators/savings-rate',
   cityFireCalculator: '/calculators/fire-by-city',
+  returnToIndiaCalculator: '/calculators/return-to-india',
+  epfCalculator: '/calculators/epf',
+  ppfCalculator: '/calculators/ppf',
+  npsCalculator: '/calculators/nps',
+  sipFireCalculator: '/calculators/sip-for-fire',
+  lumpsumFireCalculator: '/calculators/lumpsum-for-fire',
 };

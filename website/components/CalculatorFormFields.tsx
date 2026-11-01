@@ -11,6 +11,16 @@ export const labelClass = 'block text-sm font-medium text-slate-700 mb-1';
 
 const allocationOptions: AllocationChoice[] = ['aggressive', 'balanced', 'conservative'];
 
+const RUPEE_AMOUNT_SUFFIXES = new Set(['₹', '₹/mo', '₹/yr']);
+
+function formatRupeeMagnitude(value: number): string | null {
+  if (!Number.isFinite(value) || value < 100_000) return null;
+  const grouped = `₹${Math.round(value).toLocaleString('en-IN')}`;
+  const [divisor, unit] = value >= 10_000_000 ? [10_000_000, 'Cr'] : [100_000, 'L'];
+  const magnitude = (value / divisor).toFixed(2).replace(/\.?0+$/, '');
+  return `≈ ${grouped} (${magnitude}${unit})`;
+}
+
 export function NumberField({
   label,
   suffix,
@@ -26,6 +36,8 @@ export function NumberField({
   min?: number;
   max?: number;
 }) {
+  const magnitudeCaption = suffix && RUPEE_AMOUNT_SUFFIXES.has(suffix) ? formatRupeeMagnitude(value) : null;
+
   return (
     <div>
       <label className={labelClass}>{label}</label>
@@ -44,6 +56,7 @@ export function NumberField({
           </span>
         )}
       </div>
+      {magnitudeCaption && <p className="text-xs text-slate-500 mt-1">{magnitudeCaption}</p>}
     </div>
   );
 }
