@@ -7,6 +7,7 @@ import { decodeParamsToInputs, encodeInputsToParams } from '@/lib/urlState';
 import SavingsRateCalculatorForm from './SavingsRateCalculatorForm';
 import RetirementCalculatorChart from './RetirementCalculatorChart';
 import ShareButton from './ShareButton';
+import EmailResultForm from './EmailResultForm';
 
 export const DEFAULT_INPUTS: SavingsRateInputs = {
   currentAge: 30,
@@ -108,6 +109,15 @@ export default function SavingsRateCalculator() {
             }
             buildUrl={() =>
               `${window.location.origin}${window.location.pathname}?${encodeInputsToParams(inputs).toString()}`
+            }
+          />
+
+          <EmailResultForm
+            calculatorTitle="Savings Rate Calculator"
+            resultSummary={
+              result.yearsToFI === 0
+                ? `You're already financially independent — ${formatRupees(inputs.currentSavings)} is at or above your FI number of ${formatRupees(result.fiNumber)}.`
+                : `At your ${result.savingsRatePct.toFixed(0)}% savings rate, you'll reach financial independence in ${result.yearsToFI} ${result.yearsToFI === 1 ? 'year' : 'years'} (age ${result.targetAge}), with an FI number of ${formatRupees(result.fiNumber)}.`
             }
           />
         </div>
