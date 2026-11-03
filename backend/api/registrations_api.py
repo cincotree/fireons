@@ -65,6 +65,7 @@ class RegistrationResponse(BaseModel):
     source_key: str
     source_name: str
     regulator: str
+    verification: str
     status: str
     valid_from: Optional[date]
     valid_until: Optional[date]
@@ -102,6 +103,7 @@ class SourceResponse(BaseModel):
     key: str
     name: str
     regulator: str
+    verification: str
     profession_type: str
     total_registrations: int
     last_run: Optional[RunInfo]
@@ -175,6 +177,7 @@ def _to_response(
         source_key=source.key,
         source_name=source.name,
         regulator=source.regulator,
+        verification=source.verification_level,
         status=registration.status,
         valid_from=registration.valid_from,
         valid_until=registration.valid_until,
@@ -298,6 +301,7 @@ async def list_sources(session: AsyncSession = Depends(get_session)):
                 key=source.key,
                 name=source.name,
                 regulator=source.regulator,
+                verification=source.verification_level,
                 profession_type=source.default_profession_type,
                 total_registrations=total or 0,
                 last_run=RunInfo(
@@ -363,6 +367,7 @@ async def list_registrations(
     city: MultiValue = [],
     status: Optional[Literal["active", "expired", "delisted"]] = None,
     nri: Optional[Literal["high", "medium", "low"]] = None,
+    verification: Optional[Literal["verified", "unverified"]] = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=25, ge=1, le=MAX_PAGE_SIZE),
     session: AsyncSession = Depends(get_session),
@@ -379,6 +384,8 @@ async def list_registrations(
     if _lowered(city):
         conditions.append(func.lower(ProfessionalRegistration.city).in_(_lowered(city)))
 
+    if verification:
+        conditions.append(DataSource.verification_level == verification)
     if nri:
         conditions.append(
             select(NriSignal.id)

@@ -9,6 +9,14 @@ class ProfessionType(str, Enum):
     RESEARCH_ANALYST = "research_analyst"
     MF_DISTRIBUTOR = "mf_distributor"
     FEE_ONLY_PLANNER = "fee_only_planner"
+    CERTIFIED_FINANCIAL_PLANNER = "certified_financial_planner"
+    CHARTERED_ACCOUNTANT = "chartered_accountant"
+    TAX_CONSULTANT = "tax_consultant"
+    WEALTH_MANAGER = "wealth_manager"
+    INSURANCE_ADVISOR = "insurance_advisor"
+    ESTATE_PLANNER = "estate_planner"
+    LISTED_FINANCIAL_PLANNER = "listed_financial_planner"
+    LISTED_INVESTMENT_ADVISOR = "listed_investment_advisor"
     INSURANCE_AGENT = "insurance_agent"
 
 
@@ -42,6 +50,7 @@ class SourceDefinition:
     regulator: str
     default_profession_type: ProfessionType
     base_url: str
+    verification_level: str = "verified"
 
 
 @dataclass(frozen=True)

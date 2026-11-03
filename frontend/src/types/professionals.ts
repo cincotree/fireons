@@ -41,6 +41,7 @@ export interface Registration {
   source_key: string;
   source_name: string;
   regulator: string;
+  verification: "verified" | "unverified";
   status: "active" | "expired" | "delisted";
   valid_from: string | null;
   valid_until: string | null;
@@ -78,6 +79,7 @@ export interface ProfessionalSource {
   key: string;
   name: string;
   regulator: string;
+  verification: "verified" | "unverified";
   profession_type: string;
   total_registrations: number;
   last_run: RunInfo | null;

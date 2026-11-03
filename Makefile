@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 
 .PHONY: help setup install env db db-create migrate \
-	backend-setup backend backend-test scrape enrich-nri scraper-worker \
+	backend-setup backend backend-test scrape export-places import-places enrich-nri scraper-worker \
 	compose-up compose-up-scraper compose-down \
 	frontend-setup frontend frontend-build frontend-lint \
 	e2e-setup e2e e2e-headed e2e-ui e2e-debug e2e-report \
@@ -26,9 +26,11 @@ help:
 	@echo "  frontend         Start the frontend dev server"
 	@echo ""
 	@echo "Registry scraper"
-	@echo "  scrape              Run one scraper once (SOURCE=sebi_ria or amfi_arn)"
+	@echo "  scrape              Run one scraper once (SOURCE=sebi_ria, sebi_research_analyst, fee_only_india or fpsb_cfp)"
 	@echo "  scraper-worker      Run the weekly scraper scheduler in the foreground"
 	@echo "  enrich-nri          Check firm websites for NRI signals (python -m enrichment review-queue to review)"
+	@echo "  export-places       Export professionals found via Google Places to backend/exports (resumable, quota-capped)"
+	@echo "  import-places       Load the Google Places CSV into the directory as unverified listings"
 	@echo ""
 	@echo "Docker (local)"
 	@echo "  compose-up          Start Postgres, migrations, backend and frontend in Docker"
@@ -69,6 +71,12 @@ SOURCE ?= sebi_ria
 
 scrape:
 	cd backend && uv run python -m scraping run $(SOURCE)
+
+import-places:
+	cd backend && uv run python -m scraping import-places exports/places_professionals.csv
+
+export-places:
+	cd backend && uv run python -m enrichment places
 
 enrich-nri:
 	cd backend && uv run python -m enrichment nri

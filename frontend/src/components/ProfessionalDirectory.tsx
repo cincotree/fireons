@@ -6,14 +6,12 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ExternalLink,
   History,
   Mail,
   MapPin,
   Phone,
   Search,
   SearchX,
-  ShieldCheck,
   SlidersHorizontal,
   X,
 } from "lucide-react";
@@ -32,6 +30,10 @@ const NRI_FILTER_OPTIONS = [
   { value: "high", label: "NRI: high confidence" },
   { value: "medium", label: "NRI: medium or higher" },
   { value: "low", label: "NRI: any signal" },
+];
+const VERIFICATION_OPTIONS = [
+  { value: "verified", label: "Verified sources only" },
+  { value: "unverified", label: "Unverified listings only" },
 ];
 const FOCUS_RING =
   "focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0E6B57] focus-visible:ring-offset-2 focus-visible:ring-offset-[#E8F0ED]";
@@ -109,6 +111,7 @@ export function ProfessionalDirectory() {
   const [stateFilter, setStateFilter] = useState<string[]>([]);
   const [cityFilter, setCityFilter] = useState<string[]>([]);
   const [nriFilter, setNriFilter] = useState("");
+  const [verificationFilter, setVerificationFilter] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [data, setData] = useState<RegistrationPage | null>(null);
@@ -154,6 +157,7 @@ export function ProfessionalDirectory() {
     stateFilter.forEach((name) => params.append("state", name));
     cityFilter.forEach((name) => params.append("city", name));
     if (nriFilter) params.set("nri", nriFilter);
+    if (verificationFilter) params.set("verification", verificationFilter);
     setLoading(true);
     setError(null);
     fetchJson<RegistrationPage>(
@@ -172,7 +176,7 @@ export function ProfessionalDirectory() {
     return () => {
       cancelled = true;
     };
-  }, [sourceKey, search, stateFilter, cityFilter, nriFilter, page, reloadToken]);
+  }, [sourceKey, search, stateFilter, cityFilter, nriFilter, verificationFilter, page, reloadToken]);
 
   const total = data?.total ?? 0;
   const firstShown = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
@@ -218,6 +222,18 @@ export function ProfessionalDirectory() {
           },
         ]
       : []),
+    ...(verificationFilter
+      ? [
+          {
+            key: `verification:${verificationFilter}`,
+            label:
+              VERIFICATION_OPTIONS.find((option) => option.value === verificationFilter)?.label ??
+              verificationFilter,
+            kind: "verification",
+            clear: () => setVerificationFilter(""),
+          },
+        ]
+      : []),
   ];
   const activeFilterCount = appliedFilters.length;
 
@@ -228,6 +244,7 @@ export function ProfessionalDirectory() {
     setStateFilter([]);
     setCityFilter([]);
     setNriFilter("");
+    setVerificationFilter("");
     setPage(1);
   };
 
@@ -320,6 +337,16 @@ export function ProfessionalDirectory() {
                 triggerClassName={`${CONTROL} ${FOCUS_RING}`}
               />
               <FilterSelect
+                label="Verification"
+                allLabel="Verified and unverified"
+                value={verificationFilter}
+                options={VERIFICATION_OPTIONS}
+                onChange={(value) => {
+                  setVerificationFilter(value);
+                  setPage(1);
+                }}
+              />
+              <FilterSelect
                 label="NRI signals"
                 allLabel="Any NRI signal status"
                 value={nriFilter}
@@ -385,7 +412,6 @@ export function ProfessionalDirectory() {
                 <TableHead className="h-11 px-4 text-xs font-semibold text-[#66766F]">Location</TableHead>
                 <TableHead className="h-11 px-4 text-xs font-semibold text-[#66766F]">Contact</TableHead>
                 <TableHead className="h-11 px-4 text-xs font-semibold text-[#66766F]">NRI</TableHead>
-                <TableHead className="h-11 px-4 text-xs font-semibold text-[#66766F]">Source</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody className={`block md:table-row-group transition-opacity ${loading && data ? "opacity-60" : ""}`}>
@@ -411,8 +437,13 @@ export function ProfessionalDirectory() {
                             aria-hidden="true"
                           />
                         </button>
-                        <p className="text-xs text-[#66766F]">
-                          {registration.kind === "firm" ? "Firm" : "Individual"}
+                        <p className="flex flex-wrap items-center gap-x-2 text-xs text-[#66766F]">
+                          <span>{registration.kind === "firm" ? "Firm" : "Individual"}</span>
+                          {registration.verification === "unverified" && (
+                            <span className="rounded-full border border-[#E2D3B3] bg-[#FBF5E6] px-2 py-0.5 font-semibold text-[#7A5A12]">
+                              Unverified
+                            </span>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -466,18 +497,6 @@ export function ProfessionalDirectory() {
                     ) : (
                       <span className="text-sm text-[#7D8C86]">—</span>
                     )}
-                  </TableCell>
-                  <TableCell className="block p-0 pt-2 md:table-cell md:px-4 md:py-4">
-                    <a
-                      href={registration.source_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-full border border-[#D3DFDA] bg-[#F6F8F7] px-2.5 py-1 text-xs font-semibold text-[#12211D] hover:border-[#0E6B57] hover:text-[#0E6B57] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0E6B57]"
-                    >
-                      <ShieldCheck className="h-3.5 w-3.5 text-[#0E6B57]" aria-hidden="true" />
-                      {registration.regulator}
-                      <ExternalLink className="h-3 w-3 text-[#66766F]" aria-hidden="true" />
-                    </a>
                   </TableCell>
                 </TableRow>
               ))}

@@ -4,7 +4,7 @@ import pg from 'pg';
 const { Client } = pg;
 
 const FILLER_COUNT = 28;
-const TOTAL = 32;
+const TOTAL = 34;
 
 interface SeedRegistration {
   name: string;
@@ -177,6 +177,17 @@ test.describe('Professionals directory - public listing, filters and change hist
         city: 'Delhi',
         state: 'Delhi',
       });
+      const googleSource = await client.query(
+        `INSERT INTO data_sources (id, key, name, regulator, default_profession_type, base_url, is_enabled, verification_level)
+         VALUES (gen_random_uuid(), 'google_places', 'Google Maps business listings', 'Google Maps', 'chartered_accountant',
+                 'https://www.google.com/maps', true, 'unverified') RETURNING id`
+      );
+      for (const listed of [
+        { name: 'Listed Ledger Associates', number: 'GP-e2e-1', city: 'Kochi', state: 'Kerala' },
+        { name: 'Listed Tax Desk', number: 'GP-e2e-2', city: 'Kochi', state: 'Kerala' },
+      ]) {
+        await insertRegistration(client, googleSource.rows[0].id as string, runId, listed);
+      }
       for (let index = 1; index <= FILLER_COUNT; index++) {
         await insertRegistration(client, sourceId, runId, {
           name: `Zeta Filler ${String(index).padStart(2, '0')}`,
@@ -217,11 +228,10 @@ test.describe('Professionals directory - public listing, filters and change hist
     await expect(page.getByText(`Showing 1–25 of ${TOTAL}`)).toBeVisible();
     await expect(historyButton(page, 'Rohan Mehta')).toBeVisible();
     await expect(page.getByRole('link', { name: 'new-mehta@example.com' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'SEBI' }).first()).toHaveAttribute('href', 'https://example.test/list');
     await expect(page.getByRole('link', { name: 'Find professionals' })).toBeVisible();
   });
 
-  test('the table shows name, registration, location, contact, NRI signals and source', async ({ page }) => {
+  test('the table shows name, registration, location, contact, NRI signals', async ({ page }) => {
     await page.goto('/professionals');
     await expect(historyButton(page, 'Rohan Mehta')).toBeVisible();
 
@@ -231,7 +241,6 @@ test.describe('Professionals directory - public listing, filters and change hist
       'Location',
       'Contact',
       'NRI',
-      'Source',
     ]);
     await expect(page.getByText('on record')).toHaveCount(0);
     await expect(page.getByText('Last updated')).toHaveCount(0);
@@ -249,8 +258,9 @@ test.describe('Professionals directory - public listing, filters and change hist
 
     await openFilters(page);
 
-    await expect(page.getByRole('combobox')).toHaveCount(4);
+    await expect(page.getByRole('combobox')).toHaveCount(5);
     await expect(filter(page, 'Source')).toBeVisible();
+    await expect(filter(page, 'Verification')).toBeVisible();
     await expect(filter(page, 'NRI signals')).toBeVisible();
     await expect(filter(page, 'State')).toBeVisible();
     await expect(filter(page, 'City')).toBeVisible();
@@ -643,5 +653,74 @@ test.describe('Professionals directory - public listing, filters and change hist
     await nriBadge(page, 'Rohan Mehta').click();
 
     await expect(page.getByRole('alert').filter({ hasText: 'Could not load NRI signals' })).toBeVisible();
+  });
+
+  const unverifiedTag = (page: Page) => page.getByText('Unverified', { exact: true });
+
+  test('listings from Google Maps are labelled Unverified and register rows are not', async ({ page }) => {
+    await page.goto('/professionals');
+    await searchBox(page).fill('Listed Ledger');
+
+    await expect(historyButton(page, 'Listed Ledger Associates')).toBeVisible();
+    await expect(unverifiedTag(page)).toHaveCount(1);
+
+    await searchBox(page).fill('Rohan Mehta');
+    await expect(historyButton(page, 'Rohan Mehta')).toBeVisible();
+    await expect(unverifiedTag(page)).toHaveCount(0);
+  });
+
+  test('the verification filter shows only unverified or only verified rows', async ({ page }) => {
+    await page.goto('/professionals');
+    await openFilters(page);
+
+    await filter(page, 'Verification').selectOption('unverified');
+    await expect(page.getByText('Showing 1–2 of 2')).toBeVisible();
+    await expect(unverifiedTag(page)).toHaveCount(2);
+
+    await filter(page, 'Verification').selectOption('verified');
+    await expect(page.getByText(`Showing 1–25 of ${TOTAL - 2}`)).toBeVisible();
+    await expect(unverifiedTag(page)).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Remove Verified sources only verification filter' }).click();
+    await expect(page.getByText(`Showing 1–25 of ${TOTAL}`)).toBeVisible();
+  });
+
+  test('the verification filter combines with search and can match nothing', async ({ page }) => {
+    await page.goto('/professionals');
+    await openFilters(page);
+    await filter(page, 'Verification').selectOption('unverified');
+
+    await searchBox(page).fill('Rohan Mehta');
+
+    await expect(page.getByText('No professionals match your filters.')).toBeVisible();
+  });
+
+  test('the side panel explains what unverified means', async ({ page }) => {
+    await page.goto('/professionals');
+    await searchBox(page).fill('Listed Tax Desk');
+
+    await historyButton(page, 'Listed Tax Desk').click();
+
+    await expect(
+      page.getByText('Unverified: listed on Google Maps, not confirmed by a regulator or the owner')
+    ).toBeVisible();
+  });
+
+  test('the side panel shows a bare Google Maps link for unverified rows and the source name for register rows', async ({ page }) => {
+    await page.goto('/professionals');
+    await searchBox(page).fill('Listed Tax Desk');
+    await historyButton(page, 'Listed Tax Desk').click();
+
+    await expect(page.getByRole('link', { name: 'Google Maps link' })).toBeVisible();
+    await expect(page.getByText('Published by')).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Google Maps link' })).toHaveAttribute('href', 'https://example.test/list');
+
+    await page.keyboard.press('Escape');
+    await searchBox(page).fill('Rohan Mehta');
+    await historyButton(page, 'Rohan Mehta').click();
+
+    await expect(page.getByText('Published by')).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'SEBI Registered Investment Advisers' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Google Maps link' })).toHaveCount(0);
   });
 });

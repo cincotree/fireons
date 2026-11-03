@@ -28,6 +28,7 @@ async def ensure_data_source(session: AsyncSession, definition: SourceDefinition
         existing.regulator = definition.regulator
         existing.default_profession_type = definition.default_profession_type.value
         existing.base_url = definition.base_url
+        existing.verification_level = definition.verification_level
         return existing
     source = DataSource(
         key=definition.key,
@@ -35,6 +36,7 @@ async def ensure_data_source(session: AsyncSession, definition: SourceDefinition
         regulator=definition.regulator,
         default_profession_type=definition.default_profession_type.value,
         base_url=definition.base_url,
+        verification_level=definition.verification_level,
     )
     session.add(source)
     await session.flush()

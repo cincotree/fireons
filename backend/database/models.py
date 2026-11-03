@@ -398,6 +398,9 @@ class DataSource(Base):
     default_profession_type: Mapped[str] = mapped_column(String(100), nullable=False)
     base_url: Mapped[str] = mapped_column(Text, nullable=False)
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    verification_level: Mapped[str] = mapped_column(
+        String(20), default="verified", server_default="verified", nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

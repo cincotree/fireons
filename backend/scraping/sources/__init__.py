@@ -1,12 +1,12 @@
-from scraping.sources.amfi_arn import AmfiArnSource
 from scraping.sources.base import Source
 from scraping.sources.fee_only_india import FeeOnlyIndiaSource
+from scraping.sources.fpsb_cfp import FpsbCfpSource
 from scraping.sources.sebi_research_analyst import SebiResearchAnalystSource
 from scraping.sources.sebi_ria import SebiRiaSource
 
 SOURCES: dict[str, type[Source]] = {
-    AmfiArnSource.definition.key: AmfiArnSource,
     FeeOnlyIndiaSource.definition.key: FeeOnlyIndiaSource,
+    FpsbCfpSource.definition.key: FpsbCfpSource,
     SebiResearchAnalystSource.definition.key: SebiResearchAnalystSource,
     SebiRiaSource.definition.key: SebiRiaSource,
 }

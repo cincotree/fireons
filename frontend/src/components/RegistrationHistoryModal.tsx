@@ -149,6 +149,11 @@ export function RegistrationHistoryModal({ registration, onClose }: Props) {
               {registration.registration_number}
             </p>
             <p className="mt-0.5 text-sm text-[#66766F]">{registration.source_name}</p>
+            {registration.verification === "unverified" && (
+              <p className="mt-1.5 inline-block rounded-full border border-[#E2D3B3] bg-[#FBF5E6] px-2 py-0.5 text-xs font-semibold text-[#7A5A12]">
+                Unverified: listed on Google Maps, not confirmed by a regulator or the owner
+              </p>
+            )}
           </div>
           <button
             ref={closeButton}
@@ -187,16 +192,17 @@ export function RegistrationHistoryModal({ registration, onClose }: Props) {
                 </a>
               </DetailRow>
             )}
-            <DetailRow icon={<ExternalLink className="h-4 w-4" />} label="Published by">
+            <div>
               <a
                 href={registration.source_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[#0E6B57] hover:underline"
+                className="inline-flex items-center gap-2 text-sm text-[#0E6B57] hover:underline"
               >
-                {registration.source_name}
+                <ExternalLink className="h-4 w-4 shrink-0 text-[#66766F]" aria-hidden="true" />
+                {registration.verification === "unverified" ? "Google Maps link" : registration.source_name}
               </a>
-            </DetailRow>
+            </div>
           </dl>
 
           {registration.nri && (

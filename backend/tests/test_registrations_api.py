@@ -571,3 +571,53 @@ async def test_nri_detail_unknown_registration_is_404(client, registration_id):
     response = await client.get(f"/registrations/{registration_id}/nri")
 
     assert response.status_code == 404
+
+
+async def test_registrations_report_the_verification_level_of_their_source(client, session, seeded):
+    google = DataSource(
+        key="google_places",
+        name="Google Maps business listings",
+        regulator="Google Maps",
+        default_profession_type="chartered_accountant",
+        base_url="https://www.google.com/maps",
+        verification_level="unverified",
+    )
+    session.add(google)
+    await session.flush()
+    await add_registration(
+        session, google, "Listed Only Associates", "GP-abc", profession_type="chartered_accountant"
+    )
+
+    body = (await client.get("/registrations", params={"page_size": 100})).json()
+
+    levels = {item["name"]: item["verification"] for item in body["items"]}
+    assert levels["Listed Only Associates"] == "unverified"
+    assert levels["Rohan Mehta"] == "verified"
+
+
+async def test_verification_filter_and_source_listing(client, session, seeded):
+    google = DataSource(
+        key="google_places",
+        name="Google Maps business listings",
+        regulator="Google Maps",
+        default_profession_type="chartered_accountant",
+        base_url="https://www.google.com/maps",
+        verification_level="unverified",
+    )
+    session.add(google)
+    await session.flush()
+    await add_registration(session, google, "Listed Only Associates", "GP-abc")
+
+    unverified = (await client.get("/registrations", params={"verification": "unverified"})).json()
+    verified = (await client.get("/registrations", params={"verification": "verified"})).json()
+    sources = (await client.get("/registrations/sources")).json()
+
+    assert [item["name"] for item in unverified["items"]] == ["Listed Only Associates"]
+    assert "Listed Only Associates" not in [item["name"] for item in verified["items"]]
+    assert {s["key"]: s["verification"] for s in sources} == {"sebi_ria": "verified", "google_places": "unverified"}
+
+
+async def test_invalid_verification_filter_is_a_validation_error(client, seeded):
+    response = await client.get("/registrations", params={"verification": "trusted"})
+
+    assert response.status_code == 422

@@ -48,9 +48,10 @@ async def run_source(
     client: PoliteClient | None = None,
     settings: ScrapeSettings | None = None,
     today: date | None = None,
+    source: Source | None = None,
 ) -> RunSummary:
     settings = settings or get_scrape_settings()
-    source = get_source(source_key)
+    source = source or get_source(source_key)
     lock_connection = await get_engine().connect()
     try:
         acquired = await lock_connection.scalar(
@@ -130,7 +131,7 @@ async def _execute(
             await http_client.__aexit__(None, None, None)
 
     async with session_context() as session:
-        if summary.status == RunStatus.SUCCEEDED:
+        if summary.status == RunStatus.SUCCEEDED and getattr(source, "allows_delisting", True):
             data_source = await session.get(DataSource, source_id)
             summary.marked_delisted = await mark_unseen_registrations(
                 session, data_source, started_at, settings.scrape_delist_after_missed_runs
