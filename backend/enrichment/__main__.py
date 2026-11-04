@@ -11,6 +11,7 @@ from database.models import FinancialProfessional, NriSignal, ProfessionalWebsit
 from database.session import session_context
 from enrichment.places import CATEGORIES, TIERS, PlacesError, run_export
 from enrichment.runner import enrich_nri
+from enrichment.website_finder import find_websites
 from scraping.config import get_scrape_settings
 
 REVIEW_STATUSES = ("confirmed", "rejected", "pending")
@@ -33,6 +34,9 @@ def build_parser() -> argparse.ArgumentParser:
     places.add_argument("--categories", nargs="+", choices=sorted(CATEGORIES), default=None)
     places.add_argument("--cities", nargs="+", default=None)
     places.add_argument("--max-pages", type=int, default=3)
+    finder = commands.add_parser("find-websites", help="find websites for unverified listings that have none")
+    finder.add_argument("--limit", type=int, default=None, help="consider at most this many new listings")
+    finder.add_argument("--no-search", action="store_true", help="skip the Tavily search step")
     review = commands.add_parser("review", help="mark one signal confirmed or rejected")
     review.add_argument("signal_id")
     review.add_argument("status", choices=REVIEW_STATUSES)
@@ -48,6 +52,17 @@ async def _nri(limit: int | None) -> int:
         f"removed={summary.signals_removed}"
     )
     return 1 if summary.crawl_errors else 0
+
+
+async def _find_websites(limit: int | None, search: bool) -> int:
+    summary = await find_websites(limit=limit, search=search)
+    print(
+        f"considered={summary.rows_considered} by_register={summary.found_by_register} "
+        f"by_guess={summary.found_by_guess} by_search={summary.found_by_search} "
+        f"not_found={summary.not_found} waiting_for_search={summary.left_for_search}"
+    )
+    print(f"searches={summary.searches_made} left_today={summary.searches_left_today} stopped={summary.stopped_reason}")
+    return 0
 
 
 async def _review_queue(confidence: str | None, limit: int) -> int:
@@ -115,6 +130,8 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "nri":
         return asyncio.run(_nri(args.limit))
+    if args.command == "find-websites":
+        return asyncio.run(_find_websites(args.limit, not args.no_search))
     if args.command == "places":
         return _places(args)
     if args.command == "review-queue":

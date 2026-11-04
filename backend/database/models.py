@@ -590,6 +590,28 @@ class ProfessionalWebsite(Base):
     )
 
 
+class WebsiteLookup(Base):
+    __tablename__ = "website_lookups"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    professional_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("financial_professionals.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    method: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    domain: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    last_attempt_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    professional: Mapped["FinancialProfessional"] = relationship()
+
+
 class NriSignal(Base):
     __tablename__ = "nri_signals"
 

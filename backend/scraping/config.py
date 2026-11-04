@@ -18,6 +18,9 @@ class ScrapeSettings(BaseSettings):
     nri_shared_domain_limit: int = 3
     nri_max_page_bytes: int = 1_500_000
     google_api_key: str = ""
+    tavily_api_key: str = ""
+    website_search_daily_limit: int = 30
+    website_search_monthly_limit: int = 1000
 
     class Config:
         env_file = ".env"

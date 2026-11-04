@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 
 .PHONY: help setup install env db db-create migrate \
-	backend-setup backend backend-test scrape export-places import-places enrich-nri scraper-worker \
+	backend-setup backend backend-test scrape export-places import-places enrich-nri find-websites scraper-worker \
 	compose-up compose-up-scraper compose-down \
 	frontend-setup frontend frontend-build frontend-lint \
 	e2e-setup e2e e2e-headed e2e-ui e2e-debug e2e-report \
@@ -30,6 +30,7 @@ help:
 	@echo "  scraper-worker      Run the weekly scraper scheduler in the foreground"
 	@echo "  enrich-nri          Check firm websites for NRI signals (python -m enrichment review-queue to review)"
 	@echo "  export-places       Export professionals found via Google Places to backend/exports (resumable, quota-capped)"
+	@echo "  find-websites       Find websites for unverified listings (register match, domain guess, Tavily search; run daily)"
 	@echo "  import-places       Load the Google Places CSV into the directory as unverified listings"
 	@echo ""
 	@echo "Docker (local)"
@@ -77,6 +78,9 @@ import-places:
 
 export-places:
 	cd backend && uv run python -m enrichment places
+
+find-websites:
+	cd backend && uv run python -m enrichment find-websites
 
 enrich-nri:
 	cd backend && uv run python -m enrichment nri
