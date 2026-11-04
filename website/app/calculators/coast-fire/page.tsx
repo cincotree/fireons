@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Metadata } from 'next';
 import { appRoutes } from '@/lib/config';
 import CoastFireCalculator from '@/components/CoastFireCalculator';
+import EmbedCodeSnippet from '@/components/EmbedCodeSnippet';
 
 export const metadata: Metadata = {
   title: 'Coast FIRE Calculator - Fireons',
@@ -25,6 +26,11 @@ export default function CoastFireCalculatorPage() {
       {/* Calculator */}
       <section className="py-16 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <CoastFireCalculator />
+      </section>
+
+      {/* Embed */}
+      <section className="pb-16 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <EmbedCodeSnippet slug="coast-fire" title="Coast FIRE Calculator" />
       </section>
 
       {/* CTA */}

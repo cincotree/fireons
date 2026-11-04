@@ -53,7 +53,7 @@ export function NetWorthDashboard() {
     setIsLoading(true);
     setError(null);
     try {
-      const baseUrl = await getBaseHttpUrl();
+      const baseUrl = getBaseHttpUrl();
       const token = localStorage.getItem("token");
 
       const accountsRes = await fetch(`${baseUrl}/api/accounts?display_currency=${selectedCurrency}`, {
@@ -138,7 +138,7 @@ export function NetWorthDashboard() {
     accountName = `${newAccountType}:${newAccountCategory}:${newAccountSubcategory}`;
 
     try {
-      const baseUrl = await getBaseHttpUrl();
+      const baseUrl = getBaseHttpUrl();
       const token = localStorage.getItem("token");
 
       if (editingAccount) {
@@ -247,7 +247,7 @@ export function NetWorthDashboard() {
     if (!accountToClose) return;
 
     try {
-      const baseUrl = await getBaseHttpUrl();
+      const baseUrl = getBaseHttpUrl();
       const token = localStorage.getItem("token");
 
       const response = await fetch(

@@ -45,7 +45,7 @@ export default function IngestionTestPage() {
     setResult(null);
     setIsSubmitting(true);
     try {
-      const baseUrl = await getBaseHttpUrl();
+      const baseUrl = getBaseHttpUrl();
       const token = localStorage.getItem("token");
 
       const formData = new FormData();

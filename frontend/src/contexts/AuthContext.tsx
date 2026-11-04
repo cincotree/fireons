@@ -29,6 +29,7 @@ interface RegisterData {
   full_name?: string;
   location?: string;
   primary_currency?: string;
+  invite_code?: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -50,7 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const baseUrl = await getBaseHttpUrl();
+      const baseUrl = getBaseHttpUrl();
       const response = await fetch(`${baseUrl}/api/auth/me`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -72,7 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const login = async (username: string, password: string) => {
-    const baseUrl = await getBaseHttpUrl();
+    const baseUrl = getBaseHttpUrl();
     const response = await fetch(`${baseUrl}/api/auth/login`, {
       method: "POST",
       headers: {
@@ -94,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const register = async (userData: RegisterData) => {
-    const baseUrl = await getBaseHttpUrl();
+    const baseUrl = getBaseHttpUrl();
     const response = await fetch(`${baseUrl}/api/auth/register`, {
       method: "POST",
       headers: {

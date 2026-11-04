@@ -44,7 +44,7 @@ export function NetWorthChart({
     setIsLoading(true);
     setError(null);
     try {
-      const baseUrl = await getBaseHttpUrl();
+      const baseUrl = getBaseHttpUrl();
       const token = localStorage.getItem("token");
       const params = new URLSearchParams({ currency });
       if (startDate) params.append("start_date", startDate);

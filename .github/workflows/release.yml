@@ -1,0 +1,139 @@
+name: Release
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to release (branch, tag or SHA); used for re-release and rollback
+        required: true
+        default: main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-prod
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: '3.12'
+  NODE_VERSION: '22'
+
+jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    outputs:
+      ref: ${{ steps.target.outputs.ref }}
+      api: ${{ steps.diff.outputs.api }}
+      webapp: ${{ steps.diff.outputs.webapp }}
+    steps:
+      - name: Resolve target ref
+        id: target
+        env:
+          TARGET_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.event.workflow_run.head_sha }}
+        run: echo "ref=$TARGET_REF" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.target.outputs.ref }}
+          fetch-depth: 2
+
+      - name: Diff paths
+        id: diff
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "api=true" >> "$GITHUB_OUTPUT"
+            echo "webapp=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed="$(git diff --name-only HEAD^ HEAD)"
+          echo "$changed"
+          echo "api=$(echo "$changed" | grep -q -E '^(backend/|scripts/deploy-api.sh)' && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "webapp=$(echo "$changed" | grep -q -E '^(frontend/|scripts/deploy-webapp.sh)' && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+  deploy-api:
+    name: Release API
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.changes.outputs.ref }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install dependencies
+        working-directory: ./backend
+        run: uv sync --frozen --no-dev
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Release API
+        env:
+          DEPLOY_ENV: production
+        run: ./scripts/deploy-api.sh
+
+  deploy-webapp:
+    name: Release web app
+    needs: [changes, deploy-api]
+    if: ${{ !cancelled() && needs.changes.result == 'success' && needs.deploy-api.result != 'failure' && needs.changes.outputs.webapp == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      WEBAPP_BUCKET: ${{ vars.WEBAPP_BUCKET }}
+      WEBAPP_DISTRIBUTION_ID: ${{ vars.WEBAPP_DISTRIBUTION_ID }}
+      WEBAPP_URL: ${{ vars.WEBAPP_URL }}
+      NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.changes.outputs.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: './frontend/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Release web app
+        run: ./scripts/deploy-webapp.sh

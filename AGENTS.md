@@ -59,7 +59,7 @@ Fireons is a personal finance tracker for managing net worth and accounts. FastA
 
 ## Database Migrations and Extensions
 
-Alembic owns the schema and the app never creates tables (see Deployment settings). Migration `0001` is the baseline; `0002` adds the registry tables and the `pg_trgm` extension.
+Alembic owns the schema and the app never creates tables (see Deployment settings). Migration `0001` is the baseline; `0002` adds invites; `0003` adds the registry tables and the `pg_trgm` extension.
 
 - `make migrate` (`cd backend && uv run alembic upgrade head`) — apply migrations. Required before first run, after pulling new migrations, and as a release step in deployment.
 - Changing `database/models.py` requires a migration: `uv run alembic revision --autogenerate -m "description"`, review it, commit it with the model change. `tests/test_migrations.py` fails if models and migrations drift apart.
@@ -71,10 +71,10 @@ Alembic owns the schema and the app never creates tables (see Deployment setting
 
 Name search uses a GIN trigram index (`ix_financial_professionals_name_trgm`, `gin_trgm_ops`), which needs the `pg_trgm` extension.
 
-- Migration `0002` runs `CREATE EXTENSION IF NOT EXISTS pg_trgm` before creating the index, so `alembic upgrade head` is the only step needed. `pg_trgm` is a trusted extension on Postgres 13+, so the normal application role can create it as long as the contrib package is installed (it is in the official `postgres` Docker images and Homebrew; managed services such as RDS, Cloud SQL, Supabase and Neon provide it).
+- Migration `0003` runs `CREATE EXTENSION IF NOT EXISTS pg_trgm` before creating the index, so `alembic upgrade head` is the only step needed. `pg_trgm` is a trusted extension on Postgres 13+, so the normal application role can create it as long as the contrib package is installed (it is in the official `postgres` Docker images and Homebrew; managed services such as RDS, Cloud SQL, Supabase and Neon provide it).
 - If the deployment role cannot create extensions, run `CREATE EXTENSION pg_trgm;` once as an admin before `alembic upgrade head`.
 - Any new trigram index must be created in a migration that runs after the extension exists.
-- Managed Postgres services (including Neon) provide `pg_trgm`; confirm migration `0002` succeeds on the first deploy.
+- Managed Postgres services (including Neon) provide `pg_trgm`; confirm migration `0003` succeeds on the first deploy.
 - The e2e teardown drops and recreates the `public` schema, which also drops the extension; `start-backend.sh` re-runs migrations, which recreates it.
 
 ## Development Commands
@@ -102,7 +102,7 @@ Each suite has its own database: development uses `fireons_development`, backend
 - `make frontend` (`npm run dev`) — dev server on localhost:3000
 - `make frontend-build` (`npm run build`) — production build
 - `make frontend-lint` (`npm run lint`) — lint
-- Needs `.env.local` with `BACKEND_HOST=localhost:8000`
+- Needs `.env.local` with `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000`
 
 ### E2E tests
 Make targets wrap the Playwright suite in `e2e-tests/` (see `e2e-tests/package.json` for the underlying scripts):
@@ -140,5 +140,5 @@ SCRAPE_SCHEDULE_TIMEZONE=Asia/Kolkata
 
 ### Frontend `.env.local` (required)
 ```env
-BACKEND_HOST=localhost:8000
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```

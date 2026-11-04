@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup install env db db-create migrate \
+.PHONY: deploy-api deploy-webapp help setup install env db db-create migrate \
 	backend-setup backend backend-test scrape export-places import-places enrich-nri find-websites scraper-worker \
 	compose-up compose-up-scraper compose-down \
 	frontend-setup frontend frontend-build frontend-lint \
@@ -37,6 +37,10 @@ help:
 	@echo "  compose-up          Start Postgres, migrations, backend and frontend in Docker"
 	@echo "  compose-up-scraper  Same, plus the scheduled scraper worker"
 	@echo "  compose-down        Stop the Docker stack"
+	@echo ""
+	@echo "Deploy (needs AWS credentials, see infra/README.md)"
+	@echo "  deploy-api       Build and release the API to Lambda"
+	@echo "  deploy-webapp    Build and release the frontend to S3 and CloudFront"
 	@echo ""
 	@echo "Test and check"
 	@echo "  test             Run backend tests and e2e tests"
@@ -137,3 +141,9 @@ e2e-report:
 	cd e2e-tests && npm run report
 
 test: backend-test e2e
+
+deploy-api:
+	./scripts/deploy-api.sh
+
+deploy-webapp:
+	./scripts/deploy-webapp.sh

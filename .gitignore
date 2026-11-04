@@ -39,3 +39,6 @@ backend/vendors.db
 # synthetic and live in committed fixtures/ directories, unaffected by this.
 **/local-samples/
 Acct_Statement_*.pdf
+
+backend/build/
+frontend/out/
