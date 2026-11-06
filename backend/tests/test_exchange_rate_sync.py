@@ -95,3 +95,13 @@ async def test_store_rate_overwrites_existing_row_for_same_day(
 
     fetched = await exchange_rate_repo.get_rate("USD", "INR")
     assert fetched == Decimal("83.9")
+
+
+@pytest.mark.asyncio
+async def test_run_exchange_rate_sync_raises_on_fetch_failure(monkeypatch):
+    _patch_transport(monkeypatch, {"result": "error", "rates": {}})
+
+    from jobs.exchange_rate_sync import run_exchange_rate_sync
+
+    with pytest.raises(ValueError, match="non-success result"):
+        await run_exchange_rate_sync()

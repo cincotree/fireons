@@ -54,6 +54,7 @@ class UserResponse(BaseModel):
     full_name: Optional[str] = None
     location: Optional[str] = None
     primary_currency: str = "USD"
+    is_admin: bool = False
 
     class Config:
         from_attributes = True
@@ -86,6 +87,12 @@ async def get_current_user(
         )
 
     return user
+
+
+async def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    if not current_user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return current_user
 
 
 async def consume_invite(session: AsyncSession, code: Optional[str]) -> str:
@@ -212,4 +219,5 @@ async def get_current_user_info(
         full_name=current_user.full_name,
         location=current_user.location,
         primary_currency=current_user.primary_currency,
+        is_admin=current_user.is_admin,
     )

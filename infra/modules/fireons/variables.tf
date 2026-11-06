@@ -47,3 +47,12 @@ variable "invite_only" {
 variable "api_memory_mb" {
   type = number
 }
+
+variable "scheduled_jobs" {
+  type = map(object({
+    job                 = string
+    schedule_expression = string
+  }))
+  default = {}
+}
+

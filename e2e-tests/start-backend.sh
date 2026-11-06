@@ -5,6 +5,7 @@ set -e
 cd ../backend
 
 export TESTING=true
+export JOBS_RUN_LOCALLY=true
 
 echo "Migrating test database..."
 uv run alembic upgrade head

@@ -41,3 +41,7 @@ output "github_environment_variables" {
     NEXT_PUBLIC_API_BASE_URL = local.api_base_url
   }
 }
+
+output "jobs_ecr_repository_url" {
+  value = aws_ecr_repository.jobs.repository_url
+}

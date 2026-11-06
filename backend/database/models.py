@@ -21,6 +21,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.sql import expression
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -267,6 +268,41 @@ class IngestionRun(Base):
         return f"<IngestionRun(id={self.id}, status={self.status.value})>"
 
 
+class JobRunStatus(enum.Enum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+class JobRun(Base):
+    __tablename__ = "job_runs"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    job: Mapped[str] = mapped_column(String(100), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    status: Mapped[JobRunStatus] = mapped_column(
+        Enum(JobRunStatus), default=JobRunStatus.QUEUED, nullable=False
+    )
+    task_arn: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index("ix_job_runs_status", "status"),
+        Index("ix_job_runs_job_created_at", "job", "created_at"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<JobRun(id={self.id}, job={self.job}, status={self.status.value})>"
+
+
 class IngestedDocument(Base):
     __tablename__ = "ingested_documents"
 
@@ -371,6 +407,9 @@ class User(Base):
     full_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     location: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     primary_currency: Mapped[str] = mapped_column(String(10), default="USD", nullable=False)
+    is_admin: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=expression.false(), nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
