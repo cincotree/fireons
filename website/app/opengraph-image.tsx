@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 
 export const dynamic = 'force-static';
-export const alt = 'Fireons — Your Path to Financial Independence';
+export const alt = 'Fireons — Community for FIRE Enthusiasts';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -30,7 +30,7 @@ export default function Image() {
           <span style={{ fontSize: 96, fontWeight: 700 }}>Fireons</span>
         </div>
         <div style={{ display: 'flex', fontSize: 36, marginTop: 28, color: '#cffafe' }}>
-          Your Path to Financial Independence
+          Community for FIRE Enthusiasts
         </div>
       </div>
     ),
