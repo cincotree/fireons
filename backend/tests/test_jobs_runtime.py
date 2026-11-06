@@ -185,6 +185,31 @@ async def test_launch_failure_marks_run_failed(monkeypatch, jobs_settings, sessi
 
 
 @pytest.mark.asyncio
+async def test_local_mode_runs_the_runner_in_a_subprocess(monkeypatch, repository):
+    monkeypatch.setenv("JOBS_RUN_LOCALLY", "true")
+    get_jobs_settings.cache_clear()
+    spawned = {}
+
+    class FakeProcess:
+        pid = 4242
+
+    def fake_popen(command, cwd, env):
+        spawned.update(command=command, cwd=cwd, env=env)
+        return FakeProcess()
+
+    monkeypatch.setattr(launcher.subprocess, "Popen", fake_popen)
+
+    run_id = await launcher.launch_job("ok")
+
+    run = await repository.get(run_id)
+    assert run.task_arn == "local:4242"
+    assert spawned["command"][1:] == ["-m", "jobs.runner"]
+    assert spawned["env"]["JOB_RUN_ID"] == run_id
+    assert (spawned["cwd"] / "jobs" / "runner.py").exists()
+    get_jobs_settings.cache_clear()
+
+
+@pytest.mark.asyncio
 async def test_launch_fails_when_network_is_not_found(monkeypatch, jobs_settings, repository):
     patch_boto3(monkeypatch, FakeEcs(), FakeEc2(groups=()))
 

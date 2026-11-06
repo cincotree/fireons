@@ -174,3 +174,9 @@ async def test_list_runs_validates_query(client, superuser):
 
     assert (await client.get("/admin/jobs/runs?limit=0", headers=headers)).status_code == 422
     assert (await client.get("/admin/jobs/runs?status=bogus", headers=headers)).status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_me_reports_superuser_flag(client, superuser, regular_user):
+    assert (await client.get("/auth/me", headers=auth(superuser))).json()["is_superuser"] is True
+    assert (await client.get("/auth/me", headers=auth(regular_user))).json()["is_superuser"] is False

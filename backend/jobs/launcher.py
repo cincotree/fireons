@@ -1,5 +1,9 @@
 import asyncio
+import os
+import subprocess
+import sys
 from functools import lru_cache
+from pathlib import Path
 
 from database.repository import JobRunRepository
 from database.session import session_context
@@ -22,8 +26,20 @@ def find_network(name: str) -> tuple[list[str], list[str]]:
     return [subnet["SubnetId"] for subnet in subnets], [group["GroupId"] for group in groups]
 
 
+def start_local_process(run_id: str) -> str:
+    process = subprocess.Popen(
+        [sys.executable, "-m", "jobs.runner"],
+        cwd=Path(__file__).resolve().parent.parent,
+        env={**os.environ, JOB_RUN_ID_ENV: run_id},
+    )
+    return f"local:{process.pid}"
+
+
 def start_task(run_id: str) -> str:
     import boto3
+
+    if get_jobs_settings().jobs_run_locally:
+        return start_local_process(run_id)
 
     name = get_jobs_settings().jobs_name
     subnets, security_groups = find_network(name)

@@ -32,6 +32,18 @@ export default function Navigation() {
                 Net Worth
               </Link>
             )}
+            {isAuthenticated && user?.is_superuser && (
+              <Link
+                href="/admin/jobs"
+                className={`px-4 py-1.5 text-sm font-medium transition-all border-b ${
+                  pathname === "/admin/jobs"
+                    ? "text-blue-400 border-blue-400"
+                    : "text-gray-300 border-transparent hover:text-white hover:border-gray-500"
+                }`}
+              >
+                Jobs
+              </Link>
+            )}
           </div>
 
           {isAuthenticated && user && (

@@ -29,6 +29,7 @@ def get_exchange_rate_sync_settings() -> ExchangeRateSyncSettings:
 class JobsSettings(BaseSettings):
     app_env: str = ""
     project: str = "fireons"
+    jobs_run_locally: bool = False
 
     class Config:
         env_file = ".env"

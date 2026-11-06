@@ -54,6 +54,7 @@ class UserResponse(BaseModel):
     full_name: Optional[str] = None
     location: Optional[str] = None
     primary_currency: str = "USD"
+    is_superuser: bool = False
 
     class Config:
         from_attributes = True
@@ -218,4 +219,5 @@ async def get_current_user_info(
         full_name=current_user.full_name,
         location=current_user.location,
         primary_currency=current_user.primary_currency,
+        is_superuser=current_user.is_superuser,
     )
