@@ -6,7 +6,6 @@ cd ../backend
 
 export TESTING=true
 export PUBLIC_READ_LIMIT_PER_MINUTE=100000
-export PASSWORD_AUTH_ENABLED=true
 export FRONTEND_URL=http://localhost:3020
 export OAUTH_REDIRECT_BASE_URL=http://localhost:8020
 export GOOGLE_OAUTH_CLIENT_ID=e2e-google-client

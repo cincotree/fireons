@@ -13,7 +13,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   provider_denied: "Sign-in was cancelled.",
   provider_failed: "We could not complete sign-in with that provider. Please try again.",
   invite_required: "New accounts need an invite code. Create your account on the registration page with your invite code.",
-  email_unverified: "That email is already registered and the provider has not verified it. Log in with your password instead.",
+  email_unverified: "That email belongs to an existing account and the provider has not verified it, so we cannot sign you in with it.",
 };
 
 export function oauthErrorMessage(code: string): string {
@@ -46,16 +46,6 @@ export function OAuthButtons({ inviteCode = "", providers }: { inviteCode?: stri
 
   return (
     <div className="mt-6">
-      {enabled.password && (
-        <div className="relative mb-6">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-300" />
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="bg-gray-50 px-2 text-gray-500">Or</span>
-          </div>
-        </div>
-      )}
       <div className="grid gap-3">
         {available.map((provider) => (
           <a

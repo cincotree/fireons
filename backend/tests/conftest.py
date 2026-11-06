@@ -127,7 +127,6 @@ async def test_user(session: AsyncSession) -> User:
     user = User(
         email="fixture-test@example.com",
         username="fixture_test_user",
-        hashed_password="unused-in-these-tests",
     )
     session.add(user)
     await session.flush()

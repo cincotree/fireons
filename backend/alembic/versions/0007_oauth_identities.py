@@ -11,7 +11,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     op.alter_column('users', 'email', existing_type=sa.String(length=255), nullable=True)
-    op.alter_column('users', 'hashed_password', existing_type=sa.String(length=255), nullable=True)
+    op.drop_column('users', 'hashed_password')
     op.create_table(
         'oauth_identities',
         sa.Column('id', sa.UUID(as_uuid=False), nullable=False),
@@ -29,5 +29,6 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index(op.f('ix_oauth_identities_user_id'), table_name='oauth_identities')
     op.drop_table('oauth_identities')
-    op.alter_column('users', 'hashed_password', existing_type=sa.String(length=255), nullable=False)
+    op.add_column('users', sa.Column('hashed_password', sa.String(length=255), server_default='', nullable=False))
+    op.alter_column('users', 'hashed_password', server_default=None)
     op.alter_column('users', 'email', existing_type=sa.String(length=255), nullable=False)

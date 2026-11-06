@@ -15,7 +15,6 @@ class AppSettings(SecretsManagerSettings):
     public_read_limit_per_minute: int = 240
     ingestion_enabled: bool = False
     invite_only: bool = False
-    password_auth_enabled: bool = False
     frontend_url: str = "http://localhost:3000"
     oauth_redirect_base_url: str = "http://localhost:8000"
     google_oauth_client_id: str = ""

@@ -34,10 +34,10 @@ Fireons is a personal finance tracker for managing net worth and accounts. The s
 ### Backend (Python/FastAPI)
 - **FastAPI Application** (`app.py`): Main server; middleware rewrites `/api`-prefixed request paths before routing.
 - **Ledger data model** (`database/models.py`): a double-entry, beancount-style schema — `Account` (hierarchical colon-separated names like `Assets:Bank:HDFC:6789`, typed `Assets`/`Liabilities`/`Equity`/`Income`/`Expenses`), `Transaction`/`Posting` (balanced double-entry postings), and `Balance` (point-in-time verified balances, one row per `account_id`+`date`+`currency`, optionally linked to the `IngestedDocument` it came from).
-- **Authentication**: `auth_api.py` (register/login/`/api/auth/me`), `auth_utils.py` (bcrypt hashing, JWT), 30-minute token expiry.
+- **Authentication**: sign-in is Google or Reddit only (see "Sign in with Google or Reddit" below). `auth_api.py` (`/api/auth/me`, `/api/auth/registration`), `auth_utils.py` (JWT), 30-minute token expiry.
 - **`account_api.py` / `networth_api.py`**: manual account and balance CRUD, and net worth calculation, against the ledger tables above.
 - **Migrations** are applied before the new code is released, so they must stay backward compatible (see `backend/alembic/README.md`).
-- **Invite-only registration**: with `INVITE_ONLY=true`, `auth_api.register` requires an invite code from the `invites` table (managed with SQL, see `docs/invite-only-registration.md`).
+- **Invite-only registration**: with `INVITE_ONLY=true`, a new social sign-up (`oauth_api`) requires an invite code from the `invites` table (managed with SQL, see `docs/invite-only-registration.md`).
 - **`convert_currency_api.py`**: USD/INR conversion using `ExchangeRate` rows.
 - **Statement ingestion — two independent pipelines, do not conflate them:**
   - `statements/parsers/` — the older pipeline. Regex-based, single-institution-at-a-time (currently HDFC), caller supplies the bank code, single-holding output. Exposed via `statements_api.py`.
@@ -45,8 +45,8 @@ Fireons is a personal finance tracker for managing net worth and accounts. The s
 
 ### Sign in with Google or Reddit (`backend/api/oauth_api.py`, `backend/oauth_providers.py`, migration `0007`)
 - Authorization code flow handled entirely by the backend. `GET /auth/{google|reddit}/login[?invite_code=]` redirects to the provider (state is a signed 10 minute JWT with a nonce that must match an HttpOnly cookie); `GET /auth/{provider}/callback` exchanges the code, resolves the user and redirects to `{FRONTEND_URL}/auth/callback/#token=<jwt>` (fragment, so it is not logged), where the frontend stores the token like a password login. Failures redirect to `{FRONTEND_URL}/login/?error=<code>` (`state_invalid`, `provider_denied`, `provider_failed`, `invite_required`, `email_unverified`). `GET /auth/providers` says which providers are configured; the buttons only show for those.
-- Users: `oauth_identities` (`UNIQUE (provider, provider_user_id)`) links a provider account to a `users` row. `users.email` and `users.hashed_password` are nullable: Reddit returns no email, and social users have no password (password login always fails for them). Google with a verified email links to an existing user with that email; an unverified email that matches an existing user is refused. Usernames come from the email prefix or Reddit name, with a random suffix on collision. With `INVITE_ONLY` a new social user needs an invite code (passed from the Register page); existing social users sign in without one.
-- Password sign-in is off by default (`PASSWORD_AUTH_ENABLED=false`): `POST /auth/register` and `/auth/login` return 404 and the login and register pages show only the social buttons (the Register page keeps the invite code field). Set `PASSWORD_AUTH_ENABLED=true` for local development without OAuth keys; `backend/.env.test` and the e2e backend set it so the existing password specs run. `GET /auth/providers` returns `password` plus each provider's state.
+- Users: `oauth_identities` (`UNIQUE (provider, provider_user_id)`) links a provider account to a `users` row. `users.email` is nullable because Reddit returns no email. Google with a verified email links to an existing user with that email; an unverified email that matches an existing user is refused. Usernames come from the email prefix or Reddit name, with a random suffix on collision. With `INVITE_ONLY` a new social user needs an invite code (passed from the Register page); existing social users sign in without one.
+- There is no password sign-in or registration: `POST /auth/register` and `/auth/login` do not exist and `users.hashed_password` was dropped (migration `0007`). Google and Reddit are the only ways in. The Register page (`/register`, "Join Fireons") only collects an invite code when `INVITE_ONLY` is on and passes it to the provider buttons. Without OAuth keys nobody can sign in locally; the e2e tests create users directly in the database and sign their own JWT (`e2e-tests/tests/support/session.ts`).
 - Settings (`backend/.env`): `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `REDDIT_OAUTH_CLIENT_ID`, `REDDIT_OAUTH_CLIENT_SECRET`, `FRONTEND_URL` (default `http://localhost:3000`) and `OAUTH_REDIRECT_BASE_URL` (default `http://localhost:8000`). Register `{OAUTH_REDIRECT_BASE_URL}/auth/google/callback` with Google (OAuth client type Web application) and `{OAUTH_REDIRECT_BASE_URL}/auth/reddit/callback` with Reddit (app type web app, at reddit.com/prefs/apps). Secrets are never put in URLs or logged.
 - Frontend: `RequireAuth` wraps `/professionals`; `authFetch` (`utils/api.ts`) adds the token to registrations calls and on 401 or 403 clears it and goes to `/login`. `rememberPostLoginPath` returns the user to the page they wanted after login.
 
@@ -62,12 +62,12 @@ Full design rationale lives in `backend/ingestion/README.md` — read it before 
 
 ### Frontend (Next.js 15/React/TypeScript)
 - **App Router** (`frontend/src/app/`): Next.js 15 with app directory structure
-  - `/login`, `/register`: auth
+  - `/login`, `/register` (Join), `/auth/callback`: sign in with Google or Reddit
   - `/networth`: net worth tracking dashboard (requires authentication)
   - `/onboarding`: statement upload flow driving the `ingestion/` pipeline above
   - `/ingestion-test`: debug UI for `ingestion-test` endpoint
   - `/`: Homepage — redirects to `/networth` if authenticated, `/login` if not
-- **Authentication** (`frontend/src/contexts/AuthContext.tsx`): global auth state, login/register/logout, JWT token management, automatic validation on load; protected routes redirect to login.
+- **Authentication** (`frontend/src/contexts/AuthContext.tsx`): global auth state, `completeLogin`/logout, JWT token management, automatic validation on load; protected routes redirect to login.
 - **Tech Stack**: Next.js 15, React 18, TanStack Table, Chart.js/Recharts, Tailwind CSS, Radix UI, Ant Design.
 
 ### Registry data and scraping (`backend/scraping/`)

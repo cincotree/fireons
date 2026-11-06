@@ -1,5 +1,7 @@
 from urllib.parse import parse_qs, urlparse
 
+from datetime import datetime, timedelta, timezone
+
 import httpx
 import pytest
 import pytest_asyncio
@@ -12,8 +14,7 @@ import oauth_providers
 from api.oauth_api import get_oauth_http_client
 from app import app
 from app_config import AppSettings, get_app_settings
-from auth_utils import get_password_hash
-from database.models import Invite, OAuthIdentity, User
+from database.models import Invite, InviteRedemption, OAuthIdentity, User
 from database.session import get_session
 
 SECRET = get_app_settings().secret_key
@@ -104,10 +105,10 @@ def failure_code(response):
 
 @pytest.mark.asyncio
 async def test_providers_report_which_sign_ins_are_configured(client):
-    assert (await client.get("/auth/providers")).json() == {"password": False, "google": True, "reddit": True}
+    assert (await client.get("/auth/providers")).json() == {"google": True, "reddit": True}
 
-    app.dependency_overrides[get_app_settings] = lambda: settings_for(reddit_oauth_client_secret="", password_auth_enabled=True)
-    assert (await client.get("/auth/providers")).json() == {"password": True, "google": True, "reddit": False}
+    app.dependency_overrides[get_app_settings] = lambda: settings_for(reddit_oauth_client_secret="")
+    assert (await client.get("/auth/providers")).json() == {"google": True, "reddit": False}
 
 
 @pytest.mark.asyncio
@@ -164,7 +165,6 @@ async def test_google_sign_in_creates_a_user_and_returns_a_token(client, session
     assert user.email == "pat@example.com"
     assert user.full_name == "Pat Doe"
     assert user.username == "pat"
-    assert user.hashed_password is None
     identity = await session.scalar(select(OAuthIdentity).where(OAuthIdentity.user_id == user.id))
     assert (identity.provider, identity.provider_user_id) == ("google", "g-1")
 
@@ -182,7 +182,7 @@ async def test_signing_in_again_reuses_the_same_user(client, session):
 
 @pytest.mark.asyncio
 async def test_google_links_to_an_existing_account_with_the_same_verified_email(client, session):
-    existing = User(email="pat@example.com", username="pat_original", hashed_password=get_password_hash("pw"))
+    existing = User(email="pat@example.com", username="pat_original")
     session.add(existing)
     await session.flush()
     _, state = await begin(client, "google")
@@ -196,7 +196,7 @@ async def test_google_links_to_an_existing_account_with_the_same_verified_email(
 
 @pytest.mark.asyncio
 async def test_an_unverified_google_email_never_takes_over_an_account(client, session, provider):
-    session.add(User(email="pat@example.com", username="pat_original", hashed_password=get_password_hash("pw")))
+    session.add(User(email="pat@example.com", username="pat_original"))
     await session.flush()
     provider.google_info["email_verified"] = False
     _, state = await begin(client, "google")
@@ -221,7 +221,7 @@ async def test_reddit_sign_in_creates_a_user_without_an_email(client, session):
 
 @pytest.mark.asyncio
 async def test_username_collisions_get_a_suffix(client, session):
-    session.add(User(email="other@example.com", username="pat", hashed_password=get_password_hash("pw")))
+    session.add(User(email="other@example.com", username="pat"))
     await session.flush()
     _, state = await begin(client, "google")
 
@@ -230,28 +230,6 @@ async def test_username_collisions_get_a_suffix(client, session):
     user = await session.scalar(select(User).where(User.id == claims["sub"]))
     assert user.username != "pat"
     assert user.username.startswith("pat")
-
-
-@pytest.mark.asyncio
-async def test_password_sign_in_and_registration_are_off_by_default(client):
-    register = await client.post(
-        "/auth/register", json={"email": "a@example.com", "username": "someone", "password": "secret123"}
-    )
-    login = await client.post("/auth/login", json={"username": "someone", "password": "secret123"})
-
-    assert register.status_code == 404
-    assert login.status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_a_social_user_has_no_password_and_cannot_use_password_login(client, session):
-    app.dependency_overrides[get_app_settings] = lambda: settings_for(password_auth_enabled=True)
-    _, state = await begin(client, "reddit")
-    landing(await finish(client, "reddit", state))
-
-    response = await client.post("/auth/login", json={"username": "pat_on_reddit", "password": "anything"})
-
-    assert response.status_code == 401
 
 
 @pytest.mark.asyncio
@@ -357,3 +335,119 @@ def test_provider_helpers_build_the_expected_redirect_uri():
     settings = settings_for(oauth_redirect_base_url="https://api.example.com/")
 
     assert oauth_providers.redirect_uri("google", settings) == "https://api.example.com/auth/google/callback"
+
+
+async def sign_up(client, provider, subject, code=None):
+    provider.google_info = {"sub": subject, "email": f"{subject}@example.com", "email_verified": True, "name": subject}
+    params = {"invite_code": code} if code is not None else {}
+    _, state = await begin(client, "google", **params)
+    return await finish(client, "google", state)
+
+
+async def add_invite(session, code="welcome-code", **fields):
+    invite = Invite(code=code, max_uses=fields.pop("max_uses", 1), **fields)
+    session.add(invite)
+    await session.flush()
+    return invite
+
+
+@pytest.fixture
+def invite_only(client):
+    app.dependency_overrides[get_app_settings] = lambda: settings_for(invite_only=True)
+
+
+@pytest.mark.asyncio
+async def test_registration_info_reports_invite_requirement(client):
+    assert (await client.get("/auth/registration")).json() == {"invite_required": False}
+
+    app.dependency_overrides[get_app_settings] = lambda: settings_for(invite_only=True)
+    assert (await client.get("/auth/registration")).json() == {"invite_required": True}
+
+
+@pytest.mark.asyncio
+async def test_a_valid_invite_records_the_redemption(client, session, provider, invite_only):
+    invite = await add_invite(session)
+
+    claims = landing(await sign_up(client, provider, "ann", "welcome-code"))
+
+    await session.refresh(invite)
+    assert invite.use_count == 1
+    redemption = (await session.execute(select(InviteRedemption))).scalar_one()
+    assert (redemption.invite_id, redemption.user_id) == (invite.id, claims["sub"])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("code", [None, "", "   ", "not-the-code"])
+async def test_missing_or_unknown_codes_are_rejected(client, session, provider, invite_only, code):
+    await add_invite(session)
+
+    response = await sign_up(client, provider, "bob", code)
+
+    assert failure_code(response) == "invite_required"
+
+
+@pytest.mark.asyncio
+async def test_a_single_use_invite_cannot_be_reused(client, session, provider, invite_only):
+    await add_invite(session)
+
+    first = await sign_up(client, provider, "first", "welcome-code")
+    second = await sign_up(client, provider, "second", "welcome-code")
+
+    landing(first)
+    assert failure_code(second) == "invite_required"
+
+
+@pytest.mark.asyncio
+async def test_a_multi_use_invite_allows_each_use(client, session, provider, invite_only):
+    await add_invite(session, max_uses=2)
+
+    results = [await sign_up(client, provider, f"user{n}", "welcome-code") for n in range(3)]
+
+    landing(results[0])
+    landing(results[1])
+    assert failure_code(results[2]) == "invite_required"
+
+
+@pytest.mark.asyncio
+async def test_revoked_and_expired_invites_are_rejected(client, session, provider, invite_only):
+    await add_invite(session, "revoked", revoked_at=datetime.now(timezone.utc))
+    await add_invite(session, "expired", expires_at=datetime.now(timezone.utc) - timedelta(minutes=1))
+
+    assert failure_code(await sign_up(client, provider, "a", "revoked")) == "invite_required"
+    assert failure_code(await sign_up(client, provider, "b", "expired")) == "invite_required"
+
+
+@pytest.mark.asyncio
+async def test_an_invite_with_a_future_expiry_is_accepted(client, session, provider, invite_only):
+    await add_invite(session, expires_at=datetime.now(timezone.utc) + timedelta(days=1))
+
+    landing(await sign_up(client, provider, "carl", "welcome-code"))
+
+
+@pytest.mark.asyncio
+async def test_the_invite_code_is_trimmed(client, session, provider, invite_only):
+    await add_invite(session)
+
+    landing(await sign_up(client, provider, "dana", "  welcome-code  "))
+
+
+@pytest.mark.asyncio
+async def test_a_failed_provider_exchange_does_not_burn_the_invite(client, session, provider, invite_only):
+    invite = await add_invite(session)
+    provider.token_status = 500
+
+    response = await sign_up(client, provider, "erin", "welcome-code")
+
+    assert failure_code(response) == "provider_failed"
+    await session.refresh(invite)
+    assert invite.use_count == 0
+
+
+@pytest.mark.asyncio
+async def test_the_invite_code_is_ignored_when_not_invite_only(client, session, provider):
+    invite = await add_invite(session)
+
+    landing(await sign_up(client, provider, "fay", "welcome-code"))
+
+    await session.refresh(invite)
+    assert invite.use_count == 0

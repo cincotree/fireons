@@ -367,7 +367,6 @@ class User(Base):
     )
     email: Mapped[Optional[str]] = mapped_column(String(255), unique=True, nullable=True, index=True)
     username: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
-    hashed_password: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     full_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     location: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     primary_currency: Mapped[str] = mapped_column(String(10), default="USD", nullable=False)
