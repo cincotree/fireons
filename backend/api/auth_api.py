@@ -114,7 +114,17 @@ async def get_registration_info(settings: AppSettings = Depends(get_app_settings
     return RegistrationInfo(invite_required=settings.invite_only)
 
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+def require_password_auth(settings: AppSettings = Depends(get_app_settings)) -> None:
+    if not settings.password_auth_enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Password sign-in is disabled")
+
+
+@router.post(
+    "/register",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_password_auth)],
+)
 async def register(
     user_data: RegisterRequest,
     session: AsyncSession = Depends(get_session),
@@ -173,7 +183,7 @@ async def register(
     )
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=Token, dependencies=[Depends(require_password_auth)])
 async def login(
     login_data: LoginCreds,
     session: AsyncSession = Depends(get_session)

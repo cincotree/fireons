@@ -13,6 +13,7 @@ from database.session import get_session
 
 
 def _settings(**overrides) -> AppSettings:
+    overrides.setdefault("password_auth_enabled", True)
     return AppSettings(_env_file=None, secret_key="k" * 32, **overrides)
 
 

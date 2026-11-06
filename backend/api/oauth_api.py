@@ -88,7 +88,8 @@ async def _unique_username(session: AsyncSession, hint: Optional[str]) -> str:
 
 @router.get("/providers")
 async def list_providers(settings: AppSettings = Depends(get_app_settings)) -> dict[str, bool]:
-    return {name: oauth_providers.is_enabled(name, settings) for name in oauth_providers.PROVIDERS}
+    enabled = {name: oauth_providers.is_enabled(name, settings) for name in oauth_providers.PROVIDERS}
+    return {"password": settings.password_auth_enabled, **enabled}
 
 
 @router.get("/{provider}/login")

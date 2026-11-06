@@ -38,8 +38,36 @@ test.describe('Sign in with Google or Reddit, and the directory behind login', (
     await expect(page.getByRole('link', { name: 'Continue with Reddit' })).toBeVisible();
   });
 
+  test('with password sign-in off the login page offers only the social buttons', async ({ page }) => {
+    await page.route('**/api/auth/providers', (route) =>
+      route.fulfill({ json: { password: false, google: true, reddit: true } })
+    );
+
+    await page.goto('/login');
+
+    await expect(page.getByRole('link', { name: 'Continue with Google' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Continue with Reddit' })).toBeVisible();
+    await expect(page.getByLabel('Username')).toHaveCount(0);
+    await expect(page.getByLabel('Password')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Login' })).toHaveCount(0);
+  });
+
+  test('with password sign-in off the register page has no form and passes the invite code on', async ({ page }) => {
+    await page.route('**/api/auth/providers', (route) =>
+      route.fulfill({ json: { password: false, google: true, reddit: false } })
+    );
+    await page.route('**/api/auth/registration', (route) => route.fulfill({ json: { invite_required: true } }));
+
+    await page.goto('/register?invite=abc123');
+
+    await expect(page.getByLabel(/Invite code/i)).toHaveValue('abc123');
+    await expect(page.locator('input[name="password"]')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Create account/i })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Continue with Google' })).toHaveAttribute('href', /invite_code=abc123/);
+  });
+
   test('the social buttons are hidden when no provider is configured', async ({ page }) => {
-    await page.route('**/api/auth/providers', (route) => route.fulfill({ json: { google: false, reddit: false } }));
+    await page.route('**/api/auth/providers', (route) => route.fulfill({ json: { password: true, google: false, reddit: false } }));
 
     await page.goto('/login');
 

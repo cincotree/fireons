@@ -104,10 +104,10 @@ def failure_code(response):
 
 @pytest.mark.asyncio
 async def test_providers_report_which_sign_ins_are_configured(client):
-    assert (await client.get("/auth/providers")).json() == {"google": True, "reddit": True}
+    assert (await client.get("/auth/providers")).json() == {"password": False, "google": True, "reddit": True}
 
-    app.dependency_overrides[get_app_settings] = lambda: settings_for(reddit_oauth_client_secret="")
-    assert (await client.get("/auth/providers")).json() == {"google": True, "reddit": False}
+    app.dependency_overrides[get_app_settings] = lambda: settings_for(reddit_oauth_client_secret="", password_auth_enabled=True)
+    assert (await client.get("/auth/providers")).json() == {"password": True, "google": True, "reddit": False}
 
 
 @pytest.mark.asyncio
@@ -233,7 +233,19 @@ async def test_username_collisions_get_a_suffix(client, session):
 
 
 @pytest.mark.asyncio
+async def test_password_sign_in_and_registration_are_off_by_default(client):
+    register = await client.post(
+        "/auth/register", json={"email": "a@example.com", "username": "someone", "password": "secret123"}
+    )
+    login = await client.post("/auth/login", json={"username": "someone", "password": "secret123"})
+
+    assert register.status_code == 404
+    assert login.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_a_social_user_has_no_password_and_cannot_use_password_login(client, session):
+    app.dependency_overrides[get_app_settings] = lambda: settings_for(password_auth_enabled=True)
     _, state = await begin(client, "reddit")
     landing(await finish(client, "reddit", state))
 

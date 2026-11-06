@@ -20,16 +20,23 @@ export function oauthErrorMessage(code: string): string {
   return ERROR_MESSAGES[code] ?? "Sign-in failed. Please try again.";
 }
 
-export function OAuthButtons({ inviteCode = "" }: { inviteCode?: string }) {
-  const [enabled, setEnabled] = useState<Record<string, boolean>>({});
+export type AuthProviders = Record<string, boolean>;
+
+export function useAuthProviders(): AuthProviders | null {
+  const [providers, setProviders] = useState<AuthProviders | null>(null);
 
   useEffect(() => {
     fetch(`${getBaseHttpUrl()}/api/auth/providers`)
       .then((response) => (response.ok ? response.json() : {}))
-      .then(setEnabled)
-      .catch(() => setEnabled({}));
+      .then(setProviders)
+      .catch(() => setProviders({}));
   }, []);
 
+  return providers;
+}
+
+export function OAuthButtons({ inviteCode = "", providers }: { inviteCode?: string; providers: AuthProviders | null }) {
+  const enabled = providers ?? {};
   const available = PROVIDERS.filter((provider) => enabled[provider.key]);
   if (available.length === 0) {
     return null;
@@ -39,15 +46,17 @@ export function OAuthButtons({ inviteCode = "" }: { inviteCode?: string }) {
 
   return (
     <div className="mt-6">
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-gray-300" />
+      {enabled.password && (
+        <div className="relative mb-6">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-300" />
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="bg-gray-50 px-2 text-gray-500">Or</span>
+          </div>
         </div>
-        <div className="relative flex justify-center text-sm">
-          <span className="bg-gray-50 px-2 text-gray-500">Or</span>
-        </div>
-      </div>
-      <div className="mt-6 grid gap-3">
+      )}
+      <div className="grid gap-3">
         {available.map((provider) => (
           <a
             key={provider.key}
