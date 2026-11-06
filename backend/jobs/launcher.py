@@ -1,4 +1,5 @@
 import asyncio
+from functools import lru_cache
 
 from database.repository import JobRunRepository
 from database.session import session_context
@@ -9,22 +10,33 @@ JOB_RUN_ID_ENV = "JOB_RUN_ID"
 JOB_NAME_ENV = "JOB_NAME"
 
 
+@lru_cache
+def find_network(name: str) -> tuple[list[str], list[str]]:
+    import boto3
+
+    ec2 = boto3.client("ec2")
+    subnets = ec2.describe_subnets(Filters=[{"Name": "default-for-az", "Values": ["true"]}])["Subnets"]
+    groups = ec2.describe_security_groups(Filters=[{"Name": "group-name", "Values": [name]}])["SecurityGroups"]
+    if not subnets or not groups:
+        raise RuntimeError(f"No default subnets or security group named {name!r} found")
+    return [subnet["SubnetId"] for subnet in subnets], [group["GroupId"] for group in groups]
+
+
 def start_task(run_id: str) -> str:
     import boto3
 
-    settings = get_jobs_settings()
-    if not settings.jobs_ecs_cluster_arn or not settings.jobs_ecs_task_definition:
-        raise RuntimeError("Fargate jobs are not configured")
+    name = get_jobs_settings().jobs_name
+    subnets, security_groups = find_network(name)
 
     response = boto3.client("ecs").run_task(
-        cluster=settings.jobs_ecs_cluster_arn,
-        taskDefinition=settings.jobs_ecs_task_definition,
+        cluster=name,
+        taskDefinition=name,
         launchType="FARGATE",
         count=1,
         networkConfiguration={
             "awsvpcConfiguration": {
-                "subnets": settings.ecs_subnet_list,
-                "securityGroups": settings.ecs_security_group_list,
+                "subnets": subnets,
+                "securityGroups": security_groups,
                 "assignPublicIp": "ENABLED",
             }
         },

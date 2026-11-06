@@ -44,13 +44,27 @@ def fake_jobs(monkeypatch, calls):
 
 @pytest.fixture
 def jobs_settings(monkeypatch):
-    monkeypatch.setenv("JOBS_ECS_CLUSTER_ARN", "arn:cluster")
-    monkeypatch.setenv("JOBS_ECS_TASK_DEFINITION", "fireons-jobs")
-    monkeypatch.setenv("JOBS_ECS_SUBNETS", "subnet-a, subnet-b")
-    monkeypatch.setenv("JOBS_ECS_SECURITY_GROUPS", "sg-1")
+    monkeypatch.setenv("APP_ENV", "production")
     get_jobs_settings.cache_clear()
+    launcher.find_network.cache_clear()
     yield
     get_jobs_settings.cache_clear()
+    launcher.find_network.cache_clear()
+
+
+class FakeEc2:
+    def __init__(self, subnets=("subnet-a", "subnet-b"), groups=("sg-1",)):
+        self.subnets = subnets
+        self.groups = groups
+        self.calls = []
+
+    def describe_subnets(self, **kwargs):
+        self.calls.append(("subnets", kwargs))
+        return {"Subnets": [{"SubnetId": value} for value in self.subnets]}
+
+    def describe_security_groups(self, **kwargs):
+        self.calls.append(("groups", kwargs))
+        return {"SecurityGroups": [{"GroupId": value} for value in self.groups]}
 
 
 class FakeEcs:
@@ -63,12 +77,17 @@ class FakeEcs:
         return self.response
 
 
-@pytest.fixture
-def ecs(monkeypatch, jobs_settings):
+def patch_boto3(monkeypatch, ecs, ec2=None):
     import boto3
 
+    clients = {"ecs": ecs, "ec2": ec2 or FakeEc2()}
+    monkeypatch.setattr(boto3, "client", lambda name, *a, **k: clients[name])
+
+
+@pytest.fixture
+def ecs(monkeypatch, jobs_settings):
     client = FakeEcs()
-    monkeypatch.setattr(boto3, "client", lambda name, *a, **k: client)
+    patch_boto3(monkeypatch, client)
     return client
 
 
@@ -142,8 +161,8 @@ async def test_launch_job_creates_run_and_starts_task(ecs, repository):
     assert (run.job, run.payload, run.status) == ("ok", {"n": 5}, JobRunStatus.QUEUED)
     assert run.task_arn == "arn:task/1"
     call = ecs.calls[0]
-    assert call["cluster"] == "arn:cluster"
-    assert call["taskDefinition"] == "fireons-jobs"
+    assert call["cluster"] == "fireons-production-jobs"
+    assert call["taskDefinition"] == "fireons-production-jobs"
     assert call["launchType"] == "FARGATE"
     network = call["networkConfiguration"]["awsvpcConfiguration"]
     assert network["subnets"] == ["subnet-a", "subnet-b"]
@@ -154,10 +173,8 @@ async def test_launch_job_creates_run_and_starts_task(ecs, repository):
 
 @pytest.mark.asyncio
 async def test_launch_failure_marks_run_failed(monkeypatch, jobs_settings, session):
-    import boto3
-
     client = FakeEcs({"tasks": [], "failures": [{"reason": "CAPACITY"}]})
-    monkeypatch.setattr(boto3, "client", lambda name, *a, **k: client)
+    patch_boto3(monkeypatch, client)
 
     with pytest.raises(RuntimeError, match="RunTask failed"):
         await launcher.launch_job("ok")
@@ -168,9 +185,27 @@ async def test_launch_failure_marks_run_failed(monkeypatch, jobs_settings, sessi
 
 
 @pytest.mark.asyncio
+async def test_launch_fails_when_network_is_not_found(monkeypatch, jobs_settings, repository):
+    patch_boto3(monkeypatch, FakeEcs(), FakeEc2(groups=()))
+
+    with pytest.raises(RuntimeError, match="fireons-production-jobs"):
+        await launcher.launch_job("ok")
+
+
+@pytest.mark.asyncio
+async def test_network_lookup_is_cached(monkeypatch, jobs_settings, repository):
+    ec2 = FakeEc2()
+    patch_boto3(monkeypatch, FakeEcs(), ec2)
+
+    await launcher.launch_job("ok")
+    await launcher.launch_job("ok")
+
+    assert len(ec2.calls) == 2
+
+
+@pytest.mark.asyncio
 async def test_launch_requires_configuration(monkeypatch, repository):
-    monkeypatch.delenv("JOBS_ECS_CLUSTER_ARN", raising=False)
-    monkeypatch.delenv("JOBS_ECS_TASK_DEFINITION", raising=False)
+    monkeypatch.delenv("APP_ENV", raising=False)
     get_jobs_settings.cache_clear()
 
     with pytest.raises(RuntimeError, match="not configured"):
