@@ -60,8 +60,12 @@ test.describe('Admin jobs', () => {
 
     await page.getByLabel('Status').selectOption(finalStatus);
     await expect(page.getByTestId('job-run').first()).toBeVisible();
-    const statuses = await page.getByTestId('job-run-status').allTextContents();
-    expect(statuses.every((status) => status === finalStatus)).toBe(true);
+    await expect
+      .poll(async () => {
+        const statuses = await page.getByTestId('job-run-status').allTextContents();
+        return statuses.length > 0 && statuses.every((status) => status === finalStatus);
+      })
+      .toBe(true);
   });
 
   test('admin sees validation errors for a bad payload', async ({ page }) => {
