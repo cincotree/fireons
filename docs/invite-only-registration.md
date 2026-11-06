@@ -1,16 +1,16 @@
 # Invite-only registration
 
-In production, registering needs an invite code. Invites live in the `invites` table and are managed with SQL (Neon SQL editor or `psql`). There is no admin page.
+In production, signing up needs an invite code. Sign-in is Google or Reddit only, so the code is passed to the provider flow (`/api/auth/{google|reddit}/login?invite_code=`) and checked when a new user is created. Existing users sign in without one. Invites live in the `invites` table and are managed with SQL (Neon SQL editor or `psql`). There is no admin page.
 
 ## How it works
 
-- The API reads `INVITE_ONLY`. When it is `true`, `POST /api/auth/register` requires a valid `invite_code`. Terraform sets it to `true` for production (`invite_only` in `infra/environments/production`).
-- When it is unset or `false` (local development, the e2e suite), registration is open and `invite_code` is ignored.
-- `GET /api/auth/registration` returns `{"invite_required": true|false}`. The register page uses it to show an invite code field.
+- The API reads `INVITE_ONLY`. When it is `true`, a new social sign-up requires a valid `invite_code`. Terraform sets it to `true` for production (`invite_only` in `infra/environments/production`).
+- When it is unset or `false` (local development, the e2e suite), sign-up is open and `invite_code` is ignored.
+- `GET /api/auth/registration` returns `{"invite_required": true|false}`. The join page uses it to show an invite code field.
 - `/register?invite=<code>` prefills the field, so you can send people a link.
 - An invite is valid until it is revoked, expired, or used `max_uses` times. The check and the use count update happen in one statement, so two people cannot use the last slot at once.
-- A registration that fails for another reason (for example a taken username) does not use up the invite.
-- Rejections always return `400 Invalid or expired invite code`, whatever the reason.
+- A sign-up that fails for another reason (for example the provider returns an error) does not use up the invite.
+- Rejections send the user back to `/login?error=invite_required`, whatever the reason.
 
 ## Tables
 

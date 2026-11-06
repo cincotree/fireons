@@ -20,6 +20,16 @@ export default function Navigation() {
             >
               🤖 Fireons
             </Link>
+            <Link
+              href="/professionals"
+              className={`px-4 py-1.5 text-sm font-medium transition-all border-b ${
+                pathname === "/professionals"
+                  ? "text-blue-400 border-blue-400"
+                  : "text-gray-300 border-transparent hover:text-white hover:border-gray-500"
+              }`}
+            >
+              Find professionals
+            </Link>
             {isAuthenticated && (
               <Link
                 href="/networth"

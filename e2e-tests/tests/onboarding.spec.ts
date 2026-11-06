@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import path from 'path';
+import { signIn } from './support/session';
 
 const HDFC_PASSWORD = 'Fireons-Eval-Test-1234';
 const HDFC_FIXTURE = path.join(__dirname, '../fixtures/onboarding-hdfc.pdf');
@@ -7,19 +8,9 @@ const ICICI_FIXTURE = path.join(__dirname, '../fixtures/onboarding-icici.pdf');
 const SGB_FIXTURE = path.join(__dirname, '../fixtures/onboarding-sgb.pdf');
 
 async function registerAndLogin(page: import('@playwright/test').Page) {
-  const timestamp = Date.now() + Math.floor(Math.random() * 1000);
-  const testUser = {
-    email: `onboarding${timestamp}@example.com`,
-    username: `onboarding${timestamp}`,
-    password: 'Test123!@#',
-  };
-
-  await page.goto('/register');
-  await page.getByLabel(/Email/i).fill(testUser.email);
-  await page.getByLabel(/^Username/i).fill(testUser.username);
-  await page.locator('input[name="password"]').fill(testUser.password);
-  await page.getByRole('button', { name: /Create account/i }).click();
-  await page.waitForURL(/.*networth/, { timeout: 5000 });
+  await signIn(page, 'onboarding');
+  await page.goto('/networth');
+  await expect(page.getByRole('button', { name: 'Import Statement' })).toBeVisible();
 }
 
 test.describe('Onboarding — statement import', () => {

@@ -24,7 +24,7 @@ def test_missing_secret_key_fails(monkeypatch):
 
 async def _preflight(client: AsyncClient, origin: str):
     return await client.options(
-        "/api/auth/login",
+        "/api/auth/providers",
         headers={
             "Origin": origin,
             "Access-Control-Request-Method": "POST",
