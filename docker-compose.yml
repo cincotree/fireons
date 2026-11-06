@@ -2,6 +2,11 @@ x-backend-environment: &backend-environment
   DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/fireons_development
   SECRET_KEY: ${SECRET_KEY:-local-development-only-change-me}
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  PASSWORD_AUTH_ENABLED: ${PASSWORD_AUTH_ENABLED:-true}
+  GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+  GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+  REDDIT_OAUTH_CLIENT_ID: ${REDDIT_OAUTH_CLIENT_ID:-}
+  REDDIT_OAUTH_CLIENT_SECRET: ${REDDIT_OAUTH_CLIENT_SECRET:-}
 
 services:
   postgres:
