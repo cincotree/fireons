@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Public_Sans } from "next/font/google";
 import { ProfessionalDirectory } from "@/components/ProfessionalDirectory";
+import { RequireAuth } from "@/components/RequireAuth";
 
 const publicSans = Public_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "700"] });
 
@@ -13,7 +14,9 @@ export const metadata: Metadata = {
 export default function ProfessionalsPage() {
   return (
     <div className={publicSans.className}>
-      <ProfessionalDirectory />
+      <RequireAuth>
+        <ProfessionalDirectory />
+      </RequireAuth>
     </div>
   );
 }

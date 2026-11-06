@@ -49,7 +49,7 @@ class LoginCreds(BaseModel):
 
 class UserResponse(BaseModel):
     id: str
-    email: EmailStr
+    email: Optional[EmailStr] = None
     username: str
     full_name: Optional[str] = None
     location: Optional[str] = None

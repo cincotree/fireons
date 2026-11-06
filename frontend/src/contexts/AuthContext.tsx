@@ -6,7 +6,7 @@ import { getBaseHttpUrl } from "@/utils/api";
 
 interface User {
   id: string;
-  email: string;
+  email?: string | null;
   username: string;
   full_name?: string;
   location?: string;
@@ -17,6 +17,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
+  completeLogin: (token: string) => Promise<boolean>;
   register: (userData: RegisterData) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
@@ -30,6 +31,31 @@ interface RegisterData {
   location?: string;
   primary_currency?: string;
   invite_code?: string;
+}
+
+const POST_LOGIN_PATH_KEY = "postLoginPath";
+
+export function rememberPostLoginPath(path: string) {
+  try {
+    if (path.startsWith("/") && !path.startsWith("//")) {
+      sessionStorage.setItem(POST_LOGIN_PATH_KEY, path);
+    }
+  } catch {
+    return;
+  }
+}
+
+function takePostLoginPath(): string {
+  try {
+    const path = sessionStorage.getItem(POST_LOGIN_PATH_KEY);
+    sessionStorage.removeItem(POST_LOGIN_PATH_KEY);
+    if (path && path.startsWith("/") && !path.startsWith("//")) {
+      return path;
+    }
+  } catch {
+    return "/networth";
+  }
+  return "/networth";
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -91,7 +117,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("token", data.access_token);
 
     await checkAuth();
-    router.push("/networth");
+    router.push(takePostLoginPath());
+  };
+
+  const completeLogin = async (token: string) => {
+    const baseUrl = getBaseHttpUrl();
+    const response = await fetch(`${baseUrl}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      return false;
+    }
+    localStorage.setItem("token", token);
+    setUser(await response.json());
+    router.replace(takePostLoginPath());
+    return true;
   };
 
   const register = async (userData: RegisterData) => {
@@ -122,6 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     loading,
     login,
+    completeLogin,
     register,
     logout,
     isAuthenticated: !!user,

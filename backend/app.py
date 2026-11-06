@@ -8,6 +8,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 from api.account_api import router as account_router
 from api.auth_api import router as auth_router
+from api.oauth_api import router as oauth_router
 from api.registrations_api import router as registrations_router
 from api.health_api import router as health_router
 from api.ingestion_disabled_api import router as ingestion_disabled_router
@@ -65,6 +66,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     app.middleware("http")(rewrite_api_path)
 
     app.include_router(auth_router)
+    app.include_router(oauth_router)
     app.include_router(account_router)
     if settings.ingestion_test_enabled:
         from api.ingestion_test_api import router as ingestion_test_router

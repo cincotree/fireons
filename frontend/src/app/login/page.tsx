@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
+import { OAuthButtons, oauthErrorMessage } from "@/components/OAuthButtons";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
@@ -11,6 +12,13 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   const { login } = useAuth();
+
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("error");
+    if (code) {
+      setError(oauthErrorMessage(code));
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,6 +99,7 @@ export default function LoginPage() {
             </button>
           </div>
         </form>
+        <OAuthButtons />
       </div>
     </div>
   );

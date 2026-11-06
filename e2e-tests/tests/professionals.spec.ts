@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import pg from 'pg';
+import { signIn } from './support/session';
 
 const { Client } = pg;
 
@@ -99,8 +100,12 @@ async function insertRegistration(client: pg.Client, sourceId: string, runId: st
   return registration.rows[0].id as string;
 }
 
-test.describe('Professionals directory - public listing, filters and change history', () => {
+test.describe('Professionals directory - signed-in listing, filters and change history', () => {
   test.describe.configure({ mode: 'serial' });
+
+  test.beforeEach(async ({ page }) => {
+    await signIn(page, 'directory');
+  });
 
   test.beforeAll(async () => {
     const client = await connect();
@@ -220,7 +225,7 @@ test.describe('Professionals directory - public listing, filters and change hist
   const historyButton = (page: Page, name: string) =>
     page.getByRole('button', { name: `View history for ${name}` });
 
-  test('anyone can browse the directory without logging in', async ({ page }) => {
+  test('a signed-in user can browse the directory', async ({ page }) => {
     await page.goto('/professionals');
 
     await expect(page).toHaveTitle('Find a registered financial professional | Fireons');
@@ -258,14 +263,13 @@ test.describe('Professionals directory - public listing, filters and change hist
 
     await openFilters(page);
 
-    await expect(page.getByRole('combobox')).toHaveCount(5);
-    await expect(filter(page, 'Source')).toBeVisible();
+    await expect(page.getByRole('combobox')).toHaveCount(4);
+    await expect(page.getByRole('combobox', { name: 'Source' })).toHaveCount(0);
     await expect(filter(page, 'Verification')).toBeVisible();
     await expect(filter(page, 'NRI signals')).toBeVisible();
     await expect(filter(page, 'State')).toBeVisible();
     await expect(filter(page, 'City')).toBeVisible();
     await expect(page.getByRole('combobox', { name: 'Status' })).toHaveCount(0);
-    await expect(filter(page, 'Source').locator('option').first()).toHaveText('All sources');
     await expect(filter(page, 'State')).toHaveText('All states');
     await expect(filter(page, 'City')).toHaveText('All cities');
   });
@@ -350,16 +354,6 @@ test.describe('Professionals directory - public listing, filters and change hist
 
     await expect(historyButton(page, 'Zulu Otherperson')).toBeVisible();
     await expect(historyButton(page, 'Rohan Mehta')).toHaveCount(0);
-  });
-
-  test('source filter shows only that source', async ({ page }) => {
-    await page.goto('/professionals');
-    await openFilters(page);
-
-    await filter(page, 'Source').selectOption({ label: 'Other Register of Advisers' });
-
-    await expect(historyButton(page, 'Zulu Otherperson')).toBeVisible();
-    await expect(page.getByText('Showing 1–1 of 1')).toBeVisible();
   });
 
   test('state dropdown is searchable', async ({ page }) => {

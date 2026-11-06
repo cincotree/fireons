@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy import case, false, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.auth_api import get_current_user
 from api.public_rate_limit import limit_public_reads
 from database.models import (
     DataSource,
@@ -44,7 +45,7 @@ def _lowered(values: list[str]) -> list[str]:
 router = APIRouter(
     prefix="/registrations",
     tags=["registrations"],
-    dependencies=[Depends(limit_public_reads)],
+    dependencies=[Depends(limit_public_reads), Depends(get_current_user)],
 )
 
 

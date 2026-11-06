@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { BadgeCheck, ExternalLink, Mail, MapPin, Phone, User, X } from "lucide-react";
 import { Monogram } from "@/components/Monogram";
-import { getBaseHttpUrl } from "@/utils/api";
+import { authFetch, getBaseHttpUrl } from "@/utils/api";
 import { CONFIDENCE_LABELS } from "@/components/NriBadge";
 import { NriDetail, Registration, RegistrationHistory } from "@/types/professionals";
 
@@ -74,7 +74,7 @@ export function RegistrationHistoryModal({ registration, onClose }: Props) {
     (async () => {
       try {
         const baseUrl = await getBaseHttpUrl();
-        const response = await fetch(`${baseUrl}/api/registrations/${registration.id}/history`);
+        const response = await authFetch(`${baseUrl}/api/registrations/${registration.id}/history`);
         if (!response.ok) throw new Error("Could not load history. Please try again.");
         const data: RegistrationHistory = await response.json();
         if (!cancelled) setHistory(data);
@@ -97,7 +97,7 @@ export function RegistrationHistoryModal({ registration, onClose }: Props) {
     (async () => {
       try {
         const baseUrl = await getBaseHttpUrl();
-        const response = await fetch(`${baseUrl}/api/registrations/${registration.id}/nri`);
+        const response = await authFetch(`${baseUrl}/api/registrations/${registration.id}/nri`);
         if (!response.ok) throw new Error("Could not load NRI signals. Please try again.");
         const data: NriDetail = await response.json();
         if (!cancelled) setNriDetail(data);

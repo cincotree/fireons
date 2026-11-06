@@ -20,8 +20,8 @@ import { MultiSelect } from "@/components/MultiSelect";
 import { NriBadge } from "@/components/NriBadge";
 import { RegistrationHistoryModal } from "@/components/RegistrationHistoryModal";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { getBaseHttpUrl } from "@/utils/api";
-import { Facets, ProfessionalSource, Registration, RegistrationPage } from "@/types/professionals";
+import { authFetch, getBaseHttpUrl } from "@/utils/api";
+import { Facets, Registration, RegistrationPage } from "@/types/professionals";
 
 const PAGE_SIZE = 25;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -42,7 +42,7 @@ const CONTROL =
 
 async function fetchJson<T>(path: string, failureMessage: string): Promise<T> {
   const baseUrl = await getBaseHttpUrl();
-  const response = await fetch(`${baseUrl}${path}`);
+  const response = await authFetch(`${baseUrl}${path}`);
   if (response.status === 429) {
     throw new Error("Too many requests. Please wait a moment and try again.");
   }
@@ -103,8 +103,6 @@ function SkeletonRows() {
 }
 
 export function ProfessionalDirectory() {
-  const [sources, setSources] = useState<ProfessionalSource[]>([]);
-  const [sourceKey, setSourceKey] = useState("");
   const [facets, setFacets] = useState<Facets>(NO_FACETS);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -121,14 +119,7 @@ export function ProfessionalDirectory() {
   const [selected, setSelected] = useState<Registration | null>(null);
 
   useEffect(() => {
-    fetchJson<ProfessionalSource[]>("/api/registrations/sources", "Could not load data sources.")
-      .then(setSources)
-      .catch((err: Error) => setError(err.message));
-  }, []);
-
-  useEffect(() => {
     const params = new URLSearchParams();
-    if (sourceKey) params.set("source", sourceKey);
     stateFilter.forEach((name) => params.append("state", name));
     fetchJson<Facets>(`/api/registrations/facets?${params.toString()}`, "")
       .then((loaded) => {
@@ -139,7 +130,7 @@ export function ProfessionalDirectory() {
         });
       })
       .catch(() => setFacets(NO_FACETS));
-  }, [sourceKey, stateFilter]);
+  }, [stateFilter]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -152,7 +143,6 @@ export function ProfessionalDirectory() {
   useEffect(() => {
     let cancelled = false;
     const params = new URLSearchParams({ page: String(page), page_size: String(PAGE_SIZE) });
-    if (sourceKey) params.set("source", sourceKey);
     if (search) params.set("q", search);
     stateFilter.forEach((name) => params.append("state", name));
     cityFilter.forEach((name) => params.append("city", name));
@@ -176,7 +166,7 @@ export function ProfessionalDirectory() {
     return () => {
       cancelled = true;
     };
-  }, [sourceKey, search, stateFilter, cityFilter, nriFilter, verificationFilter, page, reloadToken]);
+  }, [search, stateFilter, cityFilter, nriFilter, verificationFilter, page, reloadToken]);
 
   const total = data?.total ?? 0;
   const firstShown = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
@@ -184,22 +174,7 @@ export function ProfessionalDirectory() {
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const hasNextPage = page * PAGE_SIZE < total;
 
-  const sourceName = sources.find((candidate) => candidate.key === sourceKey)?.name ?? sourceKey;
   const appliedFilters: { key: string; label: string; kind: string; clear: () => void }[] = [
-    ...(sourceKey
-      ? [
-          {
-            key: `source:${sourceKey}`,
-            label: sourceName,
-            kind: "source",
-            clear: () => {
-              setSourceKey("");
-              setStateFilter([]);
-              setCityFilter([]);
-            },
-          },
-        ]
-      : []),
     ...stateFilter.map((name) => ({
       key: `state:${name}`,
       label: name,
@@ -240,7 +215,6 @@ export function ProfessionalDirectory() {
   const clearEverything = () => {
     setSearchInput("");
     setSearch("");
-    setSourceKey("");
     setStateFilter([]);
     setCityFilter([]);
     setNriFilter("");
@@ -300,18 +274,6 @@ export function ProfessionalDirectory() {
 
           {filtersOpen && (
             <div id="directory-filters" className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-              <FilterSelect
-                label="Source"
-                allLabel="All sources"
-                value={sourceKey}
-                options={sources.map((candidate) => ({ value: candidate.key, label: candidate.name }))}
-                onChange={(value) => {
-                  setSourceKey(value);
-                  setStateFilter([]);
-                  setCityFilter([]);
-                  setPage(1);
-                }}
-              />
               <MultiSelect
                 label="State"
                 noun="states"

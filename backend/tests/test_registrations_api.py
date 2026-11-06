@@ -6,6 +6,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 from api import public_rate_limit
+from api.auth_api import get_current_user
 from app import app
 from database.models import (
     DataSource,
@@ -15,6 +16,7 @@ from database.models import (
     ProfessionalWebsite,
     RegistrationVersion,
     ScrapeRun,
+    User,
 )
 from database.session import get_session
 from scraping.normalize import normalize_name
@@ -28,9 +30,23 @@ async def client(session):
         yield session
 
     app.dependency_overrides[get_session] = override_get_session
+    app.dependency_overrides[get_current_user] = lambda: User(id=str(uuid4()), username="signed_in")
     public_rate_limit.public_read_limiter.reset()
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+    app.dependency_overrides.clear()
+    public_rate_limit.public_read_limiter.reset()
+
+
+@pytest_asyncio.fixture
+async def anonymous_client(session):
+    async def override_get_session():
+        yield session
+
+    app.dependency_overrides[get_session] = override_get_session
+    public_rate_limit.public_read_limiter.reset()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
     app.dependency_overrides.clear()
     public_rate_limit.public_read_limiter.reset()
@@ -621,3 +637,28 @@ async def test_invalid_verification_filter_is_a_validation_error(client, seeded)
     response = await client.get("/registrations", params={"verification": "trusted"})
 
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/registrations",
+        "/registrations/sources",
+        "/registrations/facets",
+        f"/registrations/{uuid4()}",
+        f"/registrations/{uuid4()}/history",
+        f"/registrations/{uuid4()}/nri",
+    ],
+)
+@pytest.mark.asyncio
+async def test_registrations_require_a_signed_in_user(anonymous_client, path):
+    response = await anonymous_client.get(path)
+
+    assert response.status_code in {401, 403}
+
+
+@pytest.mark.asyncio
+async def test_registrations_reject_an_invalid_token(anonymous_client):
+    response = await anonymous_client.get("/registrations", headers={"Authorization": "Bearer not-a-token"})
+
+    assert response.status_code == 401

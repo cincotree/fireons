@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import { getBaseHttpUrl } from "@/utils/api";
+import { OAuthButtons } from "@/components/OAuthButtons";
 import { SUPPORTED_CURRENCIES } from "@/utils/currencies";
 
 export default function RegisterPage() {
@@ -224,6 +225,7 @@ export default function RegisterPage() {
             </button>
           </div>
         </form>
+        <OAuthButtons inviteCode={inviteRequired ? inviteCode.trim() : ""} />
       </div>
     </div>
   );

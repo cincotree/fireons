@@ -12,7 +12,7 @@ from app_config import get_app_settings
 class TokenData(BaseModel):
     user_id: str
     username: str
-    email: str
+    email: Optional[str] = None
 
 
 class Token(BaseModel):
@@ -20,7 +20,9 @@ class Token(BaseModel):
     token_type: str
 
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
+def verify_password(plain_password: str, hashed_password: Optional[str]) -> bool:
+    if not hashed_password:
+        return False
     return bcrypt.checkpw(
         plain_password.encode('utf-8'),
         hashed_password.encode('utf-8')
@@ -52,9 +54,9 @@ def decode_token(token: str) -> Optional[TokenData]:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
         user_id: str = payload.get("sub")
         username: str = payload.get("username")
-        email: str = payload.get("email")
+        email: Optional[str] = payload.get("email")
 
-        if user_id is None or username is None or email is None:
+        if user_id is None or username is None:
             return None
 
         return TokenData(user_id=user_id, username=username, email=email)
