@@ -50,6 +50,18 @@ Custom domains, phase 2:
 
 Checks: `terraform plan` is clean after apply, the budget alert test email arrives, and the secret values are not in state (`terraform state list` shows only the secret shell).
 
+## Background jobs
+
+Jobs run as on-demand Fargate tasks, so idle cost is the ECR storage only. The in-process APScheduler job stays disabled in production (`EXCHANGE_RATE_SYNC_ENABLED=false`) because a Lambda is frozen between requests.
+
+- Each task runs `python -m jobs.runner`. The runner records a row in `job_runs` (status, error, task ARN, timestamps), runs the job from `backend/jobs/registry.py`, and exits non-zero on failure.
+- EventBridge Scheduler: each entry in `scheduled_jobs` starts a task directly with `JOB_NAME`; the runner creates the `job_runs` row itself. The default entry runs `exchange_rate_sync` at 20:30 UTC.
+- Online triggers call `jobs.launcher.launch_job(name, payload)`, which inserts a `job_runs` row and calls `ecs:RunTask` with `JOB_RUN_ID`. The caller needs `ecs:RunTask` and `iam:PassRole` plus the `JOBS_ECS_CLUSTER_ARN`, `JOBS_ECS_TASK_DEFINITION` (the task definition family), `JOBS_ECS_SUBNETS` and `JOBS_ECS_SECURITY_GROUPS` settings. The API Lambda does not have these yet; add them with the first endpoint that launches a job.
+- There are no automatic retries. A failed run stays `failed` in `job_runs` with its error. Relaunch it by hand with `jobs.launcher.launch_run(run_id)`, or start a new run. A task killed without writing its status stays `queued` or `running`, so check `job_runs` and the task logs. Jobs should be idempotent.
+- Resources: ECR repository (keeps 5 images), ECS cluster, task definition (arm64, 0.5 vCPU, 1 GB), egress only security group, log group. There is no service and no NAT gateway. Tasks use the default VPC public subnets with a public IP to reach Neon and AWS APIs.
+- Build and push the image with `JOBS_ECR_REPOSITORY_URL=<jobs_ecr_repository_url output> make deploy-jobs-image` before the first job runs, and after any change under `backend/`.
+- Add a job by registering it in `backend/jobs/registry.py`, and add a `scheduled_jobs` entry if it is periodic.
+
 ## Invite-only registration
 
 Production registration needs an invite code from the `invites` table, which you manage with SQL. See [docs/invite-only-registration.md](../docs/invite-only-registration.md) for how to create, revoke and inspect invites.

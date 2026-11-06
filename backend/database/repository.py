@@ -5,7 +5,7 @@ Provides clean abstractions for CRUD operations on accounting entities.
 """
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import select, func, and_
@@ -20,6 +20,8 @@ from database.models import (
     IngestedDocument,
     IngestionRun,
     IngestionRunStatus,
+    JobRun,
+    JobRunStatus,
 )
 
 
@@ -573,3 +575,49 @@ class ExchangeRateRepository:
                 return ConversionResult(amount=amount * to_usd * from_usd, rate_available=True)
 
         return ConversionResult(amount=amount, rate_available=False)
+
+
+class JobRunRepository:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def create(self, job: str, payload: dict | None = None) -> JobRun:
+        run = JobRun(job=job, payload=payload or {})
+        self.session.add(run)
+        await self.session.flush()
+        return run
+
+    async def get(self, run_id: str) -> JobRun | None:
+        return await self.session.get(JobRun, run_id)
+
+    async def mark_launched(self, run_id: str, task_arn: str | None = None) -> JobRun:
+        run = await self.session.get(JobRun, run_id)
+        run.status = JobRunStatus.QUEUED
+        run.task_arn = task_arn
+        run.error_message = None
+        run.started_at = None
+        run.completed_at = None
+        await self.session.flush()
+        return run
+
+    async def mark_running(self, run_id: str) -> JobRun:
+        run = await self.session.get(JobRun, run_id)
+        run.status = JobRunStatus.RUNNING
+        run.started_at = datetime.now(timezone.utc)
+        await self.session.flush()
+        return run
+
+    async def mark_succeeded(self, run_id: str) -> JobRun:
+        run = await self.session.get(JobRun, run_id)
+        run.status = JobRunStatus.SUCCEEDED
+        run.completed_at = datetime.now(timezone.utc)
+        await self.session.flush()
+        return run
+
+    async def mark_failed(self, run_id: str, error_message: str) -> JobRun:
+        run = await self.session.get(JobRun, run_id)
+        run.status = JobRunStatus.FAILED
+        run.error_message = error_message
+        run.completed_at = datetime.now(timezone.utc)
+        await self.session.flush()
+        return run
