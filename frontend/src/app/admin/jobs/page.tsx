@@ -23,11 +23,11 @@ export default function AdminJobsPage() {
     );
   }
 
-  if (!user?.is_superuser) {
+  if (!user?.is_admin) {
     return (
       <div className="max-w-3xl mx-auto p-8">
         <p role="alert" className="text-red-600">
-          Superuser access required
+          Admin access required
         </p>
       </div>
     );

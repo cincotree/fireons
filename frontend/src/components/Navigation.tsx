@@ -32,7 +32,7 @@ export default function Navigation() {
                 Net Worth
               </Link>
             )}
-            {isAuthenticated && user?.is_superuser && (
+            {isAuthenticated && user?.is_admin && (
               <Link
                 href="/admin/jobs"
                 className={`px-4 py-1.5 text-sm font-medium transition-all border-b ${

@@ -407,7 +407,7 @@ class User(Base):
     full_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     location: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     primary_currency: Mapped[str] = mapped_column(String(10), default="USD", nullable=False)
-    is_superuser: Mapped[bool] = mapped_column(
+    is_admin: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=expression.false(), nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(

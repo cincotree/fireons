@@ -4,11 +4,11 @@ import pg from 'pg';
 const databaseUrl =
   process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/fireons_e2e';
 
-async function makeSuperuser(username: string) {
+async function makeAdmin(username: string) {
   const client = new pg.Client({ connectionString: databaseUrl.replace('+psycopg', '') });
   await client.connect();
   try {
-    await client.query('UPDATE users SET is_superuser = true WHERE username = $1', [username]);
+    await client.query('UPDATE users SET is_admin = true WHERE username = $1', [username]);
   } finally {
     await client.end();
   }
@@ -32,7 +32,7 @@ test.describe('Admin jobs', () => {
     await expect(page.getByRole('link', { name: 'Jobs' })).toHaveCount(0);
     await page.goto('/admin/jobs');
 
-    await expect(page.getByText('Superuser access required')).toBeVisible();
+    await expect(page.getByText('Admin access required')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Launch job' })).toHaveCount(0);
   });
 
@@ -42,9 +42,9 @@ test.describe('Admin jobs', () => {
     await expect(page).toHaveURL(/.*login/);
   });
 
-  test('superuser launches a job and sees it finish in the run list', async ({ page }) => {
+  test('admin launches a job and sees it finish in the run list', async ({ page }) => {
     const username = await register(page, 'rootjobs');
-    await makeSuperuser(username);
+    await makeAdmin(username);
     await page.reload();
 
     await page.getByRole('link', { name: 'Jobs' }).click();
@@ -56,15 +56,23 @@ test.describe('Admin jobs', () => {
     const row = page.getByTestId('job-run').first();
     await expect(row).toContainText('exchange_rate_sync');
     await expect(row.getByTestId('job-run-status')).toHaveText(/succeeded|failed/, { timeout: 30000 });
+    const finalStatus = (await row.getByTestId('job-run-status').textContent()) as string;
 
-    await page.getByLabel('Status').selectOption('queued');
-    await expect(page.getByText('No runs yet')).toBeVisible();
+    await page.getByLabel('Status').selectOption(finalStatus);
+    await expect(page.getByTestId('job-run').first()).toBeVisible();
+    const statuses = await page.getByTestId('job-run-status').allTextContents();
+    expect(statuses.every((status) => status === finalStatus)).toBe(true);
   });
 
-  test('superuser sees validation errors for a bad payload', async ({ page }) => {
+  test('admin sees validation errors for a bad payload', async ({ page }) => {
     const username = await register(page, 'badpayload');
-    await makeSuperuser(username);
+    await makeAdmin(username);
     await page.goto('/admin/jobs');
+
+    let launchRequests = 0;
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && request.url().includes('/api/admin/jobs/runs')) launchRequests += 1;
+    });
 
     await page.getByLabel('Payload (JSON)').fill('{not json');
     await page.getByRole('button', { name: 'Launch job' }).click();
@@ -73,12 +81,12 @@ test.describe('Admin jobs', () => {
     await page.getByLabel('Payload (JSON)').fill('[1, 2]');
     await page.getByRole('button', { name: 'Launch job' }).click();
     await expect(page.getByTestId('launch-error')).toHaveText('Payload must be a JSON object');
-    await expect(page.getByText('No runs yet')).toBeVisible();
+    expect(launchRequests).toBe(0);
   });
 
-  test('superuser sees the API error when launching fails', async ({ page }) => {
+  test('admin sees the API error when launching fails', async ({ page }) => {
     const username = await register(page, 'failjobs');
-    await makeSuperuser(username);
+    await makeAdmin(username);
     await page.goto('/admin/jobs');
     await page.route('**/api/admin/jobs/runs', (route) =>
       route.request().method() === 'POST'

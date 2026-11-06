@@ -12,12 +12,12 @@ from database.session import get_session
 from jobs import launcher
 
 
-async def make_user(session, name: str, superuser: bool) -> User:
+async def make_user(session, name: str, admin: bool) -> User:
     user = User(
         email=f"{name}@example.com",
         username=name,
         hashed_password="unused",
-        is_superuser=superuser,
+        is_admin=admin,
     )
     session.add(user)
     await session.flush()
@@ -46,7 +46,7 @@ async def client(session, monkeypatch):
 
 
 @pytest_asyncio.fixture
-async def superuser(session) -> User:
+async def admin(session) -> User:
     return await make_user(session, "root_user", True)
 
 
@@ -92,19 +92,19 @@ async def test_rejects_regular_users(client, regular_user, started, method, path
 
 
 @pytest.mark.asyncio
-async def test_lists_registered_jobs(client, superuser):
-    response = await client.get("/admin/jobs", headers=auth(superuser))
+async def test_lists_registered_jobs(client, admin):
+    response = await client.get("/admin/jobs", headers=auth(admin))
 
     assert response.status_code == 200
     assert "exchange_rate_sync" in response.json()
 
 
 @pytest.mark.asyncio
-async def test_superuser_launches_a_job(client, superuser, started):
+async def test_admin_launches_a_job(client, admin, started):
     response = await client.post(
         "/admin/jobs/runs",
         json={"job": "exchange_rate_sync", "payload": {"a": 1}},
-        headers=auth(superuser),
+        headers=auth(admin),
     )
 
     assert response.status_code == 201
@@ -119,28 +119,28 @@ async def test_superuser_launches_a_job(client, superuser, started):
 
 
 @pytest.mark.asyncio
-async def test_rejects_unknown_job(client, superuser, started):
-    response = await client.post("/admin/jobs/runs", json={"job": "nope"}, headers=auth(superuser))
+async def test_rejects_unknown_job(client, admin, started):
+    response = await client.post("/admin/jobs/runs", json={"job": "nope"}, headers=auth(admin))
 
     assert response.status_code == 400
     assert started == []
 
 
 @pytest.mark.asyncio
-async def test_rejects_invalid_body(client, superuser):
-    response = await client.post("/admin/jobs/runs", json={"job": ""}, headers=auth(superuser))
+async def test_rejects_invalid_body(client, admin):
+    response = await client.post("/admin/jobs/runs", json={"job": ""}, headers=auth(admin))
 
     assert response.status_code == 422
 
 
 @pytest.mark.asyncio
-async def test_launch_failure_returns_502_and_records_the_failure(client, superuser, session, monkeypatch):
+async def test_launch_failure_returns_502_and_records_the_failure(client, admin, session, monkeypatch):
     def failing_start_task(run_id: str) -> str:
         raise RuntimeError("no capacity")
 
     monkeypatch.setattr(launcher, "start_task", failing_start_task)
 
-    response = await client.post("/admin/jobs/runs", json={"job": "exchange_rate_sync"}, headers=auth(superuser))
+    response = await client.post("/admin/jobs/runs", json={"job": "exchange_rate_sync"}, headers=auth(admin))
 
     assert response.status_code == 502
     runs = await JobRunRepository(session).list_recent()
@@ -149,14 +149,14 @@ async def test_launch_failure_returns_502_and_records_the_failure(client, superu
 
 
 @pytest.mark.asyncio
-async def test_lists_runs_newest_first_with_filter_and_limit(client, superuser, session):
+async def test_lists_runs_newest_first_with_filter_and_limit(client, admin, session):
     repository = JobRunRepository(session)
     first = await repository.create("exchange_rate_sync")
     await repository.mark_succeeded(first.id)
     second = await repository.create("exchange_rate_sync")
     await repository.mark_failed(second.id, "boom")
     third = await repository.create("exchange_rate_sync")
-    headers = auth(superuser)
+    headers = auth(admin)
 
     everything = (await client.get("/admin/jobs/runs", headers=headers)).json()
     failed = (await client.get("/admin/jobs/runs?status=failed", headers=headers)).json()
@@ -169,14 +169,14 @@ async def test_lists_runs_newest_first_with_filter_and_limit(client, superuser, 
 
 
 @pytest.mark.asyncio
-async def test_list_runs_validates_query(client, superuser):
-    headers = auth(superuser)
+async def test_list_runs_validates_query(client, admin):
+    headers = auth(admin)
 
     assert (await client.get("/admin/jobs/runs?limit=0", headers=headers)).status_code == 422
     assert (await client.get("/admin/jobs/runs?status=bogus", headers=headers)).status_code == 422
 
 
 @pytest.mark.asyncio
-async def test_me_reports_superuser_flag(client, superuser, regular_user):
-    assert (await client.get("/auth/me", headers=auth(superuser))).json()["is_superuser"] is True
-    assert (await client.get("/auth/me", headers=auth(regular_user))).json()["is_superuser"] is False
+async def test_me_reports_admin_flag(client, admin, regular_user):
+    assert (await client.get("/auth/me", headers=auth(admin))).json()["is_admin"] is True
+    assert (await client.get("/auth/me", headers=auth(regular_user))).json()["is_admin"] is False

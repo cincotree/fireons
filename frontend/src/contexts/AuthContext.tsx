@@ -11,7 +11,7 @@ interface User {
   full_name?: string;
   location?: string;
   primary_currency: string;
-  is_superuser?: boolean;
+  is_admin?: boolean;
 }
 
 interface AuthContextType {

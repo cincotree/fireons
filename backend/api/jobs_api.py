@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.auth_api import require_superuser
+from api.auth_api import require_admin
 from database.models import JobRunStatus, User
 from database.repository import JobRunRepository
 from database.session import get_session
@@ -50,14 +50,14 @@ class JobRunResponse(BaseModel):
 
 
 @router.get("", response_model=list[str])
-async def list_jobs(_: User = Depends(require_superuser)):
+async def list_jobs(_: User = Depends(require_admin)):
     return sorted(JOBS)
 
 
 @router.post("/runs", response_model=JobRunResponse, status_code=201)
 async def launch(
     request: JobLaunchRequest,
-    _: User = Depends(require_superuser),
+    _: User = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
     if request.job not in JOBS:
@@ -76,7 +76,7 @@ async def launch(
 async def list_runs(
     limit: int = Query(50, ge=1, le=200),
     status: Optional[JobRunStatus] = None,
-    _: User = Depends(require_superuser),
+    _: User = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
     runs = await JobRunRepository(session).list_recent(limit, status)
