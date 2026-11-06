@@ -590,6 +590,13 @@ class JobRunRepository:
     async def get(self, run_id: str) -> JobRun | None:
         return await self.session.get(JobRun, run_id)
 
+    async def list_recent(self, limit: int = 50, status: JobRunStatus | None = None) -> list[JobRun]:
+        query = select(JobRun).order_by(JobRun.created_at.desc()).limit(limit)
+        if status is not None:
+            query = query.where(JobRun.status == status)
+        result = await self.session.execute(query)
+        return list(result.scalars().all())
+
     async def mark_launched(self, run_id: str, task_arn: str | None = None) -> JobRun:
         run = await self.session.get(JobRun, run_id)
         run.status = JobRunStatus.QUEUED

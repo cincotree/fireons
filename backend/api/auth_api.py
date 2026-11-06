@@ -88,6 +88,12 @@ async def get_current_user(
     return user
 
 
+async def require_superuser(current_user: User = Depends(get_current_user)) -> User:
+    if not current_user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Superuser access required")
+    return current_user
+
+
 async def consume_invite(session: AsyncSession, code: Optional[str]) -> str:
     code = (code or "").strip()
     invite_id = None
