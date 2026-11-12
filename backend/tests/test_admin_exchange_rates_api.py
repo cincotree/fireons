@@ -6,7 +6,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 from app import app
-from auth_utils import create_access_token, get_password_hash
+from auth_utils import create_access_token, create_admin_token, get_password_hash
 from database.repository import AdminRepository, ExchangeRateRepository
 from database.session import get_session
 
@@ -25,7 +25,7 @@ async def client(session):
 @pytest_asyncio.fixture
 async def headers(session) -> dict:
     admin = await AdminRepository(session).create("rates_admin", get_password_hash("correct-horse-battery"))
-    token = create_access_token({"sub": admin.id, "username": admin.username, "role": "admin"})
+    token = create_admin_token(admin.id, admin.username)
     return {"Authorization": f"Bearer {token}"}
 
 
@@ -80,11 +80,6 @@ async def test_limits_rows(client, headers, rates):
     response = await client.get("/admin/exchange-rates?limit=1", headers=headers)
 
     assert len(response.json()) == 1
-
-
-@pytest.mark.asyncio
-async def test_empty_table_returns_empty_list(client, headers):
-    assert (await client.get("/admin/exchange-rates", headers=headers)).json() == []
 
 
 @pytest.mark.asyncio

@@ -9,6 +9,10 @@ from pydantic import BaseModel
 from app_config import get_app_settings
 
 
+ADMIN_AUDIENCE = "admin"
+ADMIN_TOKEN_EXPIRE_MINUTES = 15
+
+
 class TokenData(BaseModel):
     user_id: str
     username: str
@@ -46,13 +50,24 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt
 
 
+def create_admin_token(admin_id: str, username: str) -> str:
+    return create_access_token(
+        {"sub": admin_id, "username": username, "aud": ADMIN_AUDIENCE},
+        timedelta(minutes=ADMIN_TOKEN_EXPIRE_MINUTES),
+    )
+
+
 def decode_admin_token(token: str) -> Optional[str]:
     settings = get_app_settings()
     try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        payload = jwt.decode(
+            token,
+            settings.secret_key,
+            algorithms=[settings.algorithm],
+            audience=ADMIN_AUDIENCE,
+            options={"require_aud": True},
+        )
     except JWTError:
-        return None
-    if payload.get("role") != "admin":
         return None
     return payload.get("sub")
 
