@@ -26,7 +26,7 @@ Run from the repo root with AWS credentials for the target account. `TF_ENV` sel
 - `make tf-bootstrap` creates the state bucket if missing and writes `backend.hcl`
 - `make tf-init` runs `terraform init -reconfigure -backend-config=backend.hcl`
 - `make tf-fmt` and `make tf-validate` format and validate (validate does not touch the backend)
-- `make tf-plan` writes `<env>.tfplan` (needs `terraform.tfvars`), and `make tf-apply` applies exactly that plan
+- `make tf-plan` writes `<env>.tfplan` (copies `terraform.tfvars.example` to `terraform.tfvars` first if it is missing), and `make tf-apply` applies exactly that plan
 - `make tf-output` shows outputs such as `jobs_ecr_repository_url`
 
 ## Human steps

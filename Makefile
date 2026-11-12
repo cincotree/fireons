@@ -38,7 +38,7 @@ help:
 	@echo "  tf-init          Initialize Terraform with backend.hcl"
 	@echo "  tf-fmt           Format Terraform files"
 	@echo "  tf-validate      Validate Terraform without touching the backend"
-	@echo "  tf-plan          Write a plan to review (needs terraform.tfvars)"
+	@echo "  tf-plan          Write a plan to review (creates terraform.tfvars from the example if missing)"
 	@echo "  tf-apply         Apply the plan written by tf-plan"
 	@echo "  tf-output        Show Terraform outputs"
 	@echo ""
@@ -128,7 +128,12 @@ deploy-webapp:
 tf-bootstrap:
 	./infra/bootstrap.sh $(TF_ENV)
 
+$(TF_DIR)/terraform.tfvars:
+	cp $(TF_DIR)/terraform.tfvars.example $@
+	@echo "Created $@ from the example, review it before applying"
+
 tf-init:
+	@test -f $(TF_DIR)/backend.hcl || (echo "Missing $(TF_DIR)/backend.hcl, run: make tf-bootstrap TF_ENV=$(TF_ENV)" && exit 1)
 	cd $(TF_DIR) && terraform init -reconfigure -input=false -backend-config=backend.hcl
 
 tf-fmt:
@@ -137,7 +142,7 @@ tf-fmt:
 tf-validate:
 	cd $(TF_DIR) && terraform init -backend=false -input=false > /dev/null && terraform validate
 
-tf-plan:
+tf-plan: $(TF_DIR)/terraform.tfvars
 	cd $(TF_DIR) && terraform plan -input=false -out=$(TF_ENV).tfplan
 
 tf-apply:
