@@ -19,6 +19,16 @@ Terraform (OpenTofu compatible) for the AWS foundation in `ap-southeast-1`. Noth
 - The API runs with `INVITE_ONLY=true` (`invite_only`, default true): registration needs an invite code from the `invites` table
 - AWS Budgets at 1 and 10 USD per month (actual and forecasted) notifying `budget_email`
 
+## Make targets
+
+Run from the repo root with AWS credentials for the target account. `TF_ENV` selects the environment (default `production`).
+
+- `make tf-bootstrap` creates the state bucket if missing and writes `backend.hcl`
+- `make tf-init` runs `terraform init -reconfigure -backend-config=backend.hcl`
+- `make tf-fmt` and `make tf-validate` format and validate (validate does not touch the backend)
+- `make tf-plan` writes `<env>.tfplan` (copies `terraform.tfvars.example` to `terraform.tfvars` first if it is missing), and `make tf-apply` applies exactly that plan
+- `make tf-output` shows outputs such as `jobs_ecr_repository_url`
+
 ## Human steps
 
 Before Terraform:
@@ -49,6 +59,21 @@ Custom domains, phase 2:
 17. Update the GitHub environment variables `WEBAPP_URL` and `NEXT_PUBLIC_API_BASE_URL` from the new output and run the `Release` workflow again so the frontend is rebuilt against `https://api.fireons.com`.
 
 Checks: `terraform plan` is clean after apply, the budget alert test email arrives, and the secret values are not in state (`terraform state list` shows only the secret shell).
+
+## Background jobs
+
+Jobs run as on-demand Fargate tasks, so idle cost is the ECR storage only. The in-process APScheduler job stays disabled in production (`EXCHANGE_RATE_SYNC_ENABLED=false`) because a Lambda is frozen between requests.
+
+- Each task runs `python -m jobs.runner`. The runner records a row in `job_runs` (status, error, task ARN, timestamps), runs the job from `backend/jobs/registry.py`, and exits non-zero on failure.
+- EventBridge Scheduler: each entry in `scheduled_jobs` starts a task directly with `JOB_NAME`; the runner creates the `job_runs` row itself. The default entry runs `exchange_rate_sync` at 20:30 UTC.
+- Online triggers call `jobs.launcher.launch_job(name, payload)`, which inserts a `job_runs` row and calls `ecs:RunTask` with `JOB_RUN_ID`. Everything is found by convention from `APP_ENV`: cluster and task definition family are both `fireons-<env>-jobs`, the security group has the same name, and subnets are the default VPC subnets (looked up once per process). The caller needs `ecs:RunTask`, `iam:PassRole` for the task and execution roles, and `ec2:DescribeSubnets` and `ec2:DescribeSecurityGroups`. The API Lambda role has these permissions (`launch-jobs` policy).
+- Admins are a separate identity from app users: an `admins` table (username and bcrypt password hash only), its own login `POST /admin/login`, and a token with `role: admin` that user endpoints reject (and the reverse). Create one with `make create-admin USERNAME=<name>` (prompts for a password of at least 12 characters, or reads `ADMIN_PASSWORD`). In production run the same command with `DATABASE_URL` pointing at Neon, or insert a row with a bcrypt hash.
+- The admin UI is `/admin/login` then `/admin/jobs` (not linked from the app nav). The API is `POST /admin/jobs/runs` (body `{"job": "exchange_rate_sync", "payload": {}}`), `GET /admin/jobs/runs?status=&limit=` and `GET /admin/jobs` (registered job names).
+- Test locally without AWS: set `JOBS_RUN_LOCALLY=true` in `backend/.env` (it is in `.env.sample`). `launch_job` then starts `python -m jobs.runner` as a local subprocess instead of a Fargate task, and the run is recorded the same way (`task_arn` shows `local:<pid>`). Run the app (`make backend`, `make frontend`), run `make create-admin USERNAME=<name>`, then open http://localhost:3000/admin/login to sign in, launch a job and watch its runs. A scheduled start can be mimicked with `cd backend && JOB_NAME=exchange_rate_sync uv run python -m jobs.runner`.
+- There are no automatic retries. A failed run stays `failed` in `job_runs` with its error. Relaunch it by hand with `jobs.launcher.launch_run(run_id)`, or start a new run. A task killed without writing its status stays `queued` or `running`, so check `job_runs` and the task logs. Jobs should be idempotent.
+- Resources: ECR repository (keeps 5 images), ECS cluster, task definition (arm64, 0.5 vCPU, 1 GB), egress only security group, log group. There is no service and no NAT gateway. Tasks use the default VPC public subnets with a public IP to reach Neon and AWS APIs.
+- Build and push the image with `JOBS_ECR_REPOSITORY_URL=<jobs_ecr_repository_url output> make deploy-jobs-image` before the first job runs, and after any change under `backend/`.
+- Add a job by registering it in `backend/jobs/registry.py`, and add a `scheduled_jobs` entry if it is periodic.
 
 ## Invite-only registration
 

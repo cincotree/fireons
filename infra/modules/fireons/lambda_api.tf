@@ -42,6 +42,44 @@ resource "aws_iam_role_policy" "api_secret" {
   policy = data.aws_iam_policy_document.api_secret.json
 }
 
+data "aws_iam_policy_document" "api_launch_jobs" {
+  statement {
+    sid       = "RunJobTasks"
+    actions   = ["ecs:RunTask"]
+    resources = [local.jobs_task_definition_arn_pattern]
+
+    condition {
+      test     = "ArnEquals"
+      variable = "ecs:cluster"
+      values   = [aws_ecs_cluster.jobs.arn]
+    }
+  }
+
+  statement {
+    sid       = "PassJobRoles"
+    actions   = ["iam:PassRole"]
+    resources = [aws_iam_role.jobs_task.arn, aws_iam_role.jobs_execution.arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["ecs-tasks.amazonaws.com"]
+    }
+  }
+
+  statement {
+    sid       = "FindJobNetwork"
+    actions   = ["ec2:DescribeSubnets", "ec2:DescribeSecurityGroups"]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "api_launch_jobs" {
+  name   = "launch-jobs"
+  role   = aws_iam_role.api.id
+  policy = data.aws_iam_policy_document.api_launch_jobs.json
+}
+
 resource "aws_cloudwatch_log_group" "api" {
   name              = "/aws/lambda/${local.api_function}"
   retention_in_days = 14

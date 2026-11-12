@@ -47,6 +47,25 @@ data "aws_iam_policy_document" "github_deploy" {
   }
 
   statement {
+    sid = "PushJobsImage"
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:InitiateLayerUpload",
+      "ecr:UploadLayerPart",
+      "ecr:CompleteLayerUpload",
+      "ecr:PutImage",
+      "ecr:BatchGetImage",
+    ]
+    resources = [aws_ecr_repository.jobs.arn]
+  }
+
+  statement {
+    sid       = "EcrLogin"
+    actions   = ["ecr:GetAuthorizationToken"]
+    resources = ["*"]
+  }
+
+  statement {
     sid       = "ReadSecret"
     actions   = ["secretsmanager:GetSecretValue"]
     resources = [aws_secretsmanager_secret.this.arn]
