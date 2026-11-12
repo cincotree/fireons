@@ -34,12 +34,18 @@ export async function seedExchangeRate(date: string, from: string, to: string, r
   const client = new pg.Client({ connectionString: databaseUrl.replace('+psycopg', '') });
   await client.connect();
   try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(727001)');
     await client.query(
       `INSERT INTO exchange_rates (id, date, from_currency, to_currency, rate, source)
-       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)
-       ON CONFLICT (date, from_currency, to_currency) DO NOTHING`,
+       SELECT gen_random_uuid(), $1::date, $2::varchar, $3::varchar, $4::numeric, $5::varchar
+       WHERE NOT EXISTS (
+         SELECT 1 FROM exchange_rates
+         WHERE date = $1::date AND from_currency = $2::varchar AND to_currency = $3::varchar
+       )`,
       [date, from, to, rate, source]
     );
+    await client.query('COMMIT');
   } finally {
     await client.end();
   }

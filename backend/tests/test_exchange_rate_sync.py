@@ -83,18 +83,20 @@ async def test_store_rate_creates_new_row(
 
 
 @pytest.mark.asyncio
-async def test_store_rate_overwrites_existing_row_for_same_day(
+async def test_store_rate_appends_history_for_same_day(
     session: AsyncSession,
     exchange_rate_repo: ExchangeRateRepository,
 ):
-    await store_rate(session, "USD", "INR", Decimal("83.0"))
+    first = await store_rate(session, "USD", "INR", Decimal("83.0"))
     await session.commit()
 
-    await store_rate(session, "USD", "INR", Decimal("83.9"))
+    second = await store_rate(session, "USD", "INR", Decimal("83.9"))
     await session.commit()
 
-    fetched = await exchange_rate_repo.get_rate("USD", "INR")
-    assert fetched == Decimal("83.9")
+    assert first.id != second.id
+    history = await exchange_rate_repo.list_all(from_currency="USD", to_currency="INR")
+    assert [r.rate for r in history] == [Decimal("83.9"), Decimal("83.0")]
+    assert await exchange_rate_repo.get_rate("USD", "INR") == Decimal("83.9")
 
 
 @pytest.mark.asyncio

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAdminSession } from "@/components/AdminShell";
 import { adminRequest, UnauthorizedError } from "@/utils/adminApi";
@@ -23,15 +23,21 @@ export function AdminExchangeRates() {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const latestRequest = useRef(0);
+
   const load = useCallback(async () => {
+    const requestId = ++latestRequest.current;
     const params = new URLSearchParams();
     if (fromCurrency.trim()) params.set("from_currency", fromCurrency.trim());
     if (toCurrency.trim()) params.set("to_currency", toCurrency.trim());
     const query = params.toString() ? `?${params}` : "";
     try {
-      setRates(await adminRequest<ExchangeRate[]>(`/exchange-rates${query}`));
+      const result = await adminRequest<ExchangeRate[]>(`/exchange-rates${query}`);
+      if (requestId !== latestRequest.current) return;
+      setRates(result);
       setError(null);
     } catch (err) {
+      if (requestId !== latestRequest.current) return;
       if (err instanceof UnauthorizedError) {
         signOut();
         return;

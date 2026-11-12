@@ -32,9 +32,9 @@ async def headers(session) -> dict:
 @pytest_asyncio.fixture
 async def rates(session):
     repository = ExchangeRateRepository(session)
-    await repository.create_or_update(date(2026, 11, 10), "USD", "INR", Decimal("83.5"), "open.er-api.com")
-    await repository.create_or_update(date(2026, 11, 11), "USD", "INR", Decimal("83.7"), "open.er-api.com")
-    await repository.create_or_update(date(2026, 11, 11), "EUR", "USD", Decimal("1.08"))
+    await repository.create(date(2026, 11, 10), "USD", "INR", Decimal("83.5"), "open.er-api.com")
+    await repository.create(date(2026, 11, 11), "USD", "INR", Decimal("83.7"), "open.er-api.com")
+    await repository.create(date(2026, 11, 11), "EUR", "USD", Decimal("1.08"))
 
 
 @pytest.mark.asyncio
