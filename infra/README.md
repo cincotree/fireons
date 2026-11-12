@@ -19,6 +19,16 @@ Terraform (OpenTofu compatible) for the AWS foundation in `ap-southeast-1`. Noth
 - The API runs with `INVITE_ONLY=true` (`invite_only`, default true): registration needs an invite code from the `invites` table
 - AWS Budgets at 1 and 10 USD per month (actual and forecasted) notifying `budget_email`
 
+## Make targets
+
+Run from the repo root with AWS credentials for the target account. `TF_ENV` selects the environment (default `production`).
+
+- `make tf-bootstrap` creates the state bucket if missing and writes `backend.hcl`
+- `make tf-init` runs `terraform init -reconfigure -backend-config=backend.hcl`
+- `make tf-fmt` and `make tf-validate` format and validate (validate does not touch the backend)
+- `make tf-plan` writes `<env>.tfplan` (needs `terraform.tfvars`), and `make tf-apply` applies exactly that plan
+- `make tf-output` shows outputs such as `jobs_ecr_repository_url`
+
 ## Human steps
 
 Before Terraform:

@@ -1,6 +1,9 @@
 .DEFAULT_GOAL := help
 
-.PHONY: create-admin deploy-api deploy-jobs-image deploy-webapp help setup install env db db-create migrate \
+TF_ENV ?= production
+TF_DIR = infra/environments/$(TF_ENV)
+
+.PHONY: tf-bootstrap tf-init tf-fmt tf-validate tf-plan tf-apply tf-output create-admin deploy-api deploy-jobs-image deploy-webapp help setup install env db db-create migrate \
 	backend-setup backend backend-test \
 	frontend-setup frontend frontend-build frontend-lint \
 	e2e-setup e2e e2e-headed e2e-ui e2e-debug e2e-report \
@@ -29,6 +32,15 @@ help:
 	@echo "  deploy-api       Build and release the API to Lambda"
 	@echo "  deploy-jobs-image Build and push the Fargate jobs image to ECR"
 	@echo "  deploy-webapp    Build and release the frontend to S3 and CloudFront"
+	@echo ""
+	@echo "Infrastructure (Terraform, needs AWS credentials; TF_ENV=production by default)"
+	@echo "  tf-bootstrap     Create the state bucket if missing and write backend.hcl"
+	@echo "  tf-init          Initialize Terraform with backend.hcl"
+	@echo "  tf-fmt           Format Terraform files"
+	@echo "  tf-validate      Validate Terraform without touching the backend"
+	@echo "  tf-plan          Write a plan to review (needs terraform.tfvars)"
+	@echo "  tf-apply         Apply the plan written by tf-plan"
+	@echo "  tf-output        Show Terraform outputs"
 	@echo ""
 	@echo "Test and check"
 	@echo "  test             Run backend tests and e2e tests"
@@ -112,3 +124,24 @@ deploy-jobs-image:
 
 deploy-webapp:
 	./scripts/deploy-webapp.sh
+
+tf-bootstrap:
+	./infra/bootstrap.sh $(TF_ENV)
+
+tf-init:
+	cd $(TF_DIR) && terraform init -reconfigure -input=false -backend-config=backend.hcl
+
+tf-fmt:
+	cd infra && terraform fmt -recursive
+
+tf-validate:
+	cd $(TF_DIR) && terraform init -backend=false -input=false > /dev/null && terraform validate
+
+tf-plan:
+	cd $(TF_DIR) && terraform plan -input=false -out=$(TF_ENV).tfplan
+
+tf-apply:
+	cd $(TF_DIR) && terraform apply -input=false $(TF_ENV).tfplan
+
+tf-output:
+	cd $(TF_DIR) && terraform output
