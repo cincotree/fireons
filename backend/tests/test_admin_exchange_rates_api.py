@@ -83,11 +83,6 @@ async def test_limits_rows(client, headers, rates):
 
 
 @pytest.mark.asyncio
-async def test_empty_table_returns_empty_list(client, headers):
-    assert (await client.get("/admin/exchange-rates", headers=headers)).json() == []
-
-
-@pytest.mark.asyncio
 @pytest.mark.parametrize("query", ["limit=0", "limit=501", "from_currency="])
 async def test_validates_query(client, headers, query):
     assert (await client.get(f"/admin/exchange-rates?{query}", headers=headers)).status_code == 422

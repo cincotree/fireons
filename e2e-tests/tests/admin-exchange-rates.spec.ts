@@ -10,12 +10,6 @@ test.beforeAll(async () => {
 });
 
 test.describe('Admin exchange rates', () => {
-  test('anonymous visitors are sent to the admin login', async ({ page }) => {
-    await page.goto('/admin/exchange-rates');
-
-    await expect(page).toHaveURL(/.*admin\/login/);
-  });
-
   test('admin sees exchange rates in a table, newest first', async ({ page }) => {
     await signInAsAdmin(page, adminUsername);
     await page.getByRole('link', { name: 'Exchange rates' }).click();

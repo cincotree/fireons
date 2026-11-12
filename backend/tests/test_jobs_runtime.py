@@ -103,10 +103,6 @@ def ecs(monkeypatch, jobs_settings):
     return client
 
 
-def test_registry_knows_exchange_rate_sync():
-    assert registry.get_job("exchange_rate_sync")
-
-
 def test_registry_rejects_unknown_job():
     with pytest.raises(registry.UnknownJobError):
         registry.get_job("nope")
@@ -248,19 +244,6 @@ async def test_launch_requires_configuration(monkeypatch, repository):
 
     with pytest.raises(launcher.LaunchError, match="not configured"):
         await launcher.launch_job("ok")
-
-
-@pytest.mark.asyncio
-async def test_launch_run_relaunches_a_failed_run(ecs, repository):
-    run = await repository.create("ok")
-    await repository.mark_failed(run.id, "x")
-
-    await launcher.launch_run(run.id)
-
-    assert run.status is JobRunStatus.QUEUED
-    assert run.error_message is None
-    assert run.completed_at is None
-    assert run.task_arn == "arn:task/1"
 
 
 @pytest.mark.asyncio

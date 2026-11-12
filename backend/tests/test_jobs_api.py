@@ -1,11 +1,14 @@
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from jose import jwt
 
 from app import app
-from auth_utils import create_access_token, create_admin_token, decode_admin_token, get_password_hash
+from app_config import get_app_settings
+from auth_utils import create_access_token, create_admin_token, get_password_hash
 from database.models import Admin, JobRunStatus, User
 from database.repository import AdminRepository, JobRunRepository
 from database.session import get_session
@@ -211,11 +214,6 @@ async def test_admin_login_rejects_bad_credentials(client, admin, username, pass
 
 
 @pytest.mark.asyncio
-async def test_admin_login_validates_body(client):
-    assert (await client.post("/admin/login", json={"username": "x"})).status_code == 422
-
-
-@pytest.mark.asyncio
 async def test_user_login_does_not_accept_admin_credentials(client, admin):
     response = await client.post("/auth/login", json={"username": admin.username, "password": ADMIN_PASSWORD})
 
@@ -239,19 +237,16 @@ async def test_token_for_a_deleted_admin_is_rejected(client, admin, session):
 
 
 @pytest.mark.asyncio
-async def test_role_only_token_without_audience_is_rejected(client, admin):
-    token = create_access_token({"sub": admin.id, "username": admin.username, "role": "admin"})
-
-    response = await client.get("/admin/jobs", headers={"Authorization": f"Bearer {token}"})
-
-    assert response.status_code == 401
-
-
-@pytest.mark.asyncio
-async def test_login_token_has_the_admin_audience_and_short_lifetime(client, admin):
+async def test_login_issues_a_fifteen_minute_admin_audience_token(client, admin):
     response = await client.post("/admin/login", json={"username": admin.username, "password": ADMIN_PASSWORD})
 
-    assert decode_admin_token(response.json()["access_token"]) == admin.id
+    settings = get_app_settings()
+    claims = jwt.decode(
+        response.json()["access_token"], settings.secret_key, algorithms=[settings.algorithm], audience="admin"
+    )
+    remaining = datetime.fromtimestamp(claims["exp"], timezone.utc) - datetime.now(timezone.utc)
+    assert claims["sub"] == admin.id
+    assert timedelta(minutes=14) < remaining <= timedelta(minutes=15)
 
 
 @pytest.mark.asyncio

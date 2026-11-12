@@ -59,7 +59,7 @@ jobs:
           changed="$(git diff --name-only HEAD^ HEAD)"
           echo "$changed"
           echo "api=$(echo "$changed" | grep -q -E '^(backend/|scripts/deploy-api.sh)' && echo true || echo false)" >> "$GITHUB_OUTPUT"
-          echo "jobs_image=$(echo "$changed" | grep -q -E '^(backend/|scripts/deploy-jobs-image.sh)' && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "jobs_image=$(echo "$changed" | grep -q -E '^(backend/(jobs/|database/|secrets_source.py|pyproject.toml|uv.lock|Dockerfile.worker)|scripts/deploy-jobs-image.sh)' && echo true || echo false)" >> "$GITHUB_OUTPUT"
           echo "webapp=$(echo "$changed" | grep -q -E '^(frontend/|scripts/deploy-webapp.sh)' && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
   deploy-api:
@@ -102,8 +102,8 @@ jobs:
 
   deploy-jobs-image:
     name: Release jobs image
-    needs: changes
-    if: needs.changes.outputs.jobs_image == 'true'
+    needs: [changes, deploy-api]
+    if: ${{ !cancelled() && needs.changes.result == 'success' && needs.deploy-api.result != 'failure' && needs.changes.outputs.jobs_image == 'true' }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 20
     environment: production
