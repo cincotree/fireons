@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { getBaseHttpUrl } from "@/utils/api";
-import { getAdminToken } from "@/utils/adminToken";
+import { useAdminSession } from "@/components/AdminShell";
+import { adminRequest, UnauthorizedError } from "@/utils/adminApi";
 
 const REFRESH_INTERVAL_MS = 3000;
 const STATUSES = ["queued", "running", "succeeded", "failed"] as const;
@@ -22,36 +22,24 @@ interface JobRun {
   completed_at: string | null;
 }
 
-class UnauthorizedError extends Error {}
-
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${getBaseHttpUrl()}/api/admin/jobs${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${getAdminToken()}`,
-    },
-  });
-  if (response.status === 401) {
-    throw new UnauthorizedError("Session expired");
-  }
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    throw new Error(body.detail || `Request failed (${response.status})`);
-  }
-  return response.json();
-}
-
 function formatTime(value: string | null): string {
   return value ? new Date(value).toLocaleString() : "-";
 }
 
-interface AdminJobsProps {
-  onUnauthorized: () => void;
-  onSignOut: () => void;
+function formatDuration(run: JobRun): string {
+  if (!run.started_at || !run.completed_at) {
+    return "-";
+  }
+  const seconds = (new Date(run.completed_at).getTime() - new Date(run.started_at).getTime()) / 1000;
+  return `${seconds.toFixed(1)}s`;
 }
 
-export function AdminJobs({ onUnauthorized, onSignOut }: AdminJobsProps) {
+function formatPayload(payload: Record<string, unknown>): string {
+  return Object.keys(payload).length === 0 ? "-" : JSON.stringify(payload);
+}
+
+export function AdminJobs() {
+  const { signOut: onUnauthorized } = useAdminSession();
   const [jobs, setJobs] = useState<string[]>([]);
   const [runs, setRuns] = useState<JobRun[]>([]);
   const [job, setJob] = useState("");
@@ -64,7 +52,7 @@ export function AdminJobs({ onUnauthorized, onSignOut }: AdminJobsProps) {
   const loadRuns = useCallback(async () => {
     try {
       const query = statusFilter ? `?status=${statusFilter}` : "";
-      setRuns(await request<JobRun[]>(`/runs${query}`));
+      setRuns(await adminRequest<JobRun[]>(`/jobs/runs${query}`));
       setListError(null);
     } catch (error) {
       if (error instanceof UnauthorizedError) {
@@ -76,7 +64,7 @@ export function AdminJobs({ onUnauthorized, onSignOut }: AdminJobsProps) {
   }, [statusFilter, onUnauthorized]);
 
   useEffect(() => {
-    request<string[]>("")
+    adminRequest<string[]>("/jobs")
       .then((names) => {
         setJobs(names);
         setJob((current) => current || names[0] || "");
@@ -114,7 +102,7 @@ export function AdminJobs({ onUnauthorized, onSignOut }: AdminJobsProps) {
 
     setLaunching(true);
     try {
-      await request<JobRun>("/runs", {
+      await adminRequest<JobRun>("/jobs/runs", {
         method: "POST",
         body: JSON.stringify({ job, payload: parsed }),
       });
@@ -132,14 +120,9 @@ export function AdminJobs({ onUnauthorized, onSignOut }: AdminJobsProps) {
 
   return (
     <div className="max-w-5xl mx-auto p-8 space-y-8">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Background jobs</h1>
-          <p className="text-sm text-gray-500">Launch a job and watch its runs.</p>
-        </div>
-        <Button type="button" variant="outline" onClick={onSignOut}>
-          Sign out
-        </Button>
+      <div>
+        <h1 className="text-2xl font-semibold">Background jobs</h1>
+        <p className="text-sm text-gray-500">Launch a job and watch its runs.</p>
       </div>
 
       <form onSubmit={launch} className="space-y-3">
@@ -217,9 +200,11 @@ export function AdminJobs({ onUnauthorized, onSignOut }: AdminJobsProps) {
             <tr className="text-left border-b">
               <th className="py-2 pr-4">Job</th>
               <th className="py-2 pr-4">Status</th>
+              <th className="py-2 pr-4">Run ID</th>
+              <th className="py-2 pr-4">Task</th>
+              <th className="py-2 pr-4">Payload</th>
               <th className="py-2 pr-4">Created</th>
-              <th className="py-2 pr-4">Started</th>
-              <th className="py-2 pr-4">Completed</th>
+              <th className="py-2 pr-4">Duration</th>
               <th className="py-2 pr-4">Error</th>
             </tr>
           </thead>
@@ -230,15 +215,23 @@ export function AdminJobs({ onUnauthorized, onSignOut }: AdminJobsProps) {
                 <td className="py-2 pr-4" data-testid="job-run-status">
                   {run.status}
                 </td>
-                <td className="py-2 pr-4">{formatTime(run.created_at)}</td>
-                <td className="py-2 pr-4">{formatTime(run.started_at)}</td>
-                <td className="py-2 pr-4">{formatTime(run.completed_at)}</td>
+                <td className="py-2 pr-4 font-mono text-xs" title={run.id}>
+                  {run.id.slice(0, 8)}
+                </td>
+                <td className="py-2 pr-4 font-mono text-xs break-all" data-testid="job-run-task">
+                  {run.task_arn || "-"}
+                </td>
+                <td className="py-2 pr-4 font-mono text-xs break-all">{formatPayload(run.payload)}</td>
+                <td className="py-2 pr-4" title={`Started ${formatTime(run.started_at)}, completed ${formatTime(run.completed_at)}`}>
+                  {formatTime(run.created_at)}
+                </td>
+                <td className="py-2 pr-4">{formatDuration(run)}</td>
                 <td className="py-2 pr-4 text-red-600">{run.error_message || ""}</td>
               </tr>
             ))}
             {runs.length === 0 && (
               <tr>
-                <td colSpan={6} className="py-4 text-gray-500">
+                <td colSpan={8} className="py-4 text-gray-500">
                   No runs yet
                 </td>
               </tr>

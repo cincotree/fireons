@@ -1,26 +1,11 @@
 import { test, expect, Page } from '@playwright/test';
-import { execSync } from 'child_process';
-import { randomUUID } from 'crypto';
-import path from 'path';
+import { adminLogin, createAdmin } from '../helpers/admin';
 
-const ADMIN_PASSWORD = 'admin-password-123';
 let adminUsername = '';
 
 test.beforeAll(() => {
-  adminUsername = `e2eadmin${randomUUID().replace(/-/g, '').slice(0, 12)}`;
-  execSync(`uv run python -m scripts.create_admin ${adminUsername}`, {
-    cwd: path.join(__dirname, '..', '..', 'backend'),
-    env: { ...process.env, TESTING: 'true', ADMIN_PASSWORD },
-    stdio: 'pipe',
-  });
+  adminUsername = createAdmin();
 });
-
-async function adminLogin(page: Page, username?: string, password = ADMIN_PASSWORD) {
-  await page.goto('/admin/login');
-  await page.getByLabel('Username').fill(username ?? adminUsername);
-  await page.getByLabel('Password').fill(password);
-  await page.getByRole('button', { name: 'Login' }).click();
-}
 
 async function registerRegularUser(page: Page) {
   const username = `plainjobs${Date.now()}`;
@@ -49,7 +34,7 @@ test.describe('Admin jobs', () => {
   });
 
   test('wrong password shows an error and stays on the login page', async ({ page }) => {
-    await adminLogin(page, undefined, 'not-the-password');
+    await adminLogin(page, adminUsername, 'not-the-password');
 
     await expect(page.getByTestId('admin-login-error')).toHaveText('Invalid username or password');
     await expect(page).toHaveURL(/.*admin\/login/);
@@ -62,7 +47,7 @@ test.describe('Admin jobs', () => {
   });
 
   test('admin signs in, launches a job, sees it finish, and signs out', async ({ page }) => {
-    await adminLogin(page);
+    await adminLogin(page, adminUsername);
 
     await expect(page.getByRole('heading', { name: 'Background jobs' })).toBeVisible();
     await expect(page.getByLabel('Job')).toHaveValue('exchange_rate_sync');
@@ -71,6 +56,7 @@ test.describe('Admin jobs', () => {
 
     const row = page.getByTestId('job-run').first();
     await expect(row).toContainText('exchange_rate_sync');
+    await expect(row.getByTestId('job-run-task')).toHaveText(/^local:\d+$/);
     await expect(row.getByTestId('job-run-status')).toHaveText(/succeeded|failed/, { timeout: 30000 });
     const finalStatus = (await row.getByTestId('job-run-status').textContent()) as string;
 
@@ -83,6 +69,11 @@ test.describe('Admin jobs', () => {
       })
       .toBe(true);
 
+    await page.getByRole('link', { name: 'Exchange rates' }).click();
+    await expect(page).toHaveURL(/.*admin\/exchange-rates/);
+    await page.getByRole('link', { name: 'Jobs' }).click();
+    await expect(page.getByRole('heading', { name: 'Background jobs' })).toBeVisible();
+
     await page.getByRole('button', { name: 'Sign out' }).click();
     await expect(page).toHaveURL(/.*admin\/login/);
     await page.goto('/admin/jobs');
@@ -90,7 +81,7 @@ test.describe('Admin jobs', () => {
   });
 
   test('admin sees validation errors for a bad payload', async ({ page }) => {
-    await adminLogin(page);
+    await adminLogin(page, adminUsername);
     await expect(page.getByRole('heading', { name: 'Background jobs' })).toBeVisible();
     let launchRequests = 0;
     page.on('request', (request) => {
@@ -108,7 +99,7 @@ test.describe('Admin jobs', () => {
   });
 
   test('admin sees the API error when launching fails', async ({ page }) => {
-    await adminLogin(page);
+    await adminLogin(page, adminUsername);
     await expect(page.getByRole('heading', { name: 'Background jobs' })).toBeVisible();
     await page.route('**/api/admin/jobs/runs', (route) =>
       route.request().method() === 'POST'
@@ -122,7 +113,7 @@ test.describe('Admin jobs', () => {
   });
 
   test('an expired admin session sends the admin back to login', async ({ page }) => {
-    await adminLogin(page);
+    await adminLogin(page, adminUsername);
     await expect(page.getByRole('heading', { name: 'Background jobs' })).toBeVisible();
     await page.route('**/api/admin/jobs/runs**', (route) =>
       route.fulfill({ status: 401, json: { detail: 'Could not validate credentials' } })

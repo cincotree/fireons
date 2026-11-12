@@ -503,6 +503,7 @@ class ExchangeRateRepository:
         self,
         from_currency: str | None = None,
         to_currency: str | None = None,
+        limit: int | None = None,
     ) -> list[ExchangeRate]:
         query = select(ExchangeRate).order_by(
             ExchangeRate.date.desc(),
@@ -514,6 +515,8 @@ class ExchangeRateRepository:
             query = query.where(ExchangeRate.from_currency == from_currency)
         if to_currency:
             query = query.where(ExchangeRate.to_currency == to_currency)
+        if limit is not None:
+            query = query.limit(limit)
 
         result = await self.session.execute(query)
         return list(result.scalars().all())
