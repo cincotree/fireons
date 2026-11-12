@@ -140,7 +140,7 @@ tf-fmt:
 	cd infra && terraform fmt -recursive
 
 tf-validate:
-	cd $(TF_DIR) && terraform init -backend=false -input=false > /dev/null && terraform validate
+	cd $(TF_DIR) && (test -d .terraform || terraform init -backend=false -input=false > /dev/null) && terraform validate
 
 tf-plan: $(TF_DIR)/terraform.tfvars
 	cd $(TF_DIR) && terraform plan -input=false -out=$(TF_ENV).tfplan
