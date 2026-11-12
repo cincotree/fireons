@@ -32,6 +32,7 @@ jobs:
     outputs:
       ref: ${{ steps.target.outputs.ref }}
       api: ${{ steps.diff.outputs.api }}
+      jobs_image: ${{ steps.diff.outputs.jobs_image }}
       webapp: ${{ steps.diff.outputs.webapp }}
     steps:
       - name: Resolve target ref
@@ -51,12 +52,14 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "api=true" >> "$GITHUB_OUTPUT"
+            echo "jobs_image=true" >> "$GITHUB_OUTPUT"
             echo "webapp=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           changed="$(git diff --name-only HEAD^ HEAD)"
           echo "$changed"
           echo "api=$(echo "$changed" | grep -q -E '^(backend/|scripts/deploy-api.sh)' && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "jobs_image=$(echo "$changed" | grep -q -E '^(backend/|scripts/deploy-jobs-image.sh)' && echo true || echo false)" >> "$GITHUB_OUTPUT"
           echo "webapp=$(echo "$changed" | grep -q -E '^(frontend/|scripts/deploy-webapp.sh)' && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
   deploy-api:
@@ -96,6 +99,33 @@ jobs:
         env:
           DEPLOY_ENV: production
         run: ./scripts/deploy-api.sh
+
+  deploy-jobs-image:
+    name: Release jobs image
+    needs: changes
+    if: needs.changes.outputs.jobs_image == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.changes.outputs.ref }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Release jobs image
+        env:
+          DEPLOY_ENV: production
+        run: ./scripts/deploy-jobs-image.sh
 
   deploy-webapp:
     name: Release web app

@@ -3,7 +3,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth_utils import Token, create_access_token, decode_admin_token, verify_password
+from auth_utils import Token, create_admin_token, decode_admin_token, verify_password
 from database.models import Admin
 from database.repository import AdminRepository
 from database.session import get_session
@@ -43,5 +43,4 @@ async def login(credentials: AdminLogin, session: AsyncSession = Depends(get_ses
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password",
         )
-    token = create_access_token({"sub": admin.id, "username": admin.username, "role": "admin"})
-    return {"access_token": token, "token_type": "bearer"}
+    return {"access_token": create_admin_token(admin.id, admin.username), "token_type": "bearer"}

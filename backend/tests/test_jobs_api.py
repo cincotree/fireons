@@ -5,7 +5,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 from app import app
-from auth_utils import create_access_token, get_password_hash
+from auth_utils import create_access_token, create_admin_token, decode_admin_token, get_password_hash
 from database.models import Admin, JobRunStatus, User
 from database.repository import AdminRepository, JobRunRepository
 from database.session import get_session
@@ -28,7 +28,7 @@ async def make_user(session, name: str) -> User:
 
 
 def admin_headers(admin: Admin) -> dict:
-    token = create_access_token({"sub": admin.id, "username": admin.username, "role": "admin"})
+    token = create_admin_token(admin.id, admin.username)
     return {"Authorization": f"Bearer {token}"}
 
 
@@ -236,6 +236,22 @@ async def test_token_for_a_deleted_admin_is_rejected(client, admin, session):
     await session.flush()
 
     assert (await client.get("/admin/jobs", headers=headers)).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_role_only_token_without_audience_is_rejected(client, admin):
+    token = create_access_token({"sub": admin.id, "username": admin.username, "role": "admin"})
+
+    response = await client.get("/admin/jobs", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_login_token_has_the_admin_audience_and_short_lifetime(client, admin):
+    response = await client.post("/admin/login", json={"username": admin.username, "password": ADMIN_PASSWORD})
+
+    assert decode_admin_token(response.json()["access_token"]) == admin.id
 
 
 @pytest.mark.asyncio
