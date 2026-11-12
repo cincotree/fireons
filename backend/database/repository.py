@@ -459,6 +459,20 @@ class ExchangeRateRepository:
         await self.session.flush()
         return exchange_rate
 
+    async def exists(self, date: date, from_currency: str, to_currency: str) -> bool:
+        result = await self.session.execute(
+            select(ExchangeRate.id)
+            .where(
+                and_(
+                    ExchangeRate.date == date,
+                    ExchangeRate.from_currency == from_currency,
+                    ExchangeRate.to_currency == to_currency,
+                )
+            )
+            .limit(1)
+        )
+        return result.first() is not None
+
     async def get_rate(
         self,
         from_currency: str,

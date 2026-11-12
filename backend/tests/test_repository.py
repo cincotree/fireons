@@ -245,6 +245,19 @@ async def test_repeated_create_appends_history_and_latest_wins(
 
 
 @pytest.mark.asyncio
+async def test_exchange_rate_exists_matches_date_and_pair(
+    exchange_rate_repo: ExchangeRateRepository,
+    session: AsyncSession,
+):
+    await exchange_rate_repo.create(date(2024, 6, 1), "USD", "INR", Decimal("83.0"))
+    await session.commit()
+
+    assert await exchange_rate_repo.exists(date(2024, 6, 1), "USD", "INR") is True
+    assert await exchange_rate_repo.exists(date(2024, 6, 2), "USD", "INR") is False
+    assert await exchange_rate_repo.exists(date(2024, 6, 1), "USD", "EUR") is False
+
+
+@pytest.mark.asyncio
 async def test_list_latest_only_returns_one_row_per_pair(
     exchange_rate_repo: ExchangeRateRepository,
     session: AsyncSession,
