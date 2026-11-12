@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 JOB_PAYLOAD_ENV = "JOB_PAYLOAD"
 
 
-async def begin_run(environ: dict[str, str]) -> tuple[str, str, dict]:
+async def load_run(environ: dict[str, str]) -> tuple[str, str, dict]:
     async with session_context() as session:
         repository = JobRunRepository(session)
         run_id = environ.get(JOB_RUN_ID_ENV)
@@ -28,18 +28,28 @@ async def begin_run(environ: dict[str, str]) -> tuple[str, str, dict]:
                 raise SystemExit(f"Set {JOB_RUN_ID_ENV} or {JOB_NAME_ENV}")
             payload = json.loads(environ.get(JOB_PAYLOAD_ENV) or "{}")
             run = await repository.create(name, payload)
-        await repository.mark_running(run.id)
         return run.id, run.job, run.payload
 
 
-async def execute(environ: dict[str, str]) -> int:
-    run_id, job, payload = await begin_run(environ)
+async def record_failure(run_id: str, error: Exception) -> None:
     try:
-        await get_job(job)(payload)
-    except Exception as error:
-        logger.exception("Job %s failed", job)
         async with session_context() as session:
             await JobRunRepository(session).mark_failed(run_id, f"{type(error).__name__}: {error}")
+    except Exception:
+        logger.exception("Could not record the failure of run %s", run_id)
+
+
+async def execute(environ: dict[str, str]) -> int:
+    run_id = None
+    try:
+        run_id, job, payload = await load_run(environ)
+        async with session_context() as session:
+            await JobRunRepository(session).mark_running(run_id)
+        await get_job(job)(payload)
+    except Exception as error:
+        logger.exception("Job run %s failed", run_id or environ.get(JOB_NAME_ENV))
+        if run_id:
+            await record_failure(run_id, error)
         return 1
 
     async with session_context() as session:

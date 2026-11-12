@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 import subprocess
 import sys
@@ -8,6 +9,8 @@ from pathlib import Path
 from database.repository import JobRunRepository
 from database.session import session_context
 from jobs.config import get_jobs_settings
+
+logger = logging.getLogger(__name__)
 
 CONTAINER_NAME = "jobs"
 JOB_RUN_ID_ENV = "JOB_RUN_ID"
@@ -69,18 +72,28 @@ def start_task(run_id: str) -> str:
     return response["tasks"][0]["taskArn"]
 
 
+class LaunchError(RuntimeError):
+    def __init__(self, run_id: str, reason: str):
+        super().__init__(reason)
+        self.run_id = run_id
+
+
 async def launch_run(run_id: str) -> None:
+    async with session_context() as session:
+        await JobRunRepository(session).reset_for_launch(run_id)
+
     try:
         task_arn = await asyncio.to_thread(start_task, run_id)
     except Exception as error:
-        async with session_context() as session:
-            repository = JobRunRepository(session)
-            await repository.mark_launched(run_id)
-            await repository.mark_failed(run_id, f"Launch failed: {error}")
-        raise
+        try:
+            async with session_context() as session:
+                await JobRunRepository(session).mark_failed(run_id, f"Launch failed: {error}")
+        except Exception:
+            logger.exception("Could not record the launch failure for run %s", run_id)
+        raise LaunchError(run_id, str(error)) from error
 
     async with session_context() as session:
-        await JobRunRepository(session).mark_launched(run_id, task_arn)
+        await JobRunRepository(session).set_task_arn(run_id, task_arn)
 
 
 async def launch_job(job: str, payload: dict | None = None) -> str:

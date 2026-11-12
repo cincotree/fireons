@@ -10,7 +10,7 @@ from api.admin_api import require_admin
 from database.models import Admin, JobRunStatus
 from database.repository import JobRunRepository
 from database.session import get_session
-from jobs.launcher import launch_job
+from jobs.launcher import LaunchError, launch_job
 from jobs.registry import JOBS
 
 logger = logging.getLogger(__name__)
@@ -65,9 +65,12 @@ async def launch(
 
     try:
         run_id = await launch_job(request.job, request.payload)
-    except Exception:
+    except LaunchError as error:
         logger.exception("Could not launch job %s", request.job)
-        raise HTTPException(status_code=502, detail="Could not start the job, see the run list for details")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not start the job, see run {error.run_id} in the run list",
+        )
 
     return JobRunResponse.from_run(await JobRunRepository(session).get(run_id))
 

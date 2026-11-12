@@ -7,6 +7,7 @@ from sqlalchemy import select
 
 from database.models import JobRun, JobRunStatus
 from database.repository import JobRunRepository
+from database.repository import JobRunNotFoundError, JobRunRepository
 from jobs import launcher, registry, runner
 from jobs.config import get_jobs_settings
 
@@ -187,12 +188,14 @@ async def test_launch_failure_marks_run_failed(monkeypatch, jobs_settings, sessi
     client = FakeEcs({"tasks": [], "failures": [{"reason": "CAPACITY"}]})
     patch_boto3(monkeypatch, client)
 
-    with pytest.raises(RuntimeError, match="RunTask failed"):
+    with pytest.raises(launcher.LaunchError, match="RunTask failed") as raised:
         await launcher.launch_job("ok")
 
     run = (await session.execute(select(JobRun))).scalar_one()
+    assert raised.value.run_id == run.id
     assert run.status is JobRunStatus.FAILED
     assert "Launch failed" in run.error_message
+    assert run.completed_at is not None
 
 
 @pytest.mark.asyncio
@@ -224,7 +227,7 @@ async def test_local_mode_runs_the_runner_in_a_subprocess(monkeypatch, repositor
 async def test_launch_fails_when_network_is_not_found(monkeypatch, jobs_settings, repository):
     patch_boto3(monkeypatch, FakeEcs(), FakeEc2(groups=()))
 
-    with pytest.raises(RuntimeError, match="fireons-production-jobs"):
+    with pytest.raises(launcher.LaunchError, match="fireons-production-jobs"):
         await launcher.launch_job("ok")
 
 
@@ -243,7 +246,7 @@ async def test_network_lookup_is_cached(monkeypatch, jobs_settings, repository):
 async def test_launch_requires_configuration(monkeypatch, repository):
     get_jobs_settings.cache_clear()
 
-    with pytest.raises(RuntimeError, match="not configured"):
+    with pytest.raises(launcher.LaunchError, match="not configured"):
         await launcher.launch_job("ok")
 
 
@@ -258,3 +261,119 @@ async def test_launch_run_relaunches_a_failed_run(ecs, repository):
     assert run.error_message is None
     assert run.completed_at is None
     assert run.task_arn == "arn:task/1"
+
+
+@pytest.mark.asyncio
+async def test_launch_run_resets_the_run_before_starting_the_task(monkeypatch, repository):
+    run = await repository.create("ok")
+    await repository.mark_running(run.id)
+    await repository.mark_failed(run.id, "old failure")
+    seen = {}
+
+    def fake_start_task(run_id: str) -> str:
+        seen["status"] = run.status
+        seen["error"] = run.error_message
+        seen["completed_at"] = run.completed_at
+        return "arn:task/9"
+
+    monkeypatch.setattr(launcher, "start_task", fake_start_task)
+
+    await launcher.launch_run(run.id)
+
+    assert seen == {"status": JobRunStatus.QUEUED, "error": None, "completed_at": None}
+    assert run.task_arn == "arn:task/9"
+
+
+@pytest.mark.asyncio
+async def test_recording_the_task_arn_does_not_overwrite_runner_progress(repository):
+    run = await repository.create("ok")
+    await repository.mark_running(run.id)
+    await repository.mark_succeeded(run.id)
+    completed_at = run.completed_at
+
+    await repository.set_task_arn(run.id, "local:123")
+    await repository.session.refresh(run)
+
+    assert run.status is JobRunStatus.SUCCEEDED
+    assert run.completed_at == completed_at
+    assert run.started_at is not None
+    assert run.task_arn == "local:123"
+
+
+@pytest.mark.asyncio
+async def test_launch_failure_keeps_the_original_error_when_recording_it_fails(monkeypatch, ecs, repository):
+    ecs.response = {"tasks": [], "failures": [{"reason": "CAPACITY"}]}
+    run = await repository.create("ok")
+
+    async def broken_mark_failed(self, run_id, message):
+        raise RuntimeError("database down")
+
+    monkeypatch.setattr(JobRunRepository, "mark_failed", broken_mark_failed)
+
+    with pytest.raises(launcher.LaunchError, match="CAPACITY") as raised:
+        await launcher.launch_run(run.id)
+
+    assert raised.value.run_id == run.id
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method,args", [
+    ("mark_running", ()),
+    ("mark_succeeded", ()),
+    ("mark_failed", ("x",)),
+    ("reset_for_launch", ()),
+    ("set_task_arn", ("arn",)),
+])
+async def test_repository_raises_a_clear_error_for_unknown_runs(repository, method, args):
+    with pytest.raises(JobRunNotFoundError, match="not found"):
+        await getattr(repository, method)("00000000-0000-0000-0000-000000000000", *args)
+
+
+@pytest.mark.asyncio
+async def test_runner_marks_the_run_failed_when_starting_it_fails(monkeypatch, fake_jobs, repository):
+    run = await repository.create("ok")
+
+    async def broken_mark_running(self, run_id):
+        raise RuntimeError("database hiccup")
+
+    monkeypatch.setattr(JobRunRepository, "mark_running", broken_mark_running)
+
+    code = await runner.execute({"JOB_RUN_ID": run.id})
+
+    assert code == 1
+    assert run.status is JobRunStatus.FAILED
+    assert "database hiccup" in run.error_message
+
+
+@pytest.mark.asyncio
+async def test_runner_survives_a_failure_it_cannot_record(monkeypatch, fake_jobs, repository):
+    run = await repository.create("boom")
+
+    async def broken_mark_failed(self, run_id, message):
+        raise RuntimeError("database down")
+
+    monkeypatch.setattr(JobRunRepository, "mark_failed", broken_mark_failed)
+
+    assert await runner.execute({"JOB_RUN_ID": run.id}) == 1
+
+
+@pytest.mark.asyncio
+async def test_runner_returns_failure_for_an_invalid_payload_without_a_run(fake_jobs, session):
+    code = await runner.execute({"JOB_NAME": "ok", "JOB_PAYLOAD": "{not json"})
+
+    assert code == 1
+    assert (await session.execute(select(JobRun))).scalars().all() == []
+
+
+@pytest.mark.asyncio
+async def test_scheduled_run_is_marked_failed_when_starting_it_fails(monkeypatch, fake_jobs, session):
+    async def broken_mark_running(self, run_id):
+        raise RuntimeError("database hiccup")
+
+    monkeypatch.setattr(JobRunRepository, "mark_running", broken_mark_running)
+
+    code = await runner.execute({"JOB_NAME": "ok"})
+
+    run = (await session.execute(select(JobRun))).scalar_one()
+    assert code == 1
+    assert run.status is JobRunStatus.FAILED

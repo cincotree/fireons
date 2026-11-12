@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -599,6 +599,10 @@ class AdminRepository:
         return admin
 
 
+class JobRunNotFoundError(LookupError):
+    pass
+
+
 class JobRunRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -619,32 +623,45 @@ class JobRunRepository:
         result = await self.session.execute(query)
         return list(result.scalars().all())
 
-    async def mark_launched(self, run_id: str, task_arn: str | None = None) -> JobRun:
+    async def _require(self, run_id: str) -> JobRun:
         run = await self.session.get(JobRun, run_id)
+        if run is None:
+            raise JobRunNotFoundError(f"Job run {run_id} not found")
+        return run
+
+    async def reset_for_launch(self, run_id: str) -> JobRun:
+        run = await self._require(run_id)
         run.status = JobRunStatus.QUEUED
-        run.task_arn = task_arn
+        run.task_arn = None
         run.error_message = None
         run.started_at = None
         run.completed_at = None
         await self.session.flush()
         return run
 
+    async def set_task_arn(self, run_id: str, task_arn: str) -> None:
+        result = await self.session.execute(
+            update(JobRun).where(JobRun.id == run_id).values(task_arn=task_arn)
+        )
+        if result.rowcount == 0:
+            raise JobRunNotFoundError(f"Job run {run_id} not found")
+
     async def mark_running(self, run_id: str) -> JobRun:
-        run = await self.session.get(JobRun, run_id)
+        run = await self._require(run_id)
         run.status = JobRunStatus.RUNNING
         run.started_at = datetime.now(timezone.utc)
         await self.session.flush()
         return run
 
     async def mark_succeeded(self, run_id: str) -> JobRun:
-        run = await self.session.get(JobRun, run_id)
+        run = await self._require(run_id)
         run.status = JobRunStatus.SUCCEEDED
         run.completed_at = datetime.now(timezone.utc)
         await self.session.flush()
         return run
 
     async def mark_failed(self, run_id: str, error_message: str) -> JobRun:
-        run = await self.session.get(JobRun, run_id)
+        run = await self._require(run_id)
         run.status = JobRunStatus.FAILED
         run.error_message = error_message
         run.completed_at = datetime.now(timezone.utc)

@@ -3,12 +3,19 @@ import { getAdminToken } from "@/utils/adminToken";
 
 export class UnauthorizedError extends Error {}
 
-export async function adminRequest<T>(path: string, init?: RequestInit): Promise<T> {
+export async function adminRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const token = getAdminToken();
+  if (!token) {
+    throw new UnauthorizedError("Not signed in");
+  }
+
+  const { headers, ...options } = init;
   const response = await fetch(`${getBaseHttpUrl()}/api/admin${path}`, {
-    ...init,
+    ...options,
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${getAdminToken()}`,
+      ...(headers as Record<string, string> | undefined),
+      Authorization: `Bearer ${token}`,
     },
   });
   if (response.status === 401) {

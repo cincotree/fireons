@@ -154,6 +154,7 @@ async def test_launch_failure_returns_502_and_records_the_failure(client, admin,
 
     assert response.status_code == 502
     runs = await JobRunRepository(session).list_recent()
+    assert runs[0].id in response.json()["detail"]
     assert runs[0].status is JobRunStatus.FAILED
     assert "no capacity" in runs[0].error_message
 
