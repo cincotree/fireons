@@ -25,3 +25,7 @@ output "api_distribution_domain_name" {
 output "secret_arn" {
   value = module.fireons.secret_arn
 }
+
+output "jobs_ecr_repository_url" {
+  value = module.fireons.jobs_ecr_repository_url
+}
