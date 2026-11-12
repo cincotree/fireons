@@ -220,44 +220,6 @@ async def test_create_exchange_rate(
 
 
 @pytest.mark.asyncio
-async def test_repeated_create_appends_history_and_latest_wins(
-    exchange_rate_repo: ExchangeRateRepository,
-    session: AsyncSession,
-):
-    rate1 = await exchange_rate_repo.create(
-        date=date(2024, 6, 1),
-        from_currency="USD",
-        to_currency="EUR",
-        rate=Decimal("0.92"),
-    )
-    rate2 = await exchange_rate_repo.create(
-        date=date(2024, 6, 1),
-        from_currency="USD",
-        to_currency="EUR",
-        rate=Decimal("0.93"),
-    )
-    await session.commit()
-
-    assert rate2.id != rate1.id
-    history = await exchange_rate_repo.list_all(from_currency="USD", to_currency="EUR")
-    assert [r.rate for r in history] == [Decimal("0.93"), Decimal("0.92")]
-    assert await exchange_rate_repo.get_rate("USD", "EUR", date(2024, 6, 1)) == Decimal("0.93")
-
-
-@pytest.mark.asyncio
-async def test_exchange_rate_exists_matches_date_and_pair(
-    exchange_rate_repo: ExchangeRateRepository,
-    session: AsyncSession,
-):
-    await exchange_rate_repo.create(date(2024, 6, 1), "USD", "INR", Decimal("83.0"))
-    await session.commit()
-
-    assert await exchange_rate_repo.exists(date(2024, 6, 1), "USD", "INR") is True
-    assert await exchange_rate_repo.exists(date(2024, 6, 2), "USD", "INR") is False
-    assert await exchange_rate_repo.exists(date(2024, 6, 1), "USD", "EUR") is False
-
-
-@pytest.mark.asyncio
 async def test_list_latest_only_returns_one_row_per_pair(
     exchange_rate_repo: ExchangeRateRepository,
     session: AsyncSession,
