@@ -439,7 +439,7 @@ class ExchangeRateRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def create_or_update(
+    async def create(
         self,
         date: date,
         from_currency: str,
@@ -447,31 +447,15 @@ class ExchangeRateRepository:
         rate: Decimal,
         source: str | None = None,
     ) -> ExchangeRate:
-        existing = await self.session.execute(
-            select(ExchangeRate).where(
-                and_(
-                    ExchangeRate.date == date,
-                    ExchangeRate.from_currency == from_currency,
-                    ExchangeRate.to_currency == to_currency,
-                )
-            )
+        exchange_rate = ExchangeRate(
+            date=date,
+            from_currency=from_currency,
+            to_currency=to_currency,
+            rate=rate,
+            source=source,
+            created_at=datetime.now(timezone.utc),
         )
-        exchange_rate = existing.scalar_one_or_none()
-
-        if exchange_rate:
-            exchange_rate.rate = rate
-            if source:
-                exchange_rate.source = source
-        else:
-            exchange_rate = ExchangeRate(
-                date=date,
-                from_currency=from_currency,
-                to_currency=to_currency,
-                rate=rate,
-                source=source,
-            )
-            self.session.add(exchange_rate)
-
+        self.session.add(exchange_rate)
         await self.session.flush()
         return exchange_rate
 
@@ -493,7 +477,7 @@ class ExchangeRateRepository:
                     ExchangeRate.date <= as_of_date,
                 )
             )
-            .order_by(ExchangeRate.date.desc())
+            .order_by(ExchangeRate.date.desc(), ExchangeRate.created_at.desc())
             .limit(1)
         )
         rate_obj = result.scalar_one_or_none()
@@ -504,12 +488,23 @@ class ExchangeRateRepository:
         from_currency: str | None = None,
         to_currency: str | None = None,
         limit: int | None = None,
+        latest_only: bool = False,
     ) -> list[ExchangeRate]:
-        query = select(ExchangeRate).order_by(
-            ExchangeRate.date.desc(),
-            ExchangeRate.from_currency,
-            ExchangeRate.to_currency,
-        )
+        query = select(ExchangeRate)
+        if latest_only:
+            query = query.distinct(ExchangeRate.from_currency, ExchangeRate.to_currency).order_by(
+                ExchangeRate.from_currency,
+                ExchangeRate.to_currency,
+                ExchangeRate.date.desc(),
+                ExchangeRate.created_at.desc(),
+            )
+        else:
+            query = query.order_by(
+                ExchangeRate.date.desc(),
+                ExchangeRate.created_at.desc(),
+                ExchangeRate.from_currency,
+                ExchangeRate.to_currency,
+            )
 
         if from_currency:
             query = query.where(ExchangeRate.from_currency == from_currency)

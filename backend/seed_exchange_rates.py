@@ -43,7 +43,7 @@ async def seed_rates():
 
         for from_curr, to_curr, rate, date_str in rates:
             rate_date = date.fromisoformat(date_str)
-            await rate_repo.create_or_update(
+            await rate_repo.create(
                 date=rate_date,
                 from_currency=from_curr,
                 to_currency=to_curr,

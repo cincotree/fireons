@@ -349,9 +349,14 @@ class ExchangeRate(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("date", "from_currency", "to_currency",
-                        name="uq_exchange_rate_date_currencies"),
         Index("ix_exchange_rates_currencies", "from_currency", "to_currency"),
+        Index(
+            "ix_exchange_rates_latest",
+            "from_currency",
+            "to_currency",
+            "date",
+            "created_at",
+        ),
     )
 
     def __repr__(self) -> str:

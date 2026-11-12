@@ -43,7 +43,7 @@ async def store_rate(
     quote_currency: str,
     rate: Decimal,
 ) -> ExchangeRate:
-    return await ExchangeRateRepository(session).create_or_update(
+    return await ExchangeRateRepository(session).create(
         date=date.today(),
         from_currency=base_currency,
         to_currency=quote_currency,
