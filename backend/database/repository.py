@@ -16,6 +16,7 @@ from database.models import (
     Account,
     AccountType,
     Balance,
+    Admin,
     ExchangeRate,
     IngestedDocument,
     IngestionRun,
@@ -575,6 +576,24 @@ class ExchangeRateRepository:
                 return ConversionResult(amount=amount * to_usd * from_usd, rate_available=True)
 
         return ConversionResult(amount=amount, rate_available=False)
+
+
+class AdminRepository:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def get_by_username(self, username: str) -> Admin | None:
+        result = await self.session.execute(select(Admin).where(Admin.username == username))
+        return result.scalar_one_or_none()
+
+    async def get_by_id(self, admin_id: str) -> Admin | None:
+        return await self.session.get(Admin, admin_id)
+
+    async def create(self, username: str, hashed_password: str) -> Admin:
+        admin = Admin(username=username, hashed_password=hashed_password)
+        self.session.add(admin)
+        await self.session.flush()
+        return admin
 
 
 class JobRunRepository:

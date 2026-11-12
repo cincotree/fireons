@@ -46,6 +46,17 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt
 
 
+def decode_admin_token(token: str) -> Optional[str]:
+    settings = get_app_settings()
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+    except JWTError:
+        return None
+    if payload.get("role") != "admin":
+        return None
+    return payload.get("sub")
+
+
 def decode_token(token: str) -> Optional[TokenData]:
     settings = get_app_settings()
     try:

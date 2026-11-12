@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: deploy-api deploy-jobs-image deploy-webapp help setup install env db db-create migrate \
+.PHONY: create-admin deploy-api deploy-jobs-image deploy-webapp help setup install env db db-create migrate \
 	backend-setup backend backend-test \
 	frontend-setup frontend frontend-build frontend-lint \
 	e2e-setup e2e e2e-headed e2e-ui e2e-debug e2e-report \
@@ -15,6 +15,7 @@ help:
 	@echo "  env              Create backend/.env and frontend/.env.local from the samples if missing"
 	@echo "  db               Start the local Postgres container"
 	@echo "  db-create        Create the development and e2e databases if missing"
+	@echo "  create-admin     Create an admin account: make create-admin USERNAME=<name>"
 	@echo "  migrate          Apply migrations to the development database"
 	@echo "  backend-setup    Install backend dependencies"
 	@echo "  frontend-setup   Install frontend dependencies"
@@ -61,6 +62,9 @@ migrate:
 
 backend-setup:
 	cd backend && uv sync
+
+create-admin:
+	cd backend && uv run python -m scripts.create_admin $(USERNAME)
 
 backend: migrate
 	cd backend && uv run uvicorn app:app --reload

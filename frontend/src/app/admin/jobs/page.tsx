@@ -1,21 +1,28 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/contexts/AuthContext";
 import { AdminJobs } from "@/components/AdminJobs";
+import { clearAdminToken, getAdminToken } from "@/utils/adminToken";
 
 export default function AdminJobsPage() {
-  const { user, isAuthenticated, loading } = useAuth();
   const router = useRouter();
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      router.push("/login");
+    if (getAdminToken()) {
+      setReady(true);
+    } else {
+      router.replace("/admin/login");
     }
-  }, [isAuthenticated, loading, router]);
+  }, [router]);
 
-  if (loading || !isAuthenticated) {
+  const signOut = useCallback(() => {
+    clearAdminToken();
+    router.replace("/admin/login");
+  }, [router]);
+
+  if (!ready) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <p className="text-lg">Loading...</p>
@@ -23,15 +30,5 @@ export default function AdminJobsPage() {
     );
   }
 
-  if (!user?.is_admin) {
-    return (
-      <div className="max-w-3xl mx-auto p-8">
-        <p role="alert" className="text-red-600">
-          Admin access required
-        </p>
-      </div>
-    );
-  }
-
-  return <AdminJobs />;
+  return <AdminJobs onUnauthorized={signOut} onSignOut={signOut} />;
 }

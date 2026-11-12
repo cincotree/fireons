@@ -12,6 +12,17 @@ from jobs.config import get_jobs_settings
 
 
 @pytest.fixture(autouse=True)
+def isolated_jobs_settings(monkeypatch):
+    monkeypatch.setenv("JOBS_RUN_LOCALLY", "false")
+    monkeypatch.setenv("APP_ENV", "")
+    get_jobs_settings.cache_clear()
+    launcher.find_network.cache_clear()
+    yield
+    get_jobs_settings.cache_clear()
+    launcher.find_network.cache_clear()
+
+
+@pytest.fixture(autouse=True)
 def shared_session(monkeypatch, session):
     @asynccontextmanager
     async def fake_session_context():
@@ -230,7 +241,6 @@ async def test_network_lookup_is_cached(monkeypatch, jobs_settings, repository):
 
 @pytest.mark.asyncio
 async def test_launch_requires_configuration(monkeypatch, repository):
-    monkeypatch.delenv("APP_ENV", raising=False)
     get_jobs_settings.cache_clear()
 
     with pytest.raises(RuntimeError, match="not configured"):

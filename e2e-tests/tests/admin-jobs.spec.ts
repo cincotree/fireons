@@ -1,53 +1,69 @@
 import { test, expect, Page } from '@playwright/test';
-import pg from 'pg';
+import { execSync } from 'child_process';
+import { randomUUID } from 'crypto';
+import path from 'path';
 
-const databaseUrl =
-  process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/fireons_e2e';
+const ADMIN_PASSWORD = 'admin-password-123';
+let adminUsername = '';
 
-async function makeAdmin(username: string) {
-  const client = new pg.Client({ connectionString: databaseUrl.replace('+psycopg', '') });
-  await client.connect();
-  try {
-    await client.query('UPDATE users SET is_admin = true WHERE username = $1', [username]);
-  } finally {
-    await client.end();
-  }
+test.beforeAll(() => {
+  adminUsername = `e2eadmin${randomUUID().replace(/-/g, '').slice(0, 12)}`;
+  execSync(`uv run python -m scripts.create_admin ${adminUsername}`, {
+    cwd: path.join(__dirname, '..', '..', 'backend'),
+    env: { ...process.env, TESTING: 'true', ADMIN_PASSWORD },
+    stdio: 'pipe',
+  });
+});
+
+async function adminLogin(page: Page, username?: string, password = ADMIN_PASSWORD) {
+  await page.goto('/admin/login');
+  await page.getByLabel('Username').fill(username ?? adminUsername);
+  await page.getByLabel('Password').fill(password);
+  await page.getByRole('button', { name: 'Login' }).click();
 }
 
-async function register(page: Page, prefix: string) {
-  const username = `${prefix}${Date.now()}`;
+async function registerRegularUser(page: Page) {
+  const username = `plainjobs${Date.now()}`;
   await page.goto('/register');
   await page.getByLabel(/Email/i).fill(`${username}@example.com`);
   await page.getByLabel(/^Username/i).fill(username);
   await page.locator('input[name="password"]').fill('Test123!@#');
   await page.getByRole('button', { name: /Create account/i }).click();
   await page.waitForURL(/.*networth/, { timeout: 5000 });
-  return username;
 }
 
 test.describe('Admin jobs', () => {
-  test('regular users get no Jobs link and a denied page', async ({ page }) => {
-    await register(page, 'plainjobs');
-
-    await expect(page.getByRole('link', { name: 'Jobs' })).toHaveCount(0);
+  test('anonymous visitors are sent to the admin login', async ({ page }) => {
     await page.goto('/admin/jobs');
 
-    await expect(page.getByText('Admin access required')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Launch job' })).toHaveCount(0);
+    await expect(page).toHaveURL(/.*admin\/login/);
   });
 
-  test('anonymous visitors are sent to login', async ({ page }) => {
+  test('a signed in regular user has no admin access and sees no admin link', async ({ page }) => {
+    await registerRegularUser(page);
+
+    await expect(page.getByRole('link', { name: /jobs/i })).toHaveCount(0);
     await page.goto('/admin/jobs');
 
-    await expect(page).toHaveURL(/.*login/);
+    await expect(page).toHaveURL(/.*admin\/login/);
   });
 
-  test('admin launches a job and sees it finish in the run list', async ({ page }) => {
-    const username = await register(page, 'rootjobs');
-    await makeAdmin(username);
-    await page.reload();
+  test('wrong password shows an error and stays on the login page', async ({ page }) => {
+    await adminLogin(page, undefined, 'not-the-password');
 
-    await page.getByRole('link', { name: 'Jobs' }).click();
+    await expect(page.getByTestId('admin-login-error')).toHaveText('Invalid username or password');
+    await expect(page).toHaveURL(/.*admin\/login/);
+  });
+
+  test('regular user credentials do not work on the admin login', async ({ page }) => {
+    await adminLogin(page, 'someregularuser', 'Test123!@#');
+
+    await expect(page.getByTestId('admin-login-error')).toHaveText('Invalid username or password');
+  });
+
+  test('admin signs in, launches a job, sees it finish, and signs out', async ({ page }) => {
+    await adminLogin(page);
+
     await expect(page.getByRole('heading', { name: 'Background jobs' })).toBeVisible();
     await expect(page.getByLabel('Job')).toHaveValue('exchange_rate_sync');
 
@@ -66,13 +82,16 @@ test.describe('Admin jobs', () => {
         return statuses.length > 0 && statuses.every((status) => status === finalStatus);
       })
       .toBe(true);
+
+    await page.getByRole('button', { name: 'Sign out' }).click();
+    await expect(page).toHaveURL(/.*admin\/login/);
+    await page.goto('/admin/jobs');
+    await expect(page).toHaveURL(/.*admin\/login/);
   });
 
   test('admin sees validation errors for a bad payload', async ({ page }) => {
-    const username = await register(page, 'badpayload');
-    await makeAdmin(username);
-    await page.goto('/admin/jobs');
-
+    await adminLogin(page);
+    await expect(page.getByRole('heading', { name: 'Background jobs' })).toBeVisible();
     let launchRequests = 0;
     page.on('request', (request) => {
       if (request.method() === 'POST' && request.url().includes('/api/admin/jobs/runs')) launchRequests += 1;
@@ -89,9 +108,8 @@ test.describe('Admin jobs', () => {
   });
 
   test('admin sees the API error when launching fails', async ({ page }) => {
-    const username = await register(page, 'failjobs');
-    await makeAdmin(username);
-    await page.goto('/admin/jobs');
+    await adminLogin(page);
+    await expect(page.getByRole('heading', { name: 'Background jobs' })).toBeVisible();
     await page.route('**/api/admin/jobs/runs', (route) =>
       route.request().method() === 'POST'
         ? route.fulfill({ status: 502, json: { detail: 'Could not start the job, see the run list for details' } })
@@ -101,5 +119,17 @@ test.describe('Admin jobs', () => {
     await page.getByRole('button', { name: 'Launch job' }).click();
 
     await expect(page.getByTestId('launch-error')).toHaveText('Could not start the job, see the run list for details');
+  });
+
+  test('an expired admin session sends the admin back to login', async ({ page }) => {
+    await adminLogin(page);
+    await expect(page.getByRole('heading', { name: 'Background jobs' })).toBeVisible();
+    await page.route('**/api/admin/jobs/runs**', (route) =>
+      route.fulfill({ status: 401, json: { detail: 'Could not validate credentials' } })
+    );
+
+    await page.getByRole('button', { name: 'Refresh' }).click();
+
+    await expect(page).toHaveURL(/.*admin\/login/);
   });
 });

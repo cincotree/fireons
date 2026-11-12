@@ -7,6 +7,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from api.account_api import router as account_router
+from api.admin_api import router as admin_router
 from api.auth_api import router as auth_router
 from api.health_api import router as health_router
 from api.jobs_api import router as jobs_router
@@ -66,6 +67,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     app.include_router(auth_router)
     app.include_router(account_router)
+    app.include_router(admin_router)
     app.include_router(jobs_router)
     if settings.ingestion_test_enabled:
         from api.ingestion_test_api import router as ingestion_test_router

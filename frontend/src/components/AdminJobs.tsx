@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { getBaseHttpUrl } from "@/utils/api";
+import { getAdminToken } from "@/utils/adminToken";
 
 const REFRESH_INTERVAL_MS = 3000;
 const STATUSES = ["queued", "running", "succeeded", "failed"] as const;
@@ -21,14 +22,19 @@ interface JobRun {
   completed_at: string | null;
 }
 
+class UnauthorizedError extends Error {}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${getBaseHttpUrl()}/api/admin/jobs${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${localStorage.getItem("token")}`,
+      Authorization: `Bearer ${getAdminToken()}`,
     },
   });
+  if (response.status === 401) {
+    throw new UnauthorizedError("Session expired");
+  }
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     throw new Error(body.detail || `Request failed (${response.status})`);
@@ -40,7 +46,12 @@ function formatTime(value: string | null): string {
   return value ? new Date(value).toLocaleString() : "-";
 }
 
-export function AdminJobs() {
+interface AdminJobsProps {
+  onUnauthorized: () => void;
+  onSignOut: () => void;
+}
+
+export function AdminJobs({ onUnauthorized, onSignOut }: AdminJobsProps) {
   const [jobs, setJobs] = useState<string[]>([]);
   const [runs, setRuns] = useState<JobRun[]>([]);
   const [job, setJob] = useState("");
@@ -56,9 +67,13 @@ export function AdminJobs() {
       setRuns(await request<JobRun[]>(`/runs${query}`));
       setListError(null);
     } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        onUnauthorized();
+        return;
+      }
       setListError(error instanceof Error ? error.message : "Could not load runs");
     }
-  }, [statusFilter]);
+  }, [statusFilter, onUnauthorized]);
 
   useEffect(() => {
     request<string[]>("")
@@ -66,8 +81,14 @@ export function AdminJobs() {
         setJobs(names);
         setJob((current) => current || names[0] || "");
       })
-      .catch((error) => setListError(error.message));
-  }, []);
+      .catch((error) => {
+        if (error instanceof UnauthorizedError) {
+          onUnauthorized();
+          return;
+        }
+        setListError(error.message);
+      });
+  }, [onUnauthorized]);
 
   useEffect(() => {
     loadRuns();
@@ -98,6 +119,10 @@ export function AdminJobs() {
         body: JSON.stringify({ job, payload: parsed }),
       });
     } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        onUnauthorized();
+        return;
+      }
       setLaunchError(error instanceof Error ? error.message : "Could not launch job");
     } finally {
       setLaunching(false);
@@ -107,9 +132,14 @@ export function AdminJobs() {
 
   return (
     <div className="max-w-5xl mx-auto p-8 space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold">Background jobs</h1>
-        <p className="text-sm text-gray-500">Launch a job and watch its runs.</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Background jobs</h1>
+          <p className="text-sm text-gray-500">Launch a job and watch its runs.</p>
+        </div>
+        <Button type="button" variant="outline" onClick={onSignOut}>
+          Sign out
+        </Button>
       </div>
 
       <form onSubmit={launch} className="space-y-3">
