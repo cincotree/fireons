@@ -102,7 +102,7 @@ Registration is invite-only in production. See [docs/invite-only-registration.md
 
 The `/professionals` directory is filled from your machine, not from AWS. The only job that runs in production is `exchange_rate_sync`. Details are in [docs/professionals-data.md](docs/professionals-data.md).
 
-Keys go in `backend/.env`: `GOOGLE_API_KEY` for the Google Places export and `TAVILY_API_KEY` for enrichment. Apply migrations to the target database first (`make migrate`). Run these from one machine only, because the usage counters and the export CSV live in `backend/exports/`.
+Keys go in `backend/.env`: `GOOGLE_API_KEY` for the Google Places export and `TAVILY_API_KEY` for enrichment. Migrations are applied by the deploy (`scripts/deploy-api.sh`), so production is ready after the first release. Only if you run these before that release, apply them yourself first (`make migrate` with `DATABASE_URL` set). Run these from one machine only, because the usage counters and the export CSV live in `backend/exports/`.
 
 ```bash
 make daily     # export and import Google places, enrich them via Tavily, check sites for NRI signals

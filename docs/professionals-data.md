@@ -14,7 +14,7 @@ Two targets cover everything: `make daily` (export-places, import-places, enrich
 
 | Step | Command | How often | Needs |
 |---|---|---|---|
-| Migrate | `make migrate` | after pulling migrations | |
+| Migrate | `make migrate` | only before the first release, or after pulling migrations into a local database; the deploy applies them to production | |
 | Registers | `make scrape SOURCE=<key>` for `sebi_ria`, `sebi_research_analyst`, `fee_only_india`, `fpsb_cfp` | weekly | |
 | Export Google places | `make export-places` | daily until all queries finish (capped by the free quota) | `GOOGLE_API_KEY` |
 | Import Google places | `make import-places` | after each export | |
