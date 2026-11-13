@@ -2,10 +2,6 @@ x-backend-environment: &backend-environment
   DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/fireons_development
   SECRET_KEY: ${SECRET_KEY:-local-development-only-change-me}
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-  GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
-  GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
-  REDDIT_OAUTH_CLIENT_ID: ${REDDIT_OAUTH_CLIENT_ID:-}
-  REDDIT_OAUTH_CLIENT_SECRET: ${REDDIT_OAUTH_CLIENT_SECRET:-}
 
 services:
   postgres:
@@ -36,6 +32,9 @@ services:
     build: ./backend
     ports:
       - "8000:8000"
+    env_file:
+      - path: ./backend/.env
+        required: false
     environment: *backend-environment
     depends_on:
       migrate:
