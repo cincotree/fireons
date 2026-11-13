@@ -22,4 +22,5 @@ module "fireons" {
   api_reserved_concurrency     = var.api_reserved_concurrency
   invite_only                  = var.invite_only
   api_memory_mb                = var.api_memory_mb
+  scheduled_jobs               = var.scheduled_jobs
 }

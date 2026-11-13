@@ -5,6 +5,7 @@ set -e
 cd ../backend
 
 export TESTING=true
+export JOBS_RUN_LOCALLY=true
 export PUBLIC_READ_LIMIT_PER_MINUTE=100000
 export FRONTEND_URL=http://localhost:3020
 export OAUTH_REDIRECT_BASE_URL=http://localhost:8020

@@ -51,3 +51,16 @@ variable "api_memory_mb" {
   type    = number
   default = 1769
 }
+
+variable "scheduled_jobs" {
+  type = map(object({
+    job                 = string
+    schedule_expression = string
+  }))
+  default = {
+    exchange-rate-sync = {
+      job                 = "exchange_rate_sync"
+      schedule_expression = "cron(30 20 * * ? *)"
+    }
+  }
+}

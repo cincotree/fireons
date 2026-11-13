@@ -5,10 +5,10 @@ Provides clean abstractions for CRUD operations on accounting entities.
 """
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -16,10 +16,13 @@ from database.models import (
     Account,
     AccountType,
     Balance,
+    Admin,
     ExchangeRate,
     IngestedDocument,
     IngestionRun,
     IngestionRunStatus,
+    JobRun,
+    JobRunStatus,
 )
 
 
@@ -500,6 +503,7 @@ class ExchangeRateRepository:
         self,
         from_currency: str | None = None,
         to_currency: str | None = None,
+        limit: int | None = None,
     ) -> list[ExchangeRate]:
         query = select(ExchangeRate).order_by(
             ExchangeRate.date.desc(),
@@ -511,6 +515,8 @@ class ExchangeRateRepository:
             query = query.where(ExchangeRate.from_currency == from_currency)
         if to_currency:
             query = query.where(ExchangeRate.to_currency == to_currency)
+        if limit is not None:
+            query = query.limit(limit)
 
         result = await self.session.execute(query)
         return list(result.scalars().all())
@@ -573,3 +579,91 @@ class ExchangeRateRepository:
                 return ConversionResult(amount=amount * to_usd * from_usd, rate_available=True)
 
         return ConversionResult(amount=amount, rate_available=False)
+
+
+class AdminRepository:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def get_by_username(self, username: str) -> Admin | None:
+        result = await self.session.execute(select(Admin).where(Admin.username == username))
+        return result.scalar_one_or_none()
+
+    async def get_by_id(self, admin_id: str) -> Admin | None:
+        return await self.session.get(Admin, admin_id)
+
+    async def create(self, username: str, hashed_password: str) -> Admin:
+        admin = Admin(username=username, hashed_password=hashed_password)
+        self.session.add(admin)
+        await self.session.flush()
+        return admin
+
+
+class JobRunNotFoundError(LookupError):
+    pass
+
+
+class JobRunRepository:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def create(self, job: str, payload: dict | None = None) -> JobRun:
+        run = JobRun(job=job, payload=payload or {})
+        self.session.add(run)
+        await self.session.flush()
+        return run
+
+    async def get(self, run_id: str) -> JobRun | None:
+        return await self.session.get(JobRun, run_id)
+
+    async def list_recent(self, limit: int = 50, status: JobRunStatus | None = None) -> list[JobRun]:
+        query = select(JobRun).order_by(JobRun.created_at.desc()).limit(limit)
+        if status is not None:
+            query = query.where(JobRun.status == status)
+        result = await self.session.execute(query)
+        return list(result.scalars().all())
+
+    async def _require(self, run_id: str) -> JobRun:
+        run = await self.session.get(JobRun, run_id)
+        if run is None:
+            raise JobRunNotFoundError(f"Job run {run_id} not found")
+        return run
+
+    async def reset_for_launch(self, run_id: str) -> JobRun:
+        run = await self._require(run_id)
+        run.status = JobRunStatus.QUEUED
+        run.task_arn = None
+        run.error_message = None
+        run.started_at = None
+        run.completed_at = None
+        await self.session.flush()
+        return run
+
+    async def set_task_arn(self, run_id: str, task_arn: str) -> None:
+        result = await self.session.execute(
+            update(JobRun).where(JobRun.id == run_id).values(task_arn=task_arn)
+        )
+        if result.rowcount == 0:
+            raise JobRunNotFoundError(f"Job run {run_id} not found")
+
+    async def mark_running(self, run_id: str) -> JobRun:
+        run = await self._require(run_id)
+        run.status = JobRunStatus.RUNNING
+        run.started_at = datetime.now(timezone.utc)
+        await self.session.flush()
+        return run
+
+    async def mark_succeeded(self, run_id: str) -> JobRun:
+        run = await self._require(run_id)
+        run.status = JobRunStatus.SUCCEEDED
+        run.completed_at = datetime.now(timezone.utc)
+        await self.session.flush()
+        return run
+
+    async def mark_failed(self, run_id: str, error_message: str) -> JobRun:
+        run = await self._require(run_id)
+        run.status = JobRunStatus.FAILED
+        run.error_message = error_message
+        run.completed_at = datetime.now(timezone.utc)
+        await self.session.flush()
+        return run
