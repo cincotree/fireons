@@ -633,6 +633,63 @@ async def test_verification_filter_and_source_listing(client, session, seeded):
     assert {s["key"]: s["verification"] for s in sources} == {"sebi_ria": "verified", "google_places": "unverified"}
 
 
+async def add_google_rows(session):
+    google = DataSource(
+        key="google_places",
+        name="Google Maps business listings",
+        regulator="Google Maps",
+        default_profession_type="chartered_accountant",
+        base_url="https://www.google.com/maps",
+        verification_level="unverified",
+    )
+    session.add(google)
+    await session.flush()
+    bare = await add_registration(
+        session, google, "Google Maps listing", "GP-bare", attributes={"google_place_id": "bare"}, address_raw=None, email=None, phone=None
+    )
+    enriched = await add_registration(
+        session, google, "Found Online Advisers", "GP-found", attributes={"google_place_id": "found", "web_enriched": True}
+    )
+    return bare, enriched
+
+
+async def test_listing_only_flag_marks_google_rows_without_web_details(client, session, seeded):
+    bare, enriched = await add_google_rows(session)
+
+    by_number = {i["registration_number"]: i for i in (await client.get("/registrations", params={"page_size": 100})).json()["items"]}
+
+    assert by_number["GP-bare"]["listing_only"] is True
+    assert by_number["GP-found"]["listing_only"] is False
+    assert all(not item["listing_only"] for number, item in by_number.items() if not number.startswith("GP-"))
+    assert (await client.get(f"/registrations/{bare.id}")).json()["listing_only"] is True
+    assert (await client.get(f"/registrations/{enriched.id}")).json()["listing_only"] is False
+
+
+async def test_details_filter_splits_listing_only_from_the_rest(client, session, seeded):
+    await add_google_rows(session)
+
+    only = (await client.get("/registrations", params={"details": "listing_only"})).json()
+    rest = (await client.get("/registrations", params={"details": "with_details", "page_size": 100})).json()
+
+    assert [i["registration_number"] for i in only["items"]] == ["GP-bare"]
+    numbers = [i["registration_number"] for i in rest["items"]]
+    assert "GP-bare" not in numbers and "GP-found" in numbers
+
+
+async def test_details_filter_combines_with_city_and_verification(client, session, seeded):
+    await add_google_rows(session)
+
+    body = (await client.get("/registrations", params={"details": "listing_only", "verification": "verified"})).json()
+
+    assert body["items"] == []
+
+
+async def test_invalid_details_filter_is_a_validation_error(client, seeded):
+    response = await client.get("/registrations", params={"details": "none"})
+
+    assert response.status_code == 422
+
+
 async def test_invalid_verification_filter_is_a_validation_error(client, seeded):
     response = await client.get("/registrations", params={"verification": "trusted"})
 

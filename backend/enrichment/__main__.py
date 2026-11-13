@@ -9,6 +9,7 @@ from sqlalchemy import select, update
 
 from database.models import FinancialProfessional, NriSignal, ProfessionalWebsite
 from database.session import session_context
+from enrichment.places_enrichment import enrich_places
 from enrichment.places import CATEGORIES, TIERS, PlacesError, run_export
 from enrichment.runner import enrich_nri
 from enrichment.website_finder import find_websites
@@ -37,6 +38,9 @@ def build_parser() -> argparse.ArgumentParser:
     finder = commands.add_parser("find-websites", help="find websites for unverified listings that have none")
     finder.add_argument("--limit", type=int, default=None, help="consider at most this many new listings")
     finder.add_argument("--no-search", action="store_true", help="skip the Tavily search step")
+    enrich = commands.add_parser("enrich-places", help="search the web for details of imported Google listings")
+    enrich.add_argument("csv_path")
+    enrich.add_argument("--limit", type=int, default=None, help="search for at most this many listings")
     review = commands.add_parser("review", help="mark one signal confirmed or rejected")
     review.add_argument("signal_id")
     review.add_argument("status", choices=REVIEW_STATUSES)
@@ -60,6 +64,20 @@ async def _find_websites(limit: int | None, search: bool) -> int:
         f"considered={summary.rows_considered} by_register={summary.found_by_register} "
         f"by_guess={summary.found_by_guess} by_search={summary.found_by_search} "
         f"not_found={summary.not_found} waiting_for_search={summary.left_for_search}"
+    )
+    print(f"searches={summary.searches_made} left_today={summary.searches_left_today} stopped={summary.stopped_reason}")
+    return 0
+
+
+async def _enrich_places(csv_path: str, limit: int | None) -> int:
+    path = Path(csv_path)
+    if not path.exists():
+        print(f"No such file: {path}")
+        return 2
+    summary = await enrich_places(path, limit=limit)
+    print(
+        f"rows={summary.rows_in_file} enriched={summary.enriched} listing_only={summary.listing_only} "
+        f"already_done={summary.already_done} not_imported={summary.not_imported}"
     )
     print(f"searches={summary.searches_made} left_today={summary.searches_left_today} stopped={summary.stopped_reason}")
     return 0
@@ -132,6 +150,8 @@ def main(argv: list[str] | None = None) -> int:
         return asyncio.run(_nri(args.limit))
     if args.command == "find-websites":
         return asyncio.run(_find_websites(args.limit, not args.no_search))
+    if args.command == "enrich-places":
+        return asyncio.run(_enrich_places(args.csv_path, args.limit))
     if args.command == "places":
         return _places(args)
     if args.command == "review-queue":

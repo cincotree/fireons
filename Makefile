@@ -4,7 +4,7 @@ TF_ENV ?= production
 TF_DIR = infra/environments/$(TF_ENV)
 
 .PHONY: tf-bootstrap tf-init tf-fmt tf-validate tf-plan tf-apply tf-output create-admin deploy-api deploy-jobs-image deploy-webapp help setup install env db db-create migrate \
-	backend-setup backend backend-test scrape export-places import-places enrich-nri find-websites scraper-worker \
+	backend-setup backend backend-test scrape export-places import-places enrich-places enrich-nri find-websites scraper-worker \
 	compose-up compose-up-scraper compose-down \
 	frontend-setup frontend frontend-build frontend-lint \
 	e2e-setup e2e e2e-headed e2e-ui e2e-debug e2e-report \
@@ -34,6 +34,7 @@ help:
 	@echo "  scraper-worker      Run the weekly scraper scheduler in the foreground"
 	@echo "  enrich-nri          Check firm websites for NRI signals (python -m enrichment review-queue to review)"
 	@echo "  export-places       Export professionals found via Google Places to backend/exports (resumable, quota-capped)"
+	@echo "  enrich-places       Search the web (Tavily) for details of imported Google listings; run daily until done"
 	@echo "  find-websites       Find websites for unverified listings (register match, domain guess, Tavily search; run daily)"
 	@echo "  import-places       Load the Google Places CSV into the directory as unverified listings"
 	@echo ""
@@ -96,6 +97,9 @@ import-places:
 
 export-places:
 	cd backend && uv run python -m enrichment places
+
+enrich-places:
+	cd backend && uv run python -m enrichment enrich-places exports/places_professionals.csv
 
 find-websites:
 	cd backend && uv run python -m enrichment find-websites

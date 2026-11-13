@@ -4,6 +4,10 @@ import re
 from pathlib import Path
 from typing import AsyncIterator
 
+from sqlalchemy import select
+
+from database.models import DataSource, ProfessionalRegistration
+from database.session import session_context
 from scraping.http import PoliteClient
 from scraping.normalize import collapse_whitespace
 from scraping.types import (
@@ -104,6 +108,20 @@ def to_registration(row: dict) -> ScrapedRegistration:
     )
 
 
+def read_place_rows(path: Path) -> list[dict]:
+    rows: list[dict] = []
+    with path.open(newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            if rejection_reason(row):
+                continue
+            try:
+                to_registration(row)
+            except ParseError:
+                continue
+            rows.append(row)
+    return rows
+
+
 def read_csv(path: Path) -> tuple[list[ScrapedRegistration], list[dict], int]:
     records: list[ScrapedRegistration] = []
     rejected: list[dict] = []
@@ -131,6 +149,18 @@ def write_rejected(path: Path, rejected: list[dict]) -> Path:
     return target
 
 
+async def _known_numbers(numbers: list[str]) -> set[str]:
+    if not numbers:
+        return set()
+    async with session_context() as session:
+        rows = await session.scalars(
+            select(ProfessionalRegistration.registration_number)
+            .join(DataSource, DataSource.id == ProfessionalRegistration.source_id)
+            .where(DataSource.key == DEFINITION.key, ProfessionalRegistration.registration_number.in_(numbers))
+        )
+        return set(rows)
+
+
 class GooglePlacesCsvSource:
     definition = DEFINITION
     allows_delisting = False
@@ -142,6 +172,8 @@ class GooglePlacesCsvSource:
 
     async def fetch_pages(self, client: PoliteClient | None = None) -> AsyncIterator[FetchedPage]:
         records, rejected, parse_errors = read_csv(self.path)
+        known = await _known_numbers([record.registration_number for record in records])
+        records = [record for record in records if record.registration_number not in known]
         self.rejected_count = len(rejected)
         if rejected:
             write_rejected(self.path, rejected)

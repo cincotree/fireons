@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   BadgeCheck,
+  ExternalLink,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -15,7 +16,6 @@ import {
   SlidersHorizontal,
   X,
 } from "lucide-react";
-import { GoogleListingName } from "@/components/GoogleListingName";
 import { Monogram } from "@/components/Monogram";
 import { MultiSelect } from "@/components/MultiSelect";
 import { NriBadge } from "@/components/NriBadge";
@@ -35,6 +35,10 @@ const NRI_FILTER_OPTIONS = [
 const VERIFICATION_OPTIONS = [
   { value: "verified", label: "Verified sources only" },
   { value: "unverified", label: "Unverified listings only" },
+];
+const DETAILS_OPTIONS = [
+  { value: "with_details", label: "With details" },
+  { value: "listing_only", label: "Maps link only" },
 ];
 const FOCUS_RING =
   "focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0E6B57] focus-visible:ring-offset-2 focus-visible:ring-offset-[#E8F0ED]";
@@ -111,6 +115,7 @@ export function ProfessionalDirectory() {
   const [cityFilter, setCityFilter] = useState<string[]>([]);
   const [nriFilter, setNriFilter] = useState("");
   const [verificationFilter, setVerificationFilter] = useState("");
+  const [detailsFilter, setDetailsFilter] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [data, setData] = useState<RegistrationPage | null>(null);
@@ -149,6 +154,7 @@ export function ProfessionalDirectory() {
     cityFilter.forEach((name) => params.append("city", name));
     if (nriFilter) params.set("nri", nriFilter);
     if (verificationFilter) params.set("verification", verificationFilter);
+    if (detailsFilter) params.set("details", detailsFilter);
     setLoading(true);
     setError(null);
     fetchJson<RegistrationPage>(
@@ -167,7 +173,7 @@ export function ProfessionalDirectory() {
     return () => {
       cancelled = true;
     };
-  }, [search, stateFilter, cityFilter, nriFilter, verificationFilter, page, reloadToken]);
+  }, [search, stateFilter, cityFilter, nriFilter, verificationFilter, detailsFilter, page, reloadToken]);
 
   const total = data?.total ?? 0;
   const firstShown = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
@@ -210,6 +216,16 @@ export function ProfessionalDirectory() {
           },
         ]
       : []),
+    ...(detailsFilter
+      ? [
+          {
+            key: `details:${detailsFilter}`,
+            label: DETAILS_OPTIONS.find((option) => option.value === detailsFilter)?.label ?? detailsFilter,
+            kind: "details",
+            clear: () => setDetailsFilter(""),
+          },
+        ]
+      : []),
   ];
   const activeFilterCount = appliedFilters.length;
 
@@ -220,6 +236,7 @@ export function ProfessionalDirectory() {
     setCityFilter([]);
     setNriFilter("");
     setVerificationFilter("");
+    setDetailsFilter("");
     setPage(1);
   };
 
@@ -310,6 +327,16 @@ export function ProfessionalDirectory() {
                 }}
               />
               <FilterSelect
+                label="Details"
+                allLabel="With or without details"
+                value={detailsFilter}
+                options={DETAILS_OPTIONS}
+                onChange={(value) => {
+                  setDetailsFilter(value);
+                  setPage(1);
+                }}
+              />
+              <FilterSelect
                 label="NRI signals"
                 allLabel="Any NRI signal status"
                 value={nriFilter}
@@ -385,8 +412,27 @@ export function ProfessionalDirectory() {
                   className="block border-[#E6ECE9] px-5 py-4 hover:bg-[#F8FBFA] md:table-row md:px-0 md:py-0"
                 >
                   <TableCell className="block p-0 md:table-cell md:px-5 md:py-4">
-                    {registration.google_place_id ? (
-                      <GoogleListingName registration={registration} />
+                    {registration.listing_only ? (
+                      <div className="flex items-center gap-3" data-testid="listing-only">
+                        <Monogram name="Google listing" />
+                        <div className="min-w-0">
+                          <a
+                            href={registration.source_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded text-[15px] font-semibold text-[#0E6B57] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0E6B57]"
+                          >
+                            View on Google Maps
+                            <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                          </a>
+                          <p className="flex flex-wrap items-center gap-x-2 text-xs text-[#66766F]">
+                            <span className="rounded-full border border-[#E2D3B3] bg-[#FBF5E6] px-2 py-0.5 font-semibold text-[#7A5A12]">
+                              Unverified
+                            </span>
+                            <span>No further details found</span>
+                          </p>
+                        </div>
+                      </div>
                     ) : (
                       <div className="flex items-center gap-3">
                         <Monogram name={registration.name} />

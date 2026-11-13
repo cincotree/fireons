@@ -21,7 +21,6 @@ class AppSettings(SecretsManagerSettings):
     google_oauth_client_secret: str = ""
     reddit_oauth_client_id: str = ""
     reddit_oauth_client_secret: str = ""
-    google_api_key: str = ""
 
     class Config:
         env_file = ".env"

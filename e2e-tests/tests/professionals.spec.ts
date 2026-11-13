@@ -17,7 +17,7 @@ interface SeedRegistration {
   validUntil?: string | null;
   email?: string | null;
   phone?: string | null;
-  attributes?: Record<string, string>;
+  attributes?: Record<string, string | boolean>;
 }
 
 const NAMED: SeedRegistration[] = [
@@ -192,7 +192,13 @@ test.describe('Professionals directory - signed-in listing, filters and change h
       );
       for (const listed of [
         { name: GOOGLE_PLACEHOLDER, number: 'GP-e2e-1', city: 'Kochi', state: 'Kerala', attributes: { google_place_id: 'e2e-1' } },
-        { name: GOOGLE_PLACEHOLDER, number: 'GP-e2e-2', city: 'Kochi', state: 'Kerala', attributes: { google_place_id: 'e2e-2' } },
+        {
+          name: 'Found Online Advisers',
+          number: 'GP-e2e-2',
+          city: 'Kochi',
+          state: 'Kerala',
+          attributes: { google_place_id: 'e2e-2', web_enriched: true },
+        },
       ]) {
         await insertRegistration(client, googleSource.rows[0].id as string, runId, listed);
       }
@@ -266,9 +272,10 @@ test.describe('Professionals directory - signed-in listing, filters and change h
 
     await openFilters(page);
 
-    await expect(page.getByRole('combobox')).toHaveCount(4);
+    await expect(page.getByRole('combobox')).toHaveCount(5);
     await expect(page.getByRole('combobox', { name: 'Source' })).toHaveCount(0);
     await expect(filter(page, 'Verification')).toBeVisible();
+    await expect(filter(page, 'Details')).toBeVisible();
     await expect(filter(page, 'NRI signals')).toBeVisible();
     await expect(filter(page, 'State')).toBeVisible();
     await expect(filter(page, 'City')).toBeVisible();
@@ -654,63 +661,65 @@ test.describe('Professionals directory - signed-in listing, filters and change h
 
   const unverifiedTag = (page: Page) => page.getByText('Unverified', { exact: true });
 
-  const googleDetails = (page: Page) =>
-    page.route(/\/registrations\/[^/]+\/google$/, (route) =>
-      route.fulfill({
-        json: { name: 'Live Ledger Associates', address: '1 Live Road, Kochi', maps_url: 'https://maps.example.test/live' },
-      })
-    );
+  const listingOnly = (page: Page) => page.getByTestId('listing-only');
 
-  test('listings from Google Maps show live Google details, are labelled Unverified, and register rows are not', async ({ page }) => {
-    await googleDetails(page);
+  test('a Google listing with no web details shows only a Maps link, and one with details shows its name', async ({ page }) => {
     await page.goto('/professionals');
     await openFilters(page);
     await filter(page, 'Verification').selectOption('unverified');
 
-    await expect(page.getByRole('link', { name: 'Live Ledger Associates' })).toHaveCount(2);
-    await expect(page.getByText('1 Live Road, Kochi')).toHaveCount(2);
-    await expect(page.getByRole('link', { name: 'Live Ledger Associates' }).first()).toHaveAttribute(
+    await expect(page.getByText('Showing 1–2 of 2')).toBeVisible();
+    await expect(listingOnly(page)).toHaveCount(1);
+    await expect(listingOnly(page).getByRole('link', { name: 'View on Google Maps' })).toHaveAttribute(
       'href',
-      'https://maps.example.test/live'
+      'https://example.test/list'
     );
+    await expect(listingOnly(page).getByText('No further details found')).toBeVisible();
+    await expect(historyButton(page, 'Found Online Advisers')).toBeVisible();
     await expect(unverifiedTag(page)).toHaveCount(2);
+  });
+
+  test('register rows are never shown as Maps-link-only listings', async ({ page }) => {
+    await page.goto('/professionals');
+    await searchBox(page).fill('Rohan Mehta');
+
+    await expect(historyButton(page, 'Rohan Mehta')).toBeVisible();
+    await expect(listingOnly(page)).toHaveCount(0);
+    await expect(unverifiedTag(page)).toHaveCount(0);
+  });
+
+  test('the details filter shows only Maps-link-only listings or everything with details', async ({ page }) => {
+    await page.goto('/professionals');
+    await openFilters(page);
+
+    await filter(page, 'Details').selectOption('listing_only');
+    await expect(page.getByText('Showing 1–1 of 1')).toBeVisible();
+    await expect(listingOnly(page)).toHaveCount(1);
+
+    await filter(page, 'Details').selectOption('with_details');
+    await expect(page.getByText(`Showing 1–25 of ${TOTAL - 1}`)).toBeVisible();
+    await expect(listingOnly(page)).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Remove With details details filter' }).click();
+    await expect(page.getByText(`Showing 1–25 of ${TOTAL}`)).toBeVisible();
+  });
+
+  test('the details filter combines with search and can match nothing', async ({ page }) => {
+    await page.goto('/professionals');
+    await openFilters(page);
+    await filter(page, 'Details').selectOption('listing_only');
 
     await searchBox(page).fill('Rohan Mehta');
-    await expect(page.getByText('No professionals match your filters.')).toBeVisible();
-  });
-
-  test('Google names are not stored, so searching one finds nothing', async ({ page }) => {
-    await googleDetails(page);
-    await page.goto('/professionals');
-
-    await searchBox(page).fill('Live Ledger');
 
     await expect(page.getByText('No professionals match your filters.')).toBeVisible();
   });
 
-  test('when Google details fail the row falls back to a Google Maps link', async ({ page }) => {
-    await page.route(/\/registrations\/[^/]+\/google$/, (route) => route.fulfill({ status: 502, body: 'down' }));
+  test('a Maps-link-only listing is not found by searching Google style names', async ({ page }) => {
     await page.goto('/professionals');
-    await openFilters(page);
-    await filter(page, 'Verification').selectOption('unverified');
 
-    const fallback = page.getByRole('link', { name: 'View on Google Maps' });
-    await expect(fallback).toHaveCount(2);
-    await expect(fallback.first()).toHaveAttribute('href', 'https://example.test/list');
-  });
+    await searchBox(page).fill('Ledger Associates');
 
-  test('Google details are requested live for every visible listing', async ({ page }) => {
-    await googleDetails(page);
-    const requests: string[] = [];
-    page.on('request', (request) => {
-      if (/\/registrations\/[^/]+\/google$/.test(request.url())) requests.push(request.url());
-    });
-    await page.goto('/professionals');
-    await openFilters(page);
-    await filter(page, 'Verification').selectOption('unverified');
-    await expect(page.getByRole('link', { name: 'Live Ledger Associates' })).toHaveCount(2);
-
-    expect(requests.length).toBeGreaterThanOrEqual(2);
+    await expect(page.getByText('No professionals match your filters.')).toBeVisible();
   });
 
   test('the verification filter shows only unverified or only verified rows', async ({ page }) => {

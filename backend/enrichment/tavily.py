@@ -1,7 +1,15 @@
+from dataclasses import dataclass
+
 import httpx
 
 SEARCH_URL = "https://api.tavily.com/search"
 RESULTS_PER_SEARCH = 5
+
+
+@dataclass(frozen=True)
+class SearchResult:
+    url: str
+    title: str
 
 
 class TavilyError(RuntimeError):
@@ -17,6 +25,14 @@ async def search(
     query: str,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> list[str]:
+    return [result.url for result in await search_results(api_key, query, transport)]
+
+
+async def search_results(
+    api_key: str,
+    query: str,
+    transport: httpx.AsyncBaseTransport | None = None,
+) -> list[SearchResult]:
     if not api_key:
         raise TavilyError("TAVILY_API_KEY is not set")
     async with httpx.AsyncClient(transport=transport, timeout=30.0) as client:
@@ -37,4 +53,8 @@ async def search(
         raise QuotaExhausted(f"Tavily returned {response.status_code}")
     if response.status_code >= 400:
         raise TavilyError(f"Tavily returned {response.status_code}")
-    return [item["url"] for item in response.json().get("results", []) if item.get("url")]
+    return [
+        SearchResult(url=item["url"], title=(item.get("title") or "").strip())
+        for item in response.json().get("results", [])
+        if item.get("url")
+    ]

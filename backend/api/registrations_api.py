@@ -4,13 +4,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import case, false, func, or_, select, text
+from sqlalchemy import and_, case, false, func, not_, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.auth_api import get_current_user
-from api.google_place_details import GooglePlaceDetails, PlaceDetailsUnavailable, fetch_place_details
 from api.public_rate_limit import limit_public_reads
-from app_config import AppSettings, get_app_settings
 from database.models import (
     DataSource,
     FinancialProfessional,
@@ -25,6 +23,7 @@ from scraping.normalize import normalize_name
 from scraping.types import RunStatus
 
 MAX_PAGE_SIZE = 100
+GOOGLE_SOURCE_KEY = "google_places"
 MAX_FILTER_VALUES = 60
 MAX_SEARCH_TOKENS = 8
 FUZZY_MIN_TOKEN_LENGTH = 4
@@ -84,7 +83,7 @@ class RegistrationResponse(BaseModel):
     first_seen_at: datetime
     last_seen_at: datetime
     last_changed_at: datetime
-    google_place_id: Optional[str] = None
+    listing_only: bool = False
     nri: Optional[NriSummary] = None
 
 
@@ -197,7 +196,7 @@ def _to_response(
         first_seen_at=registration.first_seen_at,
         last_seen_at=registration.last_seen_at,
         last_changed_at=registration.last_changed_at,
-        google_place_id=registration.attributes.get("google_place_id"),
+        listing_only=source.key == GOOGLE_SOURCE_KEY and "web_enriched" not in registration.attributes,
     )
 
 
@@ -373,6 +372,7 @@ async def list_registrations(
     status: Optional[Literal["active", "expired", "delisted"]] = None,
     nri: Optional[Literal["high", "medium", "low"]] = None,
     verification: Optional[Literal["verified", "unverified"]] = None,
+    details: Optional[Literal["with_details", "listing_only"]] = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=25, ge=1, le=MAX_PAGE_SIZE),
     session: AsyncSession = Depends(get_session),
@@ -391,6 +391,12 @@ async def list_registrations(
 
     if verification:
         conditions.append(DataSource.verification_level == verification)
+    if details:
+        listing_only = and_(
+            DataSource.key == GOOGLE_SOURCE_KEY,
+            ProfessionalRegistration.attributes["web_enriched"].astext.is_(None),
+        )
+        conditions.append(listing_only if details == "listing_only" else not_(listing_only))
     if nri:
         conditions.append(
             select(NriSignal.id)
@@ -466,22 +472,6 @@ async def _load_registration(session: AsyncSession, registration_id: str):
 @router.get("/{registration_id}", response_model=RegistrationResponse)
 async def get_registration(registration_id: str, session: AsyncSession = Depends(get_session)):
     return _to_response(*await _load_registration(session, registration_id))
-
-
-@router.get("/{registration_id}/google", response_model=GooglePlaceDetails)
-async def get_google_place_details(
-    registration_id: str,
-    session: AsyncSession = Depends(get_session),
-    settings: AppSettings = Depends(get_app_settings),
-):
-    registration, _, _ = await _load_registration(session, registration_id)
-    place_id = registration.attributes.get("google_place_id")
-    if not place_id:
-        raise HTTPException(status_code=404, detail="Registration has no Google listing")
-    try:
-        return await fetch_place_details(settings.google_api_key, place_id)
-    except PlaceDetailsUnavailable:
-        raise HTTPException(status_code=502, detail="Google listing details are unavailable")
 
 
 @router.get("/{registration_id}/nri", response_model=NriDetailResponse)

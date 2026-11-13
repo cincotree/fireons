@@ -115,6 +115,15 @@ async def test_tavily_quota_and_error_responses_raise_without_leaking_the_key():
         await tavily.search("", "q")
 
 
+async def test_tavily_results_keep_the_title_with_the_url():
+    def handler(request):
+        return httpx.Response(200, json={"results": [{"url": "https://a.example/", "title": " A Firm "}, {"url": "https://b.example/"}]})
+
+    results = await tavily.search_results("key", "q", transport=httpx.MockTransport(handler))
+
+    assert [(r.url, r.title) for r in results] == [("https://a.example/", "A Firm"), ("https://b.example/", "")]
+
+
 def site_transport(sites):
     requested = []
 

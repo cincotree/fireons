@@ -181,16 +181,19 @@ async def test_import_stores_unverified_rows_and_lists_the_filtered_ones(engine,
 
 
 @pytest.mark.usefixtures("use_test_engine")
-async def test_reimport_is_idempotent_and_picks_up_changes(tmp_path):
+async def test_reimport_leaves_existing_rows_alone_and_adds_only_new_ones(engine, tmp_path):
     path = write_csv(tmp_path / "places.csv", [row(1), row(2)])
     await load(path)
 
     same = await load(path)
-    write_csv(path, [row(1, searched_city="Otherville"), row(2)])
-    changed = await load(path)
+    write_csv(path, [row(1, searched_city="Otherville"), row(2), row(3)])
+    grown = await load(path)
 
-    assert (same.inserted, same.updated, same.unchanged) == (0, 0, 2)
-    assert (changed.inserted, changed.updated, changed.unchanged) == (0, 1, 1)
+    assert (same.inserted, same.updated, same.unchanged) == (0, 0, 0)
+    assert (grown.inserted, grown.updated, grown.unchanged) == (1, 0, 0)
+    async with AsyncSession(engine) as session:
+        cities = {r.registration_number: r.city for r in (await session.scalars(select(ProfessionalRegistration))).all()}
+    assert cities == {"GP-place-1": "Testville", "GP-place-2": "Testville", "GP-place-3": "Testville"}
 
 
 @pytest.mark.usefixtures("use_test_engine")
