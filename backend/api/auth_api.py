@@ -7,49 +7,21 @@ from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app_config import AppSettings, get_app_settings
-from auth_utils import (
-    Token,
-    TokenData,
-    create_access_token,
-    decode_token,
-    get_password_hash,
-    verify_password,
-)
-from database.models import Invite, InviteRedemption, User
+from auth_utils import decode_token
+from database.models import Invite, User
 from database.session import get_session
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 security = HTTPBearer()
 
 
-class UserFields(BaseModel):
-    email: EmailStr
-    username: str
-    password: str
-    full_name: Optional[str] = None
-    location: Optional[str] = None
-    primary_currency: str = "USD"
-
-    class Config:
-        from_attributes = True
-
-
-class RegisterRequest(UserFields):
-    invite_code: Optional[str] = None
-
-
 class RegistrationInfo(BaseModel):
     invite_required: bool
 
 
-class LoginCreds(BaseModel):
-    username: str
-    password: str
-
-
 class UserResponse(BaseModel):
     id: str
-    email: EmailStr
+    email: Optional[EmailStr] = None
     username: str
     full_name: Optional[str] = None
     location: Optional[str] = None
@@ -112,93 +84,6 @@ async def consume_invite(session: AsyncSession, code: Optional[str]) -> str:
 @router.get("/registration", response_model=RegistrationInfo)
 async def get_registration_info(settings: AppSettings = Depends(get_app_settings)):
     return RegistrationInfo(invite_required=settings.invite_only)
-
-
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(
-    user_data: RegisterRequest,
-    session: AsyncSession = Depends(get_session),
-    settings: AppSettings = Depends(get_app_settings),
-):
-    if not user_data.password:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password is required"
-        )
-
-    result = await session.execute(
-        select(User).where(User.username == user_data.username)
-    )
-    if result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already registered"
-        )
-
-    result = await session.execute(
-        select(User).where(User.email == user_data.email)
-    )
-    if result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
-        )
-
-    invite_id = await consume_invite(session, user_data.invite_code) if settings.invite_only else None
-
-    hashed_password = get_password_hash(user_data.password)
-    new_user = User(
-        email=user_data.email,
-        username=user_data.username,
-        hashed_password=hashed_password,
-        full_name=user_data.full_name,
-        location=user_data.location,
-        primary_currency=user_data.primary_currency,
-    )
-
-    session.add(new_user)
-    await session.flush()
-    if invite_id is not None:
-        session.add(InviteRedemption(invite_id=invite_id, user_id=new_user.id))
-    await session.commit()
-    await session.refresh(new_user)
-
-    return UserResponse(
-        id=new_user.id,
-        email=new_user.email,
-        username=new_user.username,
-        full_name=new_user.full_name,
-        location=new_user.location,
-        primary_currency=new_user.primary_currency,
-    )
-
-
-@router.post("/login", response_model=Token)
-async def login(
-    login_data: LoginCreds,
-    session: AsyncSession = Depends(get_session)
-):
-    result = await session.execute(
-        select(User).where(User.username == login_data.username)
-    )
-    user = result.scalar_one_or_none()
-
-    if not user or not verify_password(login_data.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    access_token = create_access_token(
-        data={
-            "sub": user.id,
-            "username": user.username,
-            "email": user.email
-        }
-    )
-
-    return {"access_token": access_token, "token_type": "bearer"}
 
 
 @router.get("/me", response_model=UserResponse)

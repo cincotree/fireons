@@ -4,6 +4,7 @@ from alembic import command
 from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
 from alembic.autogenerate import compare_metadata
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from database.models import Base
@@ -47,3 +48,34 @@ async def _drop_all() -> None:
             await connection.run_sync(Base.metadata.drop_all)
     finally:
         await engine.dispose()
+
+
+async def test_pg_trgm_extension_is_installed(engine):
+    async with engine.connect() as conn:
+        installed = await conn.scalar(
+            text("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm')")
+        )
+    assert installed is True
+
+
+async def test_name_search_index_is_a_gin_trigram_index(engine):
+    async with engine.connect() as conn:
+        definition = await conn.scalar(
+            text("SELECT indexdef FROM pg_indexes WHERE indexname = 'ix_financial_professionals_name_trgm'")
+        )
+    assert definition is not None
+    assert "USING gin" in definition
+    assert "gin_trgm_ops" in definition
+
+
+async def test_trigram_index_is_usable_for_substring_search(engine):
+    async with engine.begin() as conn:
+        await conn.execute(text("SET LOCAL enable_seqscan = off"))
+        plan = (
+            await conn.execute(
+                text(
+                    "EXPLAIN SELECT id FROM financial_professionals WHERE name_normalized LIKE '%mehta%'"
+                )
+            )
+        ).all()
+    assert "ix_financial_professionals_name_trgm" in "\n".join(row[0] for row in plan)

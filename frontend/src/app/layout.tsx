@@ -9,7 +9,7 @@ import "./globals.css";
 const customFont = Nunito({ weight: "400", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Fireons",
+  title: { default: "Fireons", template: "%s | Fireons" },
   description: "Fireons",
 };
 

@@ -17,8 +17,8 @@ uv pip install \
   --no-compile \
   -r build/requirements.txt
 
-cp app.py app_config.py auth_utils.py build_info.py secrets_source.py run.sh build/package/
-cp -R api database ingestion jobs build/package/
+cp app.py app_config.py auth_utils.py build_info.py oauth_providers.py secrets_source.py run.sh build/package/
+cp -R api database ingestion jobs scraping build/package/
 
 COMMIT="$(git rev-parse HEAD)"
 if [ -n "$(git status --porcelain)" ]; then
