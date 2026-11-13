@@ -10,6 +10,8 @@ The API (Lambda) only reads the registry tables. It makes no calls to Google or 
 
 Run these from the repo root. To load production, set `DATABASE_URL` to the Neon URL for that command only (`DATABASE_URL=... make scrape SOURCE=sebi_ria`), never export it in a shell that also runs the e2e tests. Keys (`GOOGLE_API_KEY`, `TAVILY_API_KEY`) come from `backend/.env`.
 
+Two targets cover everything: `make daily` (export-places, import-places, enrich-places, enrich-nri, in that order, stopping at the first failure) and `make weekly` (scrapes all four registers, continues past a failing source and exits non-zero if any failed). To target production: `DATABASE_URL='postgresql+psycopg://...?sslmode=require' make daily`.
+
 | Step | Command | How often | Needs |
 |---|---|---|---|
 | Migrate | `make migrate` | after pulling migrations | |

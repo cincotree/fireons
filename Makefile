@@ -3,7 +3,7 @@
 TF_ENV ?= production
 TF_DIR = infra/environments/$(TF_ENV)
 
-.PHONY: tf-bootstrap tf-init tf-fmt tf-validate tf-plan tf-apply tf-output create-admin deploy-api deploy-jobs-image deploy-webapp help setup install env db db-create migrate \
+.PHONY: daily weekly tf-bootstrap tf-init tf-fmt tf-validate tf-plan tf-apply tf-output create-admin deploy-api deploy-jobs-image deploy-webapp help setup install env db db-create migrate \
 	backend-setup backend backend-test scrape export-places import-places enrich-places enrich-nri find-websites scraper-worker \
 	compose-up compose-up-scraper compose-down \
 	frontend-setup frontend frontend-build frontend-lint \
@@ -29,7 +29,11 @@ help:
 	@echo "  backend          Apply migrations and start the backend with reload"
 	@echo "  frontend         Start the frontend dev server"
 	@echo ""
-	@echo "Registry scraper"
+	@echo "Registry data (run from your machine; set DATABASE_URL inline to target another database)"
+	@echo "  daily               Export, import and enrich Google listings, then check sites for NRI signals"
+	@echo "  weekly              Scrape every register (continues past a failing source, exits non-zero if any failed)"
+	@echo ""
+	@echo "Registry scraper (single steps)"
 	@echo "  scrape              Run one scraper once (SOURCE=sebi_ria, sebi_research_analyst, fee_only_india or fpsb_cfp)"
 	@echo "  scraper-worker      Run the weekly scraper scheduler in the foreground"
 	@echo "  enrich-nri          Check firm websites for NRI signals (python -m enrichment review-queue to review)"
@@ -88,6 +92,17 @@ migrate:
 	cd backend && uv run alembic upgrade head
 
 SOURCE ?= sebi_ria
+WEEKLY_SOURCES = sebi_ria sebi_research_analyst fee_only_india fpsb_cfp
+
+daily: export-places import-places enrich-places enrich-nri
+
+weekly:
+	@failed=""; \
+	for source in $(WEEKLY_SOURCES); do \
+		echo "== scraping $$source"; \
+		$(MAKE) --no-print-directory scrape SOURCE=$$source || failed="$$failed $$source"; \
+	done; \
+	if [ -n "$$failed" ]; then echo "Failed sources:$$failed"; exit 1; fi
 
 scrape:
 	cd backend && uv run python -m scraping run $(SOURCE)
