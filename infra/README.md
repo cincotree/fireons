@@ -74,6 +74,7 @@ Jobs run as on-demand Fargate tasks, so idle cost is the ECR storage only. The i
 - Resources: ECR repository (keeps 5 images), ECS cluster, task definition (arm64, 0.5 vCPU, 1 GB), egress only security group, log group. There is no service and no NAT gateway. Tasks use the default VPC public subnets with a public IP to reach Neon and AWS APIs.
 - The Release workflow builds the arm64 image on a GitHub arm64 runner and pushes it to ECR as `latest` and the commit hash whenever `backend/` changes (job "Release jobs image"), so the runner never drifts from the API. The task definition uses `latest`, so new tasks pick it up. `make deploy-jobs-image` is the manual fallback: it derives the repository from the current AWS account (`fireons-<env>-jobs`), or from `JOBS_ECR_REPOSITORY_URL` if set. Roll back by re-running the Release workflow for an older ref.
 - Add a job by registering it in `backend/jobs/registry.py`, and add a `scheduled_jobs` entry if it is periodic.
+- Today the only job is `exchange_rate_sync`. The registry scrapers and enrichment are run locally, see [docs/professionals-data.md](../docs/professionals-data.md).
 
 ## Invite-only registration
 
