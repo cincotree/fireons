@@ -33,6 +33,7 @@ logger = logging.getLogger("enrichment.places_enrichment")
 
 MAX_TITLE_LENGTH = 300
 TITLE_SEPARATORS = re.compile(r"\s*\|\s*|\s+[-\u2013\u2014:]\s+")
+LEGAL_TITLE = re.compile(r"\b(advocates?|lawyers?|law firm|legal)\b", re.IGNORECASE)
 GENERIC_SEGMENTS = {"home", "homepage", "welcome", "index", "contact", "contact us", "about", "about us", "services"}
 
 
@@ -48,8 +49,11 @@ class PlacesEnrichmentSummary:
     stopped_reason: str = "finished"
 
 
-def best_title(title: str, name: str) -> str | None:
-    wanted = set(distinctive_tokens(name))
+def best_title(title: str, name: str, city: str = "") -> str | None:
+    if LEGAL_TITLE.search(title):
+        return None
+    city_words = set(distinctive_tokens(city)) | {word.lower() for word in re.findall(r"[A-Za-z0-9]+", city)}
+    wanted = set(distinctive_tokens(name)) - city_words
     if not wanted:
         return None
     needed = math.ceil(len(wanted) / 2)
@@ -58,7 +62,7 @@ def best_title(title: str, name: str) -> str | None:
         segment = collapse_whitespace(segment)
         if not segment or segment.lower() in GENERIC_SEGMENTS:
             continue
-        overlap = len(wanted & set(distinctive_tokens(segment)))
+        overlap = len(wanted & (set(distinctive_tokens(segment)) - city_words))
         if overlap >= needed and (best is None or overlap > best[0]):
             best = (overlap, segment)
     return best[1][:MAX_TITLE_LENGTH] if best else None
@@ -103,7 +107,7 @@ async def _find_match(
         seen.append(domain)
         if len(seen) > MAX_SEARCH_CANDIDATES:
             break
-        title = best_title(result.title, name)
+        title = best_title(result.title, name, city)
         if title and await verified_domain(domain, name, city, client, settings):
             return domain, title
     return None

@@ -232,22 +232,25 @@ async def test_reimporting_the_csv_does_not_undo_enrichment(engine, tmp_path):
 
 
 @pytest.mark.parametrize(
-    "title,name,expected",
+    "title,name,city,expected",
     [
-        ("Contact Us | HR Fin Services | Get Quick Loan for Everyone !", "HR Fin Services", "HR Fin Services"),
-        ("Zed Quartz | Tax and Advisory, Pune", "Zed Quartz Advisers", "Zed Quartz"),
-        ("Trusted Wealth Management Partner in India | Shriram Wealth", "Shriram Wealth Advisers", "Shriram Wealth"),
-        ("Kumar Patel Associates - Chartered Accountants in Pune", "Kumar Patel Associates", "Kumar Patel Associates"),
-        ("Zed Quartz Tax", "Zed Quartz Advisers", "Zed Quartz Tax"),
-        ("Investment Opportunities in Delhi - Invest India", "Bhutada Advisory", None),
-        ("Home | Welcome", "Bhutada Advisory", None),
-        ("Financial Advisor in Pune | Financial Planner", "Bhutada Advisory", None),
-        ("Bhutada Services", "CA & Co", None),
-        ("", "Bhutada Advisory", None),
+        ("Contact Us | HR Fin Services | Get Quick Loan for Everyone !", "HR Fin Services", "Pune", "HR Fin Services"),
+        ("Zed Quartz | Tax and Advisory, Pune", "Zed Quartz Advisers", "Pune", "Zed Quartz"),
+        ("Trusted Wealth Management Partner in India | Shriram Wealth", "Shriram Wealth Advisers", "Pune", "Shriram Wealth"),
+        ("Kumar Patel Associates - Chartered Accountants in Pune", "Kumar Patel Associates", "Pune", "Kumar Patel Associates"),
+        ("Zed Quartz Tax", "Zed Quartz Advisers", "Pune", "Zed Quartz Tax"),
+        ("Investment Opportunities in Delhi - Invest India", "Bhutada Advisory", "Pune", None),
+        ("Home | Welcome", "Bhutada Advisory", "Pune", None),
+        ("Financial Advisor in Pune | Financial Planner", "Bhutada Advisory", "Pune", None),
+        ("Bhutada Services", "CA & Co", "Pune", None),
+        ("", "Bhutada Advisory", "Pune", None),
+        ("Financial Advisor in Pune | Financial Planner", "MFD and wealth management firm in Pune", "Pune", None),
+        ("H.SINGH & ASSOCIATES (Advocates) - Law Firm in Kolkata", "Singh Associates", "Kolkata", None),
+        ("Zed Quartz Pune | Tax Advisory", "Zed Pune Advisers", "Pune", "Zed Quartz Pune"),
     ],
 )
-def test_the_stored_name_is_the_title_segment_that_matches_the_listing(title, name, expected):
-    assert best_title(title, name) == expected
+def test_the_stored_name_is_the_title_segment_that_matches_the_listing(title, name, city, expected):
+    assert best_title(title, name, city) == expected
 
 
 @pytest.mark.usefixtures("use_test_engine")
