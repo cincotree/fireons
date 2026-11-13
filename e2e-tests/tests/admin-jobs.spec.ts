@@ -1,21 +1,12 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { adminLogin, createAdmin } from '../helpers/admin';
+import { signIn } from './support/session';
 
 let adminUsername = '';
 
 test.beforeAll(() => {
   adminUsername = createAdmin();
 });
-
-async function registerRegularUser(page: Page) {
-  const username = `plainjobs${Date.now()}`;
-  await page.goto('/register');
-  await page.getByLabel(/Email/i).fill(`${username}@example.com`);
-  await page.getByLabel(/^Username/i).fill(username);
-  await page.locator('input[name="password"]').fill('Test123!@#');
-  await page.getByRole('button', { name: /Create account/i }).click();
-  await page.waitForURL(/.*networth/, { timeout: 5000 });
-}
 
 test.describe('Admin jobs', () => {
   test('anonymous visitors are sent to the admin login', async ({ page }) => {
@@ -25,7 +16,9 @@ test.describe('Admin jobs', () => {
   });
 
   test('a signed in regular user has no admin access and sees no admin link', async ({ page }) => {
-    await registerRegularUser(page);
+    await signIn(page, 'plainjobs');
+    await page.goto('/networth');
+    await expect(page.getByRole('button', { name: 'Add Account' })).toBeVisible();
 
     await expect(page.getByRole('link', { name: /jobs/i })).toHaveCount(0);
     await page.goto('/admin/jobs');
