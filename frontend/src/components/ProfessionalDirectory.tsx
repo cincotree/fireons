@@ -15,6 +15,7 @@ import {
   SlidersHorizontal,
   X,
 } from "lucide-react";
+import { GoogleListingName } from "@/components/GoogleListingName";
 import { Monogram } from "@/components/Monogram";
 import { MultiSelect } from "@/components/MultiSelect";
 import { NriBadge } from "@/components/NriBadge";
@@ -384,31 +385,35 @@ export function ProfessionalDirectory() {
                   className="block border-[#E6ECE9] px-5 py-4 hover:bg-[#F8FBFA] md:table-row md:px-0 md:py-0"
                 >
                   <TableCell className="block p-0 md:table-cell md:px-5 md:py-4">
-                    <div className="flex items-center gap-3">
-                      <Monogram name={registration.name} />
-                      <div className="min-w-0">
-                        <button
-                          type="button"
-                          onClick={() => setSelected(registration)}
-                          aria-label={`View history for ${registration.name}`}
-                          className="group inline-flex max-w-full items-center gap-1.5 rounded text-left text-[15px] font-semibold text-[#12211D] hover:text-[#0E6B57] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0E6B57]"
-                        >
-                          <span className="break-words">{registration.name}</span>
-                          <History
-                            className="h-3.5 w-3.5 shrink-0 text-[#0E6B57] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
-                            aria-hidden="true"
-                          />
-                        </button>
-                        <p className="flex flex-wrap items-center gap-x-2 text-xs text-[#66766F]">
-                          <span>{registration.kind === "firm" ? "Firm" : "Individual"}</span>
-                          {registration.verification === "unverified" && (
-                            <span className="rounded-full border border-[#E2D3B3] bg-[#FBF5E6] px-2 py-0.5 font-semibold text-[#7A5A12]">
-                              Unverified
-                            </span>
-                          )}
-                        </p>
+                    {registration.google_place_id ? (
+                      <GoogleListingName registration={registration} />
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <Monogram name={registration.name} />
+                        <div className="min-w-0">
+                          <button
+                            type="button"
+                            onClick={() => setSelected(registration)}
+                            aria-label={`View history for ${registration.name}`}
+                            className="group inline-flex max-w-full items-center gap-1.5 rounded text-left text-[15px] font-semibold text-[#12211D] hover:text-[#0E6B57] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0E6B57]"
+                          >
+                            <span className="break-words">{registration.name}</span>
+                            <History
+                              className="h-3.5 w-3.5 shrink-0 text-[#0E6B57] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                              aria-hidden="true"
+                            />
+                          </button>
+                          <p className="flex flex-wrap items-center gap-x-2 text-xs text-[#66766F]">
+                            <span>{registration.kind === "firm" ? "Firm" : "Individual"}</span>
+                            {registration.verification === "unverified" && (
+                              <span className="rounded-full border border-[#E2D3B3] bg-[#FBF5E6] px-2 py-0.5 font-semibold text-[#7A5A12]">
+                                Unverified
+                              </span>
+                            )}
+                          </p>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </TableCell>
                   <TableCell className="block whitespace-nowrap p-0 pt-2 md:table-cell md:px-4 md:py-4">
                     <span className="inline-flex items-center gap-1.5 text-sm font-medium tabular-nums text-[#12211D]">

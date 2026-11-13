@@ -105,6 +105,7 @@ async def _load_candidates(limit: int | None, search_only: bool) -> list[tuple[s
         .join(DataSource, DataSource.id == ProfessionalRegistration.source_id)
         .where(
             DataSource.verification_level == "unverified",
+            DataSource.key != "google_places",
             ProfessionalRegistration.status != "delisted",
             ProfessionalRegistration.city.is_not(None),
             ProfessionalRegistration.attributes["website"].astext.is_(None),

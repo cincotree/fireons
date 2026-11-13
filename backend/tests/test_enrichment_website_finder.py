@@ -141,12 +141,13 @@ def client_for(sites):
     return PoliteClient(fast_settings(), transport=transport, sleep=no_sleep), transport
 
 
-async def add_listing(engine, name, city, verification="unverified", email=None, website=None, number=None):
+async def add_listing(engine, name, city, verification="unverified", email=None, website=None, number=None, source_key=None):
+    key = source_key or f"finder_{verification}"
     async with AsyncSession(engine) as session:
-        source = await session.scalar(select(DataSource).where(DataSource.key == f"finder_{verification}"))
+        source = await session.scalar(select(DataSource).where(DataSource.key == key))
         if source is None:
             source = DataSource(
-                key=f"finder_{verification}", name=verification, regulator="TEST",
+                key=key, name=verification, regulator="TEST",
                 default_profession_type="investment_adviser", base_url="https://x.test", is_enabled=True,
                 verification_level=verification,
             )
@@ -370,6 +371,21 @@ async def test_listings_that_already_have_a_website_or_are_register_rows_are_lef
     assert summary.rows_considered == 0
     assert await lookup_for(engine, with_site) is None
     assert await lookup_for(engine, register_row) is None
+
+
+async def test_google_listings_are_never_searched_because_no_name_is_stored(engine, tmp_path):
+    listing = await add_listing(engine, "Google Maps listing", "Pune", source_key="google_places")
+    client, _ = client_for({})
+
+    async with client:
+        summary = await find_websites(
+            client=client, settings=settings(), ledger_path=tmp_path / "t.json", resolver=yes,
+            tavily_transport=tavily_transport([]), now=NOW,
+        )
+
+    assert summary.rows_considered == 0
+    assert summary.searches_made == 0
+    assert await lookup_for(engine, listing) is None
 
 
 async def test_rerun_does_not_repeat_finished_lookups(engine, tmp_path):

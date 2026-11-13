@@ -5,17 +5,18 @@ from pathlib import Path
 from typing import AsyncIterator
 
 from scraping.http import PoliteClient
-from scraping.normalize import INDIAN_STATES, classify_kind, collapse_whitespace
+from scraping.normalize import collapse_whitespace
 from scraping.types import (
     FetchedPage,
     ParseError,
+    ProfessionalKind,
     ProfessionType,
     ScrapedRegistration,
     SourceDefinition,
 )
 
 LISTING_URL = "https://www.google.com/maps"
-PINCODE_PATTERN = re.compile(r"\b(\d{3}\s?\d{3})\b")
+PLACEHOLDER_NAME = "Google Maps listing"
 
 CATEGORY_TYPES = {
     "chartered_accountant": ProfessionType.CHARTERED_ACCOUNTANT,
@@ -62,29 +63,6 @@ DEFINITION = SourceDefinition(
 REJECTED_COLUMNS = ["reason", "place_id", "name", "category", "searched_city", "address", "types"]
 
 
-def _states_by_length() -> list[tuple[str, str]]:
-    return sorted(INDIAN_STATES.items(), key=lambda item: -len(item[0]))
-
-
-def parse_google_address(address: str | None) -> tuple[str | None, str | None]:
-    if not address:
-        return None, None
-    cleaned = re.sub(r",?\s*India\s*$", "", address, flags=re.IGNORECASE)
-    pincode_match = PINCODE_PATTERN.search(cleaned)
-    pincode = pincode_match.group(1).replace(" ", "") if pincode_match else None
-    segments = [segment.strip() for segment in cleaned.split(",") if segment.strip()]
-    state = None
-    for index in range(len(segments) - 1, -1, -1):
-        candidate = PINCODE_PATTERN.sub("", segments[index]).strip().casefold()
-        for name, canonical in _states_by_length():
-            if candidate == name:
-                state = canonical
-                break
-        if state:
-            break
-    return state, pincode
-
-
 def rejection_reason(row: dict) -> str | None:
     if (row.get("business_status") or "").upper() == "CLOSED_PERMANENTLY":
         return "permanently closed"
@@ -101,44 +79,28 @@ def to_registration(row: dict) -> ScrapedRegistration:
     place_id = collapse_whitespace(row.get("place_id")) or ""
     if not place_id:
         raise ParseError("Row without a place id")
-    name = collapse_whitespace(row.get("name"))
-    if not name:
-        raise ParseError(f"Missing name for {place_id}")
     category = (row.get("category") or "").strip()
     profession_type = CATEGORY_TYPES.get(category)
     if profession_type is None:
         raise ParseError(f"Unknown category {category!r} for {place_id}")
-    address = collapse_whitespace(row.get("address"))
-    state, pincode = parse_google_address(address)
     searched_city = collapse_whitespace(row.get("searched_city"))
-    attributes = {
-        key: value
-        for key, value in {
-            "website": collapse_whitespace(row.get("website")),
-            "latitude": collapse_whitespace(row.get("latitude")),
-            "longitude": collapse_whitespace(row.get("longitude")),
-            "google_place_id": place_id,
-            "google_types": collapse_whitespace(row.get("types")),
-        }.items()
-        if value
-    }
     return ScrapedRegistration(
         registration_number=f"GP-{place_id}",
-        name=name,
-        kind=classify_kind(name),
+        name=PLACEHOLDER_NAME,
+        kind=ProfessionalKind.FIRM,
         profession_type=profession_type,
         valid_from=None,
         valid_until=None,
         validity_raw=None,
         city=searched_city,
-        state=state,
-        pincode=pincode,
-        address_raw=address,
+        state=None,
+        pincode=None,
+        address_raw=None,
         email=None,
-        phone=collapse_whitespace(row.get("phone")),
+        phone=None,
         contact_person=None,
         source_url=collapse_whitespace(row.get("google_maps_url")) or LISTING_URL,
-        attributes=attributes,
+        attributes={"google_place_id": place_id},
     )
 
 

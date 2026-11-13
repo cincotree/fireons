@@ -6,6 +6,7 @@ const { Client } = pg;
 
 const FILLER_COUNT = 28;
 const TOTAL = 34;
+const GOOGLE_PLACEHOLDER = 'Google Maps listing';
 
 interface SeedRegistration {
   name: string;
@@ -16,6 +17,7 @@ interface SeedRegistration {
   validUntil?: string | null;
   email?: string | null;
   phone?: string | null;
+  attributes?: Record<string, string>;
 }
 
 const NAMED: SeedRegistration[] = [
@@ -81,7 +83,7 @@ async function insertRegistration(client: pg.Client, sourceId: string, runId: st
         validity_raw, city, state, pincode, address_raw, email, phone, contact_person, attributes,
         source_url, content_hash, missing_runs)
      VALUES (gen_random_uuid(), $1, $2, 'investment_adviser', $3, $4, '2022-01-01', $5, 'Jan 01, 2022 - Perpetual', $6, $7,
-        '400001', '1 Test Road', $8, $9, $10, '{}'::jsonb, 'https://example.test/list', $11, 0)
+        '400001', '1 Test Road', $8, $9, $10, $12::jsonb, 'https://example.test/list', $11, 0)
      RETURNING id`,
     [
       professional.rows[0].id,
@@ -95,6 +97,7 @@ async function insertRegistration(client: pg.Client, sourceId: string, runId: st
       row.phone ?? null,
       row.name,
       row.number.padEnd(64, '0'),
+      JSON.stringify(row.attributes ?? {}),
     ]
   );
   return registration.rows[0].id as string;
@@ -188,8 +191,8 @@ test.describe('Professionals directory - signed-in listing, filters and change h
                  'https://www.google.com/maps', true, 'unverified') RETURNING id`
       );
       for (const listed of [
-        { name: 'Listed Ledger Associates', number: 'GP-e2e-1', city: 'Kochi', state: 'Kerala' },
-        { name: 'Listed Tax Desk', number: 'GP-e2e-2', city: 'Kochi', state: 'Kerala' },
+        { name: GOOGLE_PLACEHOLDER, number: 'GP-e2e-1', city: 'Kochi', state: 'Kerala', attributes: { google_place_id: 'e2e-1' } },
+        { name: GOOGLE_PLACEHOLDER, number: 'GP-e2e-2', city: 'Kochi', state: 'Kerala', attributes: { google_place_id: 'e2e-2' } },
       ]) {
         await insertRegistration(client, googleSource.rows[0].id as string, runId, listed);
       }
@@ -651,16 +654,63 @@ test.describe('Professionals directory - signed-in listing, filters and change h
 
   const unverifiedTag = (page: Page) => page.getByText('Unverified', { exact: true });
 
-  test('listings from Google Maps are labelled Unverified and register rows are not', async ({ page }) => {
-    await page.goto('/professionals');
-    await searchBox(page).fill('Listed Ledger');
+  const googleDetails = (page: Page) =>
+    page.route(/\/registrations\/[^/]+\/google$/, (route) =>
+      route.fulfill({
+        json: { name: 'Live Ledger Associates', address: '1 Live Road, Kochi', maps_url: 'https://maps.example.test/live' },
+      })
+    );
 
-    await expect(historyButton(page, 'Listed Ledger Associates')).toBeVisible();
-    await expect(unverifiedTag(page)).toHaveCount(1);
+  test('listings from Google Maps show live Google details, are labelled Unverified, and register rows are not', async ({ page }) => {
+    await googleDetails(page);
+    await page.goto('/professionals');
+    await openFilters(page);
+    await filter(page, 'Verification').selectOption('unverified');
+
+    await expect(page.getByRole('link', { name: 'Live Ledger Associates' })).toHaveCount(2);
+    await expect(page.getByText('1 Live Road, Kochi')).toHaveCount(2);
+    await expect(page.getByRole('link', { name: 'Live Ledger Associates' }).first()).toHaveAttribute(
+      'href',
+      'https://maps.example.test/live'
+    );
+    await expect(unverifiedTag(page)).toHaveCount(2);
 
     await searchBox(page).fill('Rohan Mehta');
-    await expect(historyButton(page, 'Rohan Mehta')).toBeVisible();
-    await expect(unverifiedTag(page)).toHaveCount(0);
+    await expect(page.getByText('No professionals match your filters.')).toBeVisible();
+  });
+
+  test('Google names are not stored, so searching one finds nothing', async ({ page }) => {
+    await googleDetails(page);
+    await page.goto('/professionals');
+
+    await searchBox(page).fill('Live Ledger');
+
+    await expect(page.getByText('No professionals match your filters.')).toBeVisible();
+  });
+
+  test('when Google details fail the row falls back to a Google Maps link', async ({ page }) => {
+    await page.route(/\/registrations\/[^/]+\/google$/, (route) => route.fulfill({ status: 502, body: 'down' }));
+    await page.goto('/professionals');
+    await openFilters(page);
+    await filter(page, 'Verification').selectOption('unverified');
+
+    const fallback = page.getByRole('link', { name: 'View on Google Maps' });
+    await expect(fallback).toHaveCount(2);
+    await expect(fallback.first()).toHaveAttribute('href', 'https://example.test/list');
+  });
+
+  test('Google details are requested live for every visible listing', async ({ page }) => {
+    await googleDetails(page);
+    const requests: string[] = [];
+    page.on('request', (request) => {
+      if (/\/registrations\/[^/]+\/google$/.test(request.url())) requests.push(request.url());
+    });
+    await page.goto('/professionals');
+    await openFilters(page);
+    await filter(page, 'Verification').selectOption('unverified');
+    await expect(page.getByRole('link', { name: 'Live Ledger Associates' })).toHaveCount(2);
+
+    expect(requests.length).toBeGreaterThanOrEqual(2);
   });
 
   test('the verification filter shows only unverified or only verified rows', async ({ page }) => {
@@ -689,27 +739,8 @@ test.describe('Professionals directory - signed-in listing, filters and change h
     await expect(page.getByText('No professionals match your filters.')).toBeVisible();
   });
 
-  test('the side panel explains what unverified means', async ({ page }) => {
+  test('the side panel shows the source name for register rows and no Google Maps link', async ({ page }) => {
     await page.goto('/professionals');
-    await searchBox(page).fill('Listed Tax Desk');
-
-    await historyButton(page, 'Listed Tax Desk').click();
-
-    await expect(
-      page.getByText('Unverified: listed on Google Maps, not confirmed by a regulator or the owner')
-    ).toBeVisible();
-  });
-
-  test('the side panel shows a bare Google Maps link for unverified rows and the source name for register rows', async ({ page }) => {
-    await page.goto('/professionals');
-    await searchBox(page).fill('Listed Tax Desk');
-    await historyButton(page, 'Listed Tax Desk').click();
-
-    await expect(page.getByRole('link', { name: 'Google Maps link' })).toBeVisible();
-    await expect(page.getByText('Published by')).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'Google Maps link' })).toHaveAttribute('href', 'https://example.test/list');
-
-    await page.keyboard.press('Escape');
     await searchBox(page).fill('Rohan Mehta');
     await historyButton(page, 'Rohan Mehta').click();
 

@@ -13,8 +13,8 @@ from scraping.runner import run_source
 from scraping.sources import SOURCES
 from scraping.sources.google_places import (
     DEFINITION,
+    PLACEHOLDER_NAME,
     GooglePlacesCsvSource,
-    parse_google_address,
     read_csv,
     rejection_reason,
     to_registration,
@@ -78,20 +78,22 @@ def test_row_is_mapped_to_a_registration():
     record = to_registration(row(1))
 
     assert record.registration_number == "GP-place-1"
-    assert record.name == "Sample Advisers 1"
+    assert record.name == PLACEHOLDER_NAME
     assert record.kind == ProfessionalKind.FIRM
     assert record.profession_type == ProfessionType.CHARTERED_ACCOUNTANT
-    assert (record.city, record.state, record.pincode) == ("Testville", "Maharashtra", "411001")
-    assert record.phone == "099999 00000"
-    assert record.email is None
+    assert record.city == "Testville"
     assert record.source_url == "https://maps.example.test/1"
-    assert record.attributes == {
-        "website": "https://firm1.example.com/",
-        "latitude": "12.5",
-        "longitude": "77.5",
-        "google_place_id": "place-1",
-        "google_types": "accounting;point_of_interest",
-    }
+    assert record.attributes == {"google_place_id": "place-1"}
+
+
+def test_no_google_content_beyond_the_place_id_and_maps_link_is_kept():
+    record = to_registration(row(1))
+
+    assert (record.state, record.pincode, record.address_raw, record.phone, record.email) == (None, None, None, None, None)
+    assert "Sample Advisers" not in repr(record)
+    assert "Test Road" not in repr(record)
+    assert "99999" not in repr(record)
+    assert "firm1.example.com" not in repr(record)
 
 
 def test_fetch_time_is_not_part_of_the_record_so_reimports_do_not_look_like_changes():
@@ -121,26 +123,11 @@ def test_categories_map_to_profession_types_and_listed_types_are_not_the_sebi_on
 
 @pytest.mark.parametrize(
     "overrides",
-    [{"place_id": ""}, {"name": "  "}, {"category": "astrologer"}, {"category": ""}],
+    [{"place_id": ""}, {"category": "astrologer"}, {"category": ""}],
 )
 def test_unusable_rows_raise_parse_error(overrides):
     with pytest.raises(ParseError):
         to_registration(row(1, **overrides))
-
-
-@pytest.mark.parametrize(
-    "address,state,pincode",
-    [
-        ("12 Road, Pune, Maharashtra 411001, India", "Maharashtra", "411001"),
-        ("Shop 4, Bengaluru, Karnataka 560 001, India", "Karnataka", "560001"),
-        ("Somewhere, New Delhi, Delhi 110001", "Delhi", "110001"),
-        ("12 Road, Nowhere", None, None),
-        ("", None, None),
-        (None, None, None),
-    ],
-)
-def test_google_style_addresses_give_state_and_pincode(address, state, pincode):
-    assert parse_google_address(address) == (state, pincode)
 
 
 @pytest.mark.parametrize(
@@ -187,6 +174,8 @@ async def test_import_stores_unverified_rows_and_lists_the_filtered_ones(engine,
         registrations = (await session.scalars(select(ProfessionalRegistration))).all()
     assert source.verification_level == "unverified"
     assert {r.registration_number for r in registrations} == {"GP-place-1", "GP-place-2"}
+    stored = " ".join(f"{r.address_raw} {r.phone} {r.attributes}" for r in registrations)
+    assert "Sample Advisers" not in stored and "Test Road" not in stored and "99999" not in stored
     rejected = (tmp_path / "places.rejected.csv").read_text(encoding="utf-8")
     assert "Exam Coaching Academy" in rejected and "name looks like" in rejected
 
@@ -197,7 +186,7 @@ async def test_reimport_is_idempotent_and_picks_up_changes(tmp_path):
     await load(path)
 
     same = await load(path)
-    write_csv(path, [row(1, phone="088888 11111"), row(2)])
+    write_csv(path, [row(1, searched_city="Otherville"), row(2)])
     changed = await load(path)
 
     assert (same.inserted, same.updated, same.unchanged) == (0, 0, 2)

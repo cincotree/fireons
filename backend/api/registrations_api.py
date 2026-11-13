@@ -8,7 +8,9 @@ from sqlalchemy import case, false, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.auth_api import get_current_user
+from api.google_place_details import GooglePlaceDetails, PlaceDetailsUnavailable, fetch_place_details
 from api.public_rate_limit import limit_public_reads
+from app_config import AppSettings, get_app_settings
 from database.models import (
     DataSource,
     FinancialProfessional,
@@ -82,6 +84,7 @@ class RegistrationResponse(BaseModel):
     first_seen_at: datetime
     last_seen_at: datetime
     last_changed_at: datetime
+    google_place_id: Optional[str] = None
     nri: Optional[NriSummary] = None
 
 
@@ -194,6 +197,7 @@ def _to_response(
         first_seen_at=registration.first_seen_at,
         last_seen_at=registration.last_seen_at,
         last_changed_at=registration.last_changed_at,
+        google_place_id=registration.attributes.get("google_place_id"),
     )
 
 
@@ -462,6 +466,22 @@ async def _load_registration(session: AsyncSession, registration_id: str):
 @router.get("/{registration_id}", response_model=RegistrationResponse)
 async def get_registration(registration_id: str, session: AsyncSession = Depends(get_session)):
     return _to_response(*await _load_registration(session, registration_id))
+
+
+@router.get("/{registration_id}/google", response_model=GooglePlaceDetails)
+async def get_google_place_details(
+    registration_id: str,
+    session: AsyncSession = Depends(get_session),
+    settings: AppSettings = Depends(get_app_settings),
+):
+    registration, _, _ = await _load_registration(session, registration_id)
+    place_id = registration.attributes.get("google_place_id")
+    if not place_id:
+        raise HTTPException(status_code=404, detail="Registration has no Google listing")
+    try:
+        return await fetch_place_details(settings.google_api_key, place_id)
+    except PlaceDetailsUnavailable:
+        raise HTTPException(status_code=502, detail="Google listing details are unavailable")
 
 
 @router.get("/{registration_id}/nri", response_model=NriDetailResponse)

@@ -57,6 +57,7 @@ export interface Registration {
   first_seen_at: string;
   last_seen_at: string;
   last_changed_at: string;
+  google_place_id: string | null;
   nri: NriSummary | null;
 }
 
