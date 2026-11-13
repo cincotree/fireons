@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 import database.session as database_session
 from database.models import FinancialProfessional, ProfessionalRegistration, ProfessionalWebsite, WebsiteLookup
-from enrichment.places_enrichment import enrich_places
+from enrichment.places_enrichment import best_title, enrich_places
 from scraping.config import ScrapeSettings
 from scraping.http import PoliteClient
 from tests.scraping_helpers import fast_settings
@@ -98,8 +98,7 @@ async def test_a_verified_match_stores_the_tavily_title_and_website_not_the_goog
 
     reg, professional, lookup, websites = await registration(engine, "place-1")
     assert (summary.enriched, summary.listing_only, summary.searches_made) == (1, 0, 1)
-    assert professional.display_name == "Zed Quartz | Tax and Advisory, Pune"
-    assert "Zed Quartz Advisers" != professional.display_name
+    assert professional.display_name == "Zed Quartz"
     assert reg.attributes == {"google_place_id": "place-1", "web_enriched": True}
     assert (lookup.status, lookup.method, lookup.domain) == ("found", "web_search", "zedquartz.net")
     assert [w.domain for w in websites] == ["zedquartz.net"]
@@ -230,3 +229,36 @@ async def test_reimporting_the_csv_does_not_undo_enrichment(engine, tmp_path):
     _, professional, _, _ = await registration(engine, "place-1")
     assert summary.inserted == summary.updated == 0
     assert professional.display_name == "Zed Quartz Tax"
+
+
+@pytest.mark.parametrize(
+    "title,name,expected",
+    [
+        ("Contact Us | HR Fin Services | Get Quick Loan for Everyone !", "HR Fin Services", "HR Fin Services"),
+        ("Zed Quartz | Tax and Advisory, Pune", "Zed Quartz Advisers", "Zed Quartz"),
+        ("Trusted Wealth Management Partner in India | Shriram Wealth", "Shriram Wealth Advisers", "Shriram Wealth"),
+        ("Kumar Patel Associates - Chartered Accountants in Pune", "Kumar Patel Associates", "Kumar Patel Associates"),
+        ("Zed Quartz Tax", "Zed Quartz Advisers", "Zed Quartz Tax"),
+        ("Investment Opportunities in Delhi - Invest India", "Bhutada Advisory", None),
+        ("Home | Welcome", "Bhutada Advisory", None),
+        ("Financial Advisor in Pune | Financial Planner", "Bhutada Advisory", None),
+        ("Bhutada Services", "CA & Co", None),
+        ("", "Bhutada Advisory", None),
+    ],
+)
+def test_the_stored_name_is_the_title_segment_that_matches_the_listing(title, name, expected):
+    assert best_title(title, name) == expected
+
+
+@pytest.mark.usefixtures("use_test_engine")
+async def test_a_result_whose_title_does_not_resemble_the_listing_is_rejected(engine, tmp_path):
+    path = await imported(tmp_path, [listing(1, "Zed Quartz Advisers")])
+    sites = {"zedquartz.net": {"/": firm_page("Zed Quartz Advisers", "Pune")}}
+    search = tavily_returning([{"url": "https://zedquartz.net/", "title": "Contact Us | Get Quick Loan for Everyone"}])
+
+    summary = await run(path, tmp_path, sites, search)
+
+    _, professional, lookup, websites = await registration(engine, "place-1")
+    assert (summary.enriched, summary.listing_only) == (0, 1)
+    assert professional.display_name == "Google Maps listing"
+    assert lookup.status == "not_found" and websites == []

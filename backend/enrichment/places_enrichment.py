@@ -1,4 +1,6 @@
 import logging
+import math
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,7 +23,7 @@ from enrichment.website_finder import (
     _record,
     verified_domain,
 )
-from enrichment.website_match import clean_name, is_directory_domain
+from enrichment.website_match import clean_name, distinctive_tokens, is_directory_domain
 from scraping.config import ScrapeSettings, get_scrape_settings
 from scraping.http import PoliteClient
 from scraping.normalize import classify_kind, collapse_whitespace, normalize_name
@@ -30,6 +32,8 @@ from scraping.sources.google_places import DEFINITION, read_place_rows
 logger = logging.getLogger("enrichment.places_enrichment")
 
 MAX_TITLE_LENGTH = 300
+TITLE_SEPARATORS = re.compile(r"\s*\|\s*|\s+[-\u2013\u2014:]\s+")
+GENERIC_SEGMENTS = {"home", "homepage", "welcome", "index", "contact", "contact us", "about", "about us", "services"}
 
 
 @dataclass
@@ -42,6 +46,22 @@ class PlacesEnrichmentSummary:
     searches_made: int = 0
     searches_left_today: int = 0
     stopped_reason: str = "finished"
+
+
+def best_title(title: str, name: str) -> str | None:
+    wanted = set(distinctive_tokens(name))
+    if not wanted:
+        return None
+    needed = math.ceil(len(wanted) / 2)
+    best: tuple[int, str] | None = None
+    for segment in TITLE_SEPARATORS.split(title):
+        segment = collapse_whitespace(segment)
+        if not segment or segment.lower() in GENERIC_SEGMENTS:
+            continue
+        overlap = len(wanted & set(distinctive_tokens(segment)))
+        if overlap >= needed and (best is None or overlap > best[0]):
+            best = (overlap, segment)
+    return best[1][:MAX_TITLE_LENGTH] if best else None
 
 
 async def _pending_rows(rows: list[dict]) -> tuple[list[tuple[dict, str]], int, int]:
@@ -83,9 +103,9 @@ async def _find_match(
         seen.append(domain)
         if len(seen) > MAX_SEARCH_CANDIDATES:
             break
-        title = collapse_whitespace(result.title)
+        title = best_title(result.title, name)
         if title and await verified_domain(domain, name, city, client, settings):
-            return domain, title[:MAX_TITLE_LENGTH]
+            return domain, title
     return None
 
 

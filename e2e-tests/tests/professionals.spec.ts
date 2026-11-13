@@ -679,6 +679,19 @@ test.describe('Professionals directory - signed-in listing, filters and change h
     await expect(unverifiedTag(page)).toHaveCount(2);
   });
 
+  test('unverified rows show no registration number or registered tick, register rows do', async ({ page }) => {
+    await page.goto('/professionals');
+    await openFilters(page);
+    await filter(page, 'Verification').selectOption('unverified');
+    await expect(page.getByText('Showing 1–2 of 2')).toBeVisible();
+
+    await expect(page.getByText('GP-e2e-1')).toHaveCount(0);
+    await expect(page.getByText('GP-e2e-2')).toHaveCount(0);
+
+    await filter(page, 'Verification').selectOption('verified');
+    await expect(page.getByText('INA900000001')).toBeVisible();
+  });
+
   test('register rows are never shown as Maps-link-only listings', async ({ page }) => {
     await page.goto('/professionals');
     await searchBox(page).fill('Rohan Mehta');

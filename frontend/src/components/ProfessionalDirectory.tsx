@@ -462,10 +462,14 @@ export function ProfessionalDirectory() {
                     )}
                   </TableCell>
                   <TableCell className="block whitespace-nowrap p-0 pt-2 md:table-cell md:px-4 md:py-4">
-                    <span className="inline-flex items-center gap-1.5 text-sm font-medium tabular-nums text-[#12211D]">
-                      <BadgeCheck className="h-4 w-4 text-[#0E6B57]" aria-hidden="true" />
-                      {registration.registration_number}
-                    </span>
+                    {registration.verification === "unverified" ? (
+                      <span className="text-sm text-[#7D8C86]">—</span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 text-sm font-medium tabular-nums text-[#12211D]">
+                        <BadgeCheck className="h-4 w-4 text-[#0E6B57]" aria-hidden="true" />
+                        {registration.registration_number}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="block p-0 pt-2 md:table-cell md:px-4 md:py-4">
                     {registration.city || registration.state ? (
