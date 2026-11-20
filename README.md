@@ -97,3 +97,22 @@ docker run -p 3000:3000 fireons/frontend
 ### Production registration
 
 Registration is invite-only in production. See [docs/invite-only-registration.md](docs/invite-only-registration.md) for how to create and manage invites, and [infra/README.md](infra/README.md) for deploying the AWS infrastructure.
+
+### Professionals directory data
+
+The `/professionals` directory is filled from your machine, not from AWS. The only job that runs in production is `exchange_rate_sync`. Details are in [docs/professionals-data.md](docs/professionals-data.md).
+
+Keys go in `backend/.env`: `GOOGLE_API_KEY` for the Google Places export and `TAVILY_API_KEY` for enrichment. Migrations are applied by the deploy (`scripts/deploy-api.sh`), so production is ready after the first release. Only if you run these before that release, apply them yourself first (`make migrate` with `DATABASE_URL` set). Run these from one machine only, because the usage counters and the export CSV live in `backend/exports/`.
+
+```bash
+make daily     # export and import Google places, enrich them via Tavily, check sites for NRI signals
+make weekly    # scrape SEBI RIAs, SEBI research analysts, Fee-Only India and FPSB CFPs
+```
+
+To load production, set the database for that command only (never `export` it in a shell that also runs the e2e tests):
+
+```bash
+DATABASE_URL='postgresql+psycopg://...?sslmode=require' make daily
+```
+
+`make daily` stops at the first failing step. `make weekly` continues past a failing source and exits non-zero if any failed. Scrape registers weekly rather than daily, because a register row is delisted after two consecutive missed runs.

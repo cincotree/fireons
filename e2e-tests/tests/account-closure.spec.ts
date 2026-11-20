@@ -1,21 +1,11 @@
 import { test, expect } from '@playwright/test';
+import { signIn } from './support/session';
 
 test.describe('Account Closure - Removed Account No Longer Appears', () => {
   test.beforeEach(async ({ page }) => {
-    const timestamp = Date.now();
-    const testUser = {
-      email: `closureuser${timestamp}@example.com`,
-      username: `closureuser${timestamp}`,
-      password: 'Test123!@#'
-    };
-
-    await page.goto('/register');
-    await page.getByLabel(/Email/i).fill(testUser.email);
-    await page.getByLabel(/^Username/i).fill(testUser.username);
-    await page.locator('input[name="password"]').fill(testUser.password);
-    await page.getByRole('button', { name: /Create account/i }).click();
-
-    await page.waitForURL(/.*networth/, { timeout: 5000 });
+    await signIn(page, 'closureuser');
+    await page.goto('/networth');
+    await expect(page.getByRole('button', { name: 'Add Account' })).toBeVisible();
   });
 
   test('closing an account removes it from the summary, charts, and hierarchy without a reload', async ({ page }) => {

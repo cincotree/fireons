@@ -11,6 +11,7 @@ from app import app
 from auth_utils import create_access_token
 from database.models import User
 from database.session import get_session
+from tests.conftest import grant_net_worth_consent
 
 
 @pytest_asyncio.fixture
@@ -18,10 +19,10 @@ async def test_user(session: AsyncSession) -> User:
     user = User(
         email="ingestion-check-test@example.com",
         username="ingestion_check_test_user",
-        hashed_password="unused-in-these-tests",
     )
     session.add(user)
     await session.flush()
+    await grant_net_worth_consent(session, user)
     return user
 
 

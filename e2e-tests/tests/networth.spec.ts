@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createUserToken, signIn } from './support/session';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8020';
 
@@ -24,20 +25,9 @@ async function seedExchangeRate(
 
 test.describe('Net Worth Feature - Critical User Journeys', () => {
   test.beforeEach(async ({ page }) => {
-    const timestamp = Date.now();
-    const testUser = {
-      email: `networthuser${timestamp}@example.com`,
-      username: `networthuser${timestamp}`,
-      password: 'Test123!@#'
-    };
-
-    await page.goto('/register');
-    await page.getByLabel(/Email/i).fill(testUser.email);
-    await page.getByLabel(/^Username/i).fill(testUser.username);
-    await page.locator('input[name="password"]').fill(testUser.password);
-    await page.getByRole('button', { name: /Create account/i }).click();
-
-    await page.waitForURL(/.*networth/, { timeout: 5000 });
+    await signIn(page, 'networthuser');
+    await page.goto('/networth');
+    await expect(page.getByRole('button', { name: 'Add Account' })).toBeVisible();
   });
 
   // Account creation and its initial balance are now one combined step in a
@@ -240,18 +230,10 @@ test.describe('Net Worth Feature - Critical User Journeys', () => {
     await page.getByRole('button', { name: /Logout/i }).click();
     await page.waitForURL(/.*login/, { timeout: 3000 });
 
-    const user2 = {
-      email: `networthuser2${timestamp}@example.com`,
-      username: `networthuser2${timestamp}`,
-      password: 'Test123!@#'
-    };
-
-    await page.goto('/register');
-    await page.getByLabel(/Email/i).fill(user2.email);
-    await page.getByLabel(/^Username/i).fill(user2.username);
-    await page.locator('input[name="password"]').fill(user2.password);
-    await page.getByRole('button', { name: /Create account/i }).click();
-    await page.waitForURL(/.*networth/, { timeout: 5000 });
+    const user2Token = await createUserToken('networthuser2');
+    await page.evaluate((value) => window.localStorage.setItem('token', value), user2Token);
+    await page.goto('/networth');
+    await expect(page.getByRole('button', { name: 'Add Account' })).toBeVisible();
 
     // User 2 should NOT see User 1's account.
     await expect(page.getByText(user1AccountName)).not.toBeVisible();

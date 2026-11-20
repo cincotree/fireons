@@ -6,7 +6,7 @@ import { getBaseHttpUrl } from "@/utils/api";
 
 interface User {
   id: string;
-  email: string;
+  email?: string | null;
   username: string;
   full_name?: string;
   location?: string;
@@ -16,20 +16,34 @@ interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (username: string, password: string) => Promise<void>;
-  register: (userData: RegisterData) => Promise<void>;
+  completeLogin: (token: string) => Promise<boolean>;
   logout: () => void;
   isAuthenticated: boolean;
 }
 
-interface RegisterData {
-  email: string;
-  username: string;
-  password: string;
-  full_name?: string;
-  location?: string;
-  primary_currency?: string;
-  invite_code?: string;
+const POST_LOGIN_PATH_KEY = "postLoginPath";
+
+export function rememberPostLoginPath(path: string) {
+  try {
+    if (path.startsWith("/") && !path.startsWith("//")) {
+      sessionStorage.setItem(POST_LOGIN_PATH_KEY, path);
+    }
+  } catch {
+    return;
+  }
+}
+
+function takePostLoginPath(): string {
+  try {
+    const path = sessionStorage.getItem(POST_LOGIN_PATH_KEY);
+    sessionStorage.removeItem(POST_LOGIN_PATH_KEY);
+    if (path && path.startsWith("/") && !path.startsWith("//")) {
+      return path;
+    }
+  } catch {
+    return "/networth";
+  }
+  return "/networth";
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -72,44 +86,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const login = async (username: string, password: string) => {
+  const completeLogin = async (token: string) => {
     const baseUrl = getBaseHttpUrl();
-    const response = await fetch(`${baseUrl}/api/auth/login`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ username, password }),
+    const response = await fetch(`${baseUrl}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
     });
-
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || "Login failed");
+      return false;
     }
-
-    const data = await response.json();
-    localStorage.setItem("token", data.access_token);
-
-    await checkAuth();
-    router.push("/networth");
-  };
-
-  const register = async (userData: RegisterData) => {
-    const baseUrl = getBaseHttpUrl();
-    const response = await fetch(`${baseUrl}/api/auth/register`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(userData),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || "Registration failed");
-    }
-
-    await login(userData.username, userData.password);
+    localStorage.setItem("token", token);
+    setUser(await response.json());
+    router.replace(takePostLoginPath());
+    return true;
   };
 
   const logout = () => {
@@ -121,8 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value = {
     user,
     loading,
-    login,
-    register,
+    completeLogin,
     logout,
     isAuthenticated: !!user,
   };

@@ -1,186 +1,76 @@
 import { test, expect } from '@playwright/test';
+import { signIn } from './support/session';
 
 test.describe('Authentication Feature - Critical User Journeys', () => {
-  // Each test builds its own user from a fresh timestamp — a single shared
-  // user across tests in this file caused "Username already registered"
-  // failures whenever more than one test tried to register it.
-  function makeUser(prefix: string) {
-    const timestamp = Date.now();
-    return {
-      email: `${prefix}${timestamp}@example.com`,
-      username: `${prefix}${timestamp}`,
-      password: 'Test123!@#',
-      fullName: 'Test User',
-      location: 'San Francisco, CA',
-      currency: 'USD'
-    };
-  }
+  test('a signed-in user sees their name in the navigation and can log out', async ({ page }) => {
+    await signIn(page, 'logoutuser');
 
-  test('complete workflow: user registration with all fields', async ({ page }) => {
-    const testUser = makeUser('testuser');
-    await page.goto('/register');
-
-    // Verify we're on the registration page
-    await expect(page.locator('h2')).toContainText('Create your Fireons account');
-
-    // Fill in all registration fields
-    await page.getByLabel(/Email/i).fill(testUser.email);
-    await page.getByLabel(/^Username/i).fill(testUser.username);
-    await page.locator('input[name="password"]').fill(testUser.password);
-    await page.getByLabel(/Full Name/i).fill(testUser.fullName);
-    await page.getByLabel(/Location/i).fill(testUser.location);
-    await page.getByLabel(/Primary Currency/i).selectOption(testUser.currency);
-
-    // Submit the form
-    await page.getByRole('button', { name: /Create account/i }).click();
-
-    // Should redirect to networth page after successful registration
-    await expect(page).toHaveURL(/.*networth/, { timeout: 5000 });
-
-    // Verify user name is displayed in navigation
-    await expect(page.getByText(testUser.fullName)).toBeVisible();
-    await expect(page.getByRole('button', { name: /Logout/i })).toBeVisible();
-  });
-
-  test('complete workflow: user login', async ({ page }) => {
-    const testUser = makeUser('loginuser');
-    // First register a user
-    await page.goto('/register');
-    await page.getByLabel(/Email/i).fill(testUser.email);
-    await page.getByLabel(/^Username/i).fill(testUser.username);
-    await page.locator('input[name="password"]').fill(testUser.password);
-    await page.getByRole('button', { name: /Create account/i }).click();
-    await page.waitForURL(/.*networth/, { timeout: 5000 });
-
-    // Logout
-    await page.getByRole('button', { name: /Logout/i }).click();
-    await page.waitForURL(/.*login/, { timeout: 3000 });
-
-    // Now test login
-    await page.getByLabel(/Username/i).fill(testUser.username);
-    await page.getByLabel(/Password/i).fill(testUser.password);
-    await page.getByRole('button', { name: /Login/i }).click();
-
-    // Should redirect to networth page after successful login
-    await expect(page).toHaveURL(/.*networth/, { timeout: 5000 });
-
-    // Verify user is logged in
-    await expect(page.getByText(testUser.username)).toBeVisible();
-    await expect(page.getByRole('button', { name: /Logout/i })).toBeVisible();
-  });
-
-  test('logout redirects to login page', async ({ page, context }) => {
-    const testUser = makeUser('logoutuser');
-    // Register and login a user
-    await page.goto('/register');
-    await page.getByLabel(/Email/i).fill(testUser.email);
-    await page.getByLabel(/^Username/i).fill(testUser.username);
-    await page.locator('input[name="password"]').fill(testUser.password);
-    await page.getByRole('button', { name: /Create account/i }).click();
-    await page.waitForURL(/.*networth/, { timeout: 5000 });
-
-    // Click logout
-    await page.getByRole('button', { name: /Logout/i }).click();
-
-    // Should redirect to login page
-    await expect(page).toHaveURL(/.*login/, { timeout: 3000 });
-
-    // Verify logout button is no longer visible
-    await expect(page.getByRole('button', { name: /Logout/i })).not.toBeVisible();
-
-    // Verify token is removed from localStorage
-    const token = await page.evaluate(() => localStorage.getItem('token'));
-    expect(token).toBeNull();
-  });
-
-  test('protected route redirects unauthenticated user to login', async ({ page }) => {
-    // Clear any existing auth tokens
-    await page.goto('/login');
-    await page.evaluate(() => localStorage.clear());
-
-    // Try to access protected route
     await page.goto('/networth');
 
-    // Should redirect to login page
-    await expect(page).toHaveURL(/.*login/, { timeout: 5000 });
-  });
+    await expect(page.getByText(/logoutuser/)).toBeVisible();
+    await page.getByRole('button', { name: /Logout/i }).click();
+    await expect(page).toHaveURL(/.*login/);
+    expect(await page.evaluate(() => window.localStorage.getItem('token'))).toBeNull();
 
-  test('authenticated user accessing root redirects to networth', async ({ page }) => {
-    const testUser = makeUser('rootredirect');
-    // Register a user
-    await page.goto('/register');
-    await page.getByLabel(/Email/i).fill(testUser.email);
-    await page.getByLabel(/^Username/i).fill(testUser.username);
-    await page.locator('input[name="password"]').fill(testUser.password);
-    await page.getByRole('button', { name: /Create account/i }).click();
-    await page.waitForURL(/.*networth/, { timeout: 5000 });
-
-    // Go to root URL
-    await page.goto('/');
-
-    // Should redirect to networth
-    await expect(page).toHaveURL(/.*networth/, { timeout: 3000 });
-  });
-
-  test('registration validation: short password', async ({ page }) => {
-    const testUser = makeUser('shortpw');
-    await page.goto('/register');
-
-    await page.getByLabel(/Email/i).fill(testUser.email);
-    await page.getByLabel(/^Username/i).fill(testUser.username);
-    const passwordInput = page.locator('input[name="password"]');
-    await passwordInput.fill('12345');
-    await page.getByRole('button', { name: /Create account/i }).click();
-
-    const validationMessage = await passwordInput.evaluate((el: HTMLInputElement) => el.validationMessage);
-    expect(validationMessage).toBeTruthy();
-    expect(validationMessage.length).toBeGreaterThan(0);
-  });
-
-  test('login validation: incorrect credentials', async ({ page }) => {
-    await page.goto('/login');
-
-    await page.getByLabel(/Username/i).fill('nonexistentuser');
-    await page.getByLabel(/Password/i).fill('wrongpassword');
-    await page.getByRole('button', { name: /Login/i }).click();
-
-    // Should show error message
-    await expect(page.getByText(/Incorrect username or password/i)).toBeVisible({ timeout: 5000 });
-  });
-
-  test('navigation links work correctly', async ({ page }) => {
-    // From login to register
-    await page.goto('/login');
-    await page.getByRole('link', { name: /Join Fireons/i }).click();
-    await expect(page).toHaveURL(/.*register/);
-
-    // From register to login
-    await page.getByRole('link', { name: /Login/i }).click();
+    await page.goto('/networth');
     await expect(page).toHaveURL(/.*login/);
   });
 
-  test('registration with minimal required fields only', async ({ page }) => {
-    const timestamp = Date.now();
-    const minimalUser = {
-      email: `minimal${timestamp}@example.com`,
-      username: `minimal${timestamp}`,
-      password: 'Minimal123!'
-    };
+  test('protected route redirects unauthenticated user to login', async ({ page }) => {
+    await page.goto('/networth');
 
-    await page.goto('/register');
+    await expect(page).toHaveURL(/.*login/);
+  });
 
-    // Fill only required fields
-    await page.getByLabel(/Email/i).fill(minimalUser.email);
-    await page.getByLabel(/^Username/i).fill(minimalUser.username);
-    await page.locator('input[name="password"]').fill(minimalUser.password);
+  test('authenticated user accessing root redirects to networth', async ({ page }) => {
+    await signIn(page, 'rootuser');
 
-    // Submit the form
-    await page.getByRole('button', { name: /Create account/i }).click();
+    await page.goto('/');
 
-    // Should redirect to networth page
-    await expect(page).toHaveURL(/.*networth/, { timeout: 5000 });
+    await expect(page).toHaveURL(/.*networth/, { timeout: 10000 });
+  });
 
-    // Verify username is displayed (since no full name provided)
-    await expect(page.getByText(minimalUser.username)).toBeVisible();
+  test('unauthenticated user accessing root redirects to login', async ({ page }) => {
+    await page.goto('/');
+
+    await expect(page).toHaveURL(/.*login/, { timeout: 10000 });
+  });
+
+  test('an invalid stored token is discarded and the user is sent to login', async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.setItem('token', 'not-a-real-token'));
+
+    await page.goto('/networth');
+
+    await expect(page).toHaveURL(/.*login/);
+    expect(await page.evaluate(() => window.localStorage.getItem('token'))).toBeNull();
+  });
+
+  test('the login page has no username or password fields', async ({ page }) => {
+    await page.goto('/login');
+
+    await expect(page.getByRole('link', { name: 'Continue with Google' })).toBeVisible();
+    await expect(page.locator('input[type="password"]')).toHaveCount(0);
+    await expect(page.getByLabel('Username')).toHaveCount(0);
+  });
+
+  test('the old password endpoints no longer exist', async ({ request }) => {
+    const backend = process.env.BACKEND_URL || 'http://localhost:8020';
+
+    const login = await request.post(`${backend}/api/auth/login`, { data: { username: 'a', password: 'b' } });
+    const register = await request.post(`${backend}/api/auth/register`, {
+      data: { username: 'a', password: 'bbbbbb', email: 'a@example.com' },
+    });
+
+    expect(login.status()).toBe(404);
+    expect(register.status()).toBe(404);
+  });
+
+  test('navigation links between login and join work', async ({ page }) => {
+    await page.goto('/login');
+    await page.getByRole('link', { name: 'Join Fireons' }).click();
+    await expect(page).toHaveURL(/.*register/);
+
+    await page.getByRole('link', { name: 'Login' }).click();
+    await expect(page).toHaveURL(/.*login/);
   });
 });
