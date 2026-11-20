@@ -12,6 +12,7 @@ from pypdf import PasswordType, PdfReader
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.auth_api import get_current_user
+from api.consent_api import require_net_worth_consent
 from database.models import User
 from database.repository import IngestionRunRepository
 from database.session import get_session
@@ -56,7 +57,7 @@ class IngestionRunResponse(BaseModel):
 @router.post("/ingestion/check", response_model=IngestionCheckResponse)
 async def check_statements(
     files: list[UploadFile] = File(...),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_net_worth_consent),
 ):
     """Cheap, stateless probe — reports which files are password-protected so the
     UI can ask for a password only where one is actually needed, before starting a
@@ -91,7 +92,7 @@ async def upload_statements(
     background_tasks: BackgroundTasks,
     files: list[UploadFile] = File(...),
     passwords: str = Form("{}"),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_net_worth_consent),
     session: AsyncSession = Depends(get_session),
 ):
     if not files:

@@ -27,7 +27,7 @@ function signToken(claims: Record<string, unknown>): string {
   return `${header}.${payload}.${base64Url(signature)}`;
 }
 
-export async function createUserToken(prefix = 'member'): Promise<string> {
+export async function createUserToken(prefix = 'member', consented = true): Promise<string> {
   const suffix = `${Date.now()}${Math.floor(Math.random() * 100000)}`;
   const username = `${prefix}${suffix}`;
   const email = `${username}@example.com`;
@@ -39,14 +39,20 @@ export async function createUserToken(prefix = 'member'): Promise<string> {
       `INSERT INTO users (id, email, username, primary_currency) VALUES (gen_random_uuid(), $1, $2, 'USD') RETURNING id`,
       [email, username]
     );
+    if (consented) {
+      await client.query(
+        `INSERT INTO consent_records (id, user_id, purpose, notice_version, granted) VALUES (gen_random_uuid(), $1, 'net_worth_processing', '1.0', true)`,
+        [result.rows[0].id]
+      );
+    }
     return signToken({ sub: result.rows[0].id, username, email });
   } finally {
     await client.end();
   }
 }
 
-export async function signIn(page: Page, prefix = 'member'): Promise<string> {
-  const token = await createUserToken(prefix);
+export async function signIn(page: Page, prefix = 'member', consented = true): Promise<string> {
+  const token = await createUserToken(prefix, consented);
   await page.addInitScript((value) => {
     if (!window.sessionStorage.getItem('e2e-seeded-token')) {
       window.sessionStorage.setItem('e2e-seeded-token', '1');

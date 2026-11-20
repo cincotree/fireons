@@ -10,6 +10,7 @@ from api.account_api import router as account_router
 from api.admin_api import router as admin_router
 from api.admin_exchange_rates_api import router as admin_exchange_rates_router
 from api.auth_api import router as auth_router
+from api.consent_api import router as consent_router
 from api.oauth_api import router as oauth_router
 from api.registrations_api import router as registrations_router
 from api.health_api import router as health_router
@@ -70,6 +71,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     app.include_router(auth_router)
     app.include_router(oauth_router)
+    app.include_router(consent_router)
     app.include_router(account_router)
     app.include_router(admin_router)
     app.include_router(admin_exchange_rates_router)

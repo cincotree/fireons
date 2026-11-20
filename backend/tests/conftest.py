@@ -160,3 +160,18 @@ async def sample_accounts(account_repo: AccountRepository, test_user: User) -> d
         accounts[key] = account
 
     return accounts
+
+
+async def grant_net_worth_consent(session: AsyncSession, user: User) -> None:
+    from consent import NET_WORTH_NOTICE_VERSION, NET_WORTH_PURPOSE
+    from database.models import ConsentRecord
+
+    session.add(
+        ConsentRecord(
+            user_id=user.id,
+            purpose=NET_WORTH_PURPOSE,
+            notice_version=NET_WORTH_NOTICE_VERSION,
+            granted=True,
+        )
+    )
+    await session.flush()
