@@ -8,11 +8,7 @@ import { SUPPORTED_CURRENCIES } from "@/utils/currencies";
 import { NetWorthChart } from "@/components/NetWorthChart";
 import { AssetAllocationChart } from "@/components/AssetAllocationChart";
 import { AccountHierarchyTree } from "@/components/AccountHierarchyTree";
-<<<<<<< HEAD
-import { ImportStatementFlow } from "@/components/ImportStatementFlow";
-=======
 import { StatementImportFlow } from "@/components/StatementImportFlow";
->>>>>>> main
 
 interface Account {
   id: string;
@@ -605,13 +601,6 @@ export function NetWorthDashboard() {
         </DialogContent>
       </Modal>
 
-<<<<<<< HEAD
-      <ImportStatementFlow
-        open={isImportModalOpen}
-        onClose={() => setIsImportModalOpen(false)}
-        onImported={fetchData}
-      />
-=======
       <Modal open={isImportModalOpen} onOpenChange={setIsImportModalOpen}>
         <DialogContent>
           <StatementImportFlow
@@ -623,7 +612,6 @@ export function NetWorthDashboard() {
           />
         </DialogContent>
       </Modal>
->>>>>>> main
     </div>
   );
 }
