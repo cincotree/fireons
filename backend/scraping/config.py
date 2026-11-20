@@ -18,6 +18,7 @@ class ScrapeSettings(BaseSettings):
     nri_shared_domain_limit: int = 3
     nri_max_page_bytes: int = 1_500_000
     nri_concurrency: int = 10
+    places_enrich_concurrency: int = 5
     google_api_key: str = ""
     tavily_api_key: str = ""
     website_search_daily_limit: int = 30

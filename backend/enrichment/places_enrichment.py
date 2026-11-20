@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import math
 import re
@@ -138,24 +139,24 @@ async def enrich_places(
     owns_client = client is None
     http_client = client or PoliteClient(settings.model_copy(update={"scrape_max_retries": 1}))
     try:
-        for row, professional_id in pending:
-            if ledger.remaining(now) <= 0:
-                summary.stopped_reason = "daily or monthly search limit reached"
-                break
+        queue = iter(pending)
+        stop = asyncio.Event()
+
+        async def enrich_one(row: dict, professional_id: str) -> None:
             name = collapse_whitespace(row.get("name")) or ""
             city = collapse_whitespace(row.get("searched_city")) or ""
-            ledger.record_call(now)
-            summary.searches_made += 1
             try:
                 results = await tavily.search_results(
                     settings.tavily_api_key, f"{clean_name(name)} {city}", transport=tavily_transport
                 )
             except tavily.QuotaExhausted:
                 summary.stopped_reason = "Tavily quota exhausted"
-                break
+                stop.set()
+                return
             except tavily.TavilyError as exc:
                 summary.stopped_reason = str(exc)
-                break
+                stop.set()
+                return
             match = await _find_match(results, name, city, http_client, settings) if name and city else None
             if match:
                 domain, title = match
@@ -165,6 +166,21 @@ async def enrich_places(
             else:
                 await _record(professional_id, NOT_FOUND, METHOD_SEARCH, None, now)
                 summary.listing_only += 1
+
+        async def worker() -> None:
+            while not stop.is_set():
+                if ledger.remaining(now) <= 0:
+                    summary.stopped_reason = "daily or monthly search limit reached"
+                    stop.set()
+                    return
+                item = next(queue, None)
+                if item is None:
+                    return
+                ledger.record_call(now)
+                summary.searches_made += 1
+                await enrich_one(*item)
+
+        await asyncio.gather(*(worker() for _ in range(max(settings.places_enrich_concurrency, 1))))
     finally:
         if owns_client:
             await http_client.__aexit__(None, None, None)

@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 
 import httpx
@@ -265,3 +266,52 @@ async def test_a_result_whose_title_does_not_resemble_the_listing_is_rejected(en
     assert (summary.enriched, summary.listing_only) == (0, 1)
     assert professional.display_name == "Google Maps listing"
     assert lookup.status == "not_found" and websites == []
+
+
+def many(count: int) -> list[dict]:
+    return [listing(n, f"Name{n} Quartz Advisers") for n in range(1, count + 1)]
+
+
+@pytest.mark.usefixtures("use_test_engine")
+async def test_the_daily_limit_is_exact_even_with_parallel_workers(engine, tmp_path):
+    path = await imported(tmp_path, many(8))
+
+    summary = await run(
+        path, tmp_path, {}, tavily_returning([]), settings=settings(website_search_daily_limit=5, places_enrich_concurrency=4)
+    )
+
+    assert summary.searches_made == 5
+    assert summary.listing_only == 5
+    assert "limit" in summary.stopped_reason
+
+
+@pytest.mark.usefixtures("use_test_engine")
+async def test_listings_are_searched_in_parallel_up_to_the_concurrency_limit(engine, tmp_path):
+    path = await imported(tmp_path, many(8))
+    running = peak = 0
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal running, peak
+        running += 1
+        peak = max(peak, running)
+        await asyncio.sleep(0.02)
+        running -= 1
+        return httpx.Response(200, json={"results": []})
+
+    summary = await run(path, tmp_path, {}, httpx.MockTransport(handler), settings=settings(places_enrich_concurrency=3))
+
+    assert summary.searches_made == 8
+    assert peak == 3
+
+
+@pytest.mark.usefixtures("use_test_engine")
+async def test_a_quota_error_stops_all_workers_and_leaves_the_rest_unmarked(engine, tmp_path):
+    path = await imported(tmp_path, many(6))
+
+    summary = await run(
+        path, tmp_path, {}, tavily_returning([], status=432), settings=settings(places_enrich_concurrency=3)
+    )
+
+    assert "Tavily" in summary.stopped_reason
+    assert summary.searches_made <= 3
+    assert (await registration(engine, "place-6"))[2] is None
