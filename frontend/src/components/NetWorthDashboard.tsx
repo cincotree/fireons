@@ -7,6 +7,7 @@ import { getBaseHttpUrl } from "@/utils/api";
 import { SUPPORTED_CURRENCIES } from "@/utils/currencies";
 import { NetWorthChart } from "@/components/NetWorthChart";
 import { AssetAllocationChart } from "@/components/AssetAllocationChart";
+import { AssetBreakdownTable } from "@/components/AssetBreakdownTable";
 import { AccountHierarchyTree } from "@/components/AccountHierarchyTree";
 import { StatementImportFlow } from "@/components/StatementImportFlow";
 
@@ -375,6 +376,11 @@ export function NetWorthDashboard() {
           <h2 className="text-xl font-semibold mb-4">Asset Allocation</h2>
           <AssetAllocationChart key={chartsRefreshKey} currency={selectedCurrency} />
         </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-xl font-semibold mb-4">Asset Breakdown</h2>
+        <AssetBreakdownTable key={chartsRefreshKey} currency={selectedCurrency} />
       </div>
 
       <div className="bg-white rounded-lg shadow p-6">

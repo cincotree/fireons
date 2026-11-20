@@ -74,7 +74,7 @@ test.describe('Net Worth Feature - Critical User Journeys', () => {
       balance: '10000',
     });
 
-    await expect(page.getByText(accountName)).toBeVisible();
+    await expect(page.getByText(accountName).first()).toBeVisible();
 
     await page.getByTestId('display-currency-select').selectOption('USD');
     await page.waitForTimeout(500);
@@ -97,7 +97,7 @@ test.describe('Net Worth Feature - Critical User Journeys', () => {
       balance: '5000',
     });
 
-    await expect(page.getByText(accountName)).toBeVisible();
+    await expect(page.getByText(accountName).first()).toBeVisible();
 
     await page.getByTestId('display-currency-select').selectOption('USD');
     await page.waitForTimeout(500);
@@ -135,8 +135,8 @@ test.describe('Net Worth Feature - Critical User Journeys', () => {
       balance: '50000',
     });
 
-    await expect(page.getByText(usdAccount)).toBeVisible();
-    await expect(page.getByText(inrAccount)).toBeVisible();
+    await expect(page.getByText(usdAccount).first()).toBeVisible();
+    await expect(page.getByText(inrAccount).first()).toBeVisible();
     // Dashboard defaults to INR — the USD account's row should already be
     // shown converted, not in raw USD digits.
     await expect(page.getByText(formatCurrency(1000 * rate, 'INR'))).toBeVisible();
@@ -173,7 +173,7 @@ test.describe('Net Worth Feature - Critical User Journeys', () => {
       balance: '100',
     });
 
-    await expect(page.getByText(eurAccount)).toBeVisible();
+    await expect(page.getByText(eurAccount).first()).toBeVisible();
 
     await page.getByTestId('display-currency-select').selectOption('JPY');
     await page.waitForTimeout(500);
@@ -195,7 +195,7 @@ test.describe('Net Worth Feature - Critical User Journeys', () => {
       balance: '100',
     });
 
-    await expect(page.getByText(accountName)).toBeVisible();
+    await expect(page.getByText(accountName).first()).toBeVisible();
 
     // No GBP<->CAD rate, direct/inverse/USD-bridged, is ever seeded in this
     // suite (no test seeds USD->GBP), so this must surface as unavailable
@@ -224,6 +224,44 @@ test.describe('Net Worth Feature - Critical User Journeys', () => {
     await expect(page.getByTestId('networth-summary')).toBeVisible();
   });
 
+  test('asset breakdown table: shows a row per category with correct value/percentage and a matching total', async ({ page }) => {
+    const timestamp = Date.now();
+    const bankCategory = `Brokerage${timestamp}`;
+    const investmentCategory = `Investment${timestamp}`;
+
+    await createAccount(page, {
+      type: 'Assets',
+      category: bankCategory,
+      name: `StockFund${timestamp}`,
+      currency: 'USD',
+      balance: '3000',
+    });
+    await createAccount(page, {
+      type: 'Assets',
+      category: investmentCategory,
+      name: `BondFund${timestamp}`,
+      currency: 'USD',
+      balance: '1000',
+    });
+
+    await page.getByTestId('display-currency-select').selectOption('USD');
+    await page.waitForTimeout(500);
+
+    const breakdownSection = page.locator('div').filter({ has: page.getByRole('heading', { name: 'Asset Breakdown' }) }).last();
+    const breakdownRow1 = breakdownSection.locator('tr', { hasText: bankCategory });
+    await expect(breakdownRow1).toBeVisible();
+    await expect(breakdownRow1.getByText('$3,000')).toBeVisible();
+    await expect(breakdownRow1.getByText('75%')).toBeVisible();
+
+    const breakdownRow2 = breakdownSection.locator('tr', { hasText: investmentCategory });
+    await expect(breakdownRow2).toBeVisible();
+    await expect(breakdownRow2.getByText('$1,000')).toBeVisible();
+    await expect(breakdownRow2.getByText('25%')).toBeVisible();
+
+    const totalRow = breakdownSection.locator('tr', { hasText: 'Total' });
+    await expect(totalRow.getByText('$4,000')).toBeVisible();
+  });
+
   test('data isolation: users can only see their own accounts', async ({ page }) => {
     const timestamp = Date.now();
 
@@ -235,7 +273,7 @@ test.describe('Net Worth Feature - Critical User Journeys', () => {
       currency: 'USD',
       balance: '100',
     });
-    await expect(page.getByText(user1AccountName)).toBeVisible();
+    await expect(page.getByText(user1AccountName).first()).toBeVisible();
 
     await page.getByRole('button', { name: /Logout/i }).click();
     await page.waitForURL(/.*login/, { timeout: 3000 });
@@ -265,7 +303,7 @@ test.describe('Net Worth Feature - Critical User Journeys', () => {
       balance: '200',
     });
 
-    await expect(page.getByText(user2AccountName)).toBeVisible();
+    await expect(page.getByText(user2AccountName).first()).toBeVisible();
     await expect(page.getByText(user1AccountName)).not.toBeVisible();
   });
 });

@@ -31,7 +31,7 @@ test.describe('Account Closure - Removed Account No Longer Appears', () => {
     await page.getByRole('button', { name: 'Create Account' }).click();
 
     await page.waitForTimeout(1000);
-    await expect(page.getByText('ClosureBugAccount')).toBeVisible();
+    await expect(page.getByText('ClosureBugAccount').first()).toBeVisible();
     // New accounts default to the page's display currency (INR by default).
     await expect(page.getByText('₹500.00').first()).toBeVisible();
 
@@ -53,6 +53,6 @@ test.describe('Account Closure - Removed Account No Longer Appears', () => {
     // and kept showing the closed account's balance even after it
     // disappeared from the hierarchy).
     await expect(page.getByText('No historical data available.')).toBeVisible();
-    await expect(page.getByText('No asset data available.')).toBeVisible();
+    await expect(page.getByText('No asset data available.').first()).toBeVisible();
   });
 });
