@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -165,14 +166,17 @@ async def enrich_nri(
     owns_client = client is None
     http_client = client or PoliteClient(settings.model_copy(update={"scrape_max_retries": 1}))
     try:
-        for website_id, domain in due:
-            try:
-                result = await check_site(domain, http_client, settings)
-                found, removed = await _store_result(website_id, result, now)
-            except Exception:
-                logger.exception("enrichment failed for %s", domain)
-                summary.crawl_errors += 1
-                continue
+        semaphore = asyncio.Semaphore(max(settings.nri_concurrency, 1))
+
+        async def crawl(website_id: str, domain: str) -> None:
+            async with semaphore:
+                try:
+                    result = await check_site(domain, http_client, settings)
+                    found, removed = await _store_result(website_id, result, now)
+                except Exception:
+                    logger.exception("enrichment failed for %s", domain)
+                    summary.crawl_errors += 1
+                    return
             summary.websites_checked += 1
             summary.signals_found += found
             summary.signals_removed += removed
@@ -180,6 +184,8 @@ async def enrich_nri(
                 summary.unreachable += 1
             elif result.status == "blocked_by_robots":
                 summary.blocked_by_robots += 1
+
+        await asyncio.gather(*(crawl(website_id, domain) for website_id, domain in due))
     finally:
         if owns_client:
             await http_client.__aexit__(None, None, None)

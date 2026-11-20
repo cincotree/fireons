@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -321,3 +322,48 @@ async def test_website_listed_by_the_source_is_checked_even_without_an_email(eng
     site = await website_for(engine, pid)
     assert summary.websites_checked == 1
     assert (site.domain, site.derived_from) == ("listedplanner.com", "source_listing")
+
+
+async def test_sites_are_crawled_in_parallel_up_to_the_concurrency_limit(engine, monkeypatch):
+    import enrichment.runner as runner
+    from enrichment.crawler import SiteResult
+
+    for n in range(6):
+        await add_professional(engine, f"Parallel Firm {n}", f"desk@parallelfirm{n}.com")
+    running = peak = 0
+
+    async def slow_check(domain, client, settings):
+        nonlocal running, peak
+        running += 1
+        peak = max(peak, running)
+        await asyncio.sleep(0.02)
+        running -= 1
+        return SiteResult(status="checked", url=f"https://{domain}/", pages_checked=1)
+
+    monkeypatch.setattr(runner, "check_site", slow_check)
+    client, _ = client_for({})
+    async with client:
+        summary = await enrich_nri(client=client, settings=fast_settings(nri_concurrency=3), now=NOW)
+
+    assert summary.websites_checked == 6
+    assert peak == 3
+
+
+async def test_one_failing_site_does_not_stop_the_others(engine, monkeypatch):
+    import enrichment.runner as runner
+    from enrichment.crawler import SiteResult
+
+    for n in range(3):
+        await add_professional(engine, f"Mixed Firm {n}", f"desk@mixedfirm{n}.com")
+
+    async def flaky_check(domain, client, settings):
+        if "mixedfirm1" in domain:
+            raise RuntimeError("boom")
+        return SiteResult(status="checked", url=f"https://{domain}/", pages_checked=1)
+
+    monkeypatch.setattr(runner, "check_site", flaky_check)
+    client, _ = client_for({})
+    async with client:
+        summary = await enrich_nri(client=client, settings=fast_settings(), now=NOW)
+
+    assert (summary.websites_checked, summary.crawl_errors) == (2, 1)

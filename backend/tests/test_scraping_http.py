@@ -1,3 +1,5 @@
+import asyncio
+
 import httpx
 import pytest
 
@@ -30,6 +32,57 @@ async def test_requests_are_spaced_by_the_minimum_interval():
     gaps = [later - earlier for earlier, later in zip(starts, starts[1:])]
     assert len(starts) == 4
     assert all(gap >= 3.0 for gap in gaps)
+
+
+async def test_concurrent_requests_to_one_host_are_still_spaced():
+    fake = FakeTime()
+    starts: list[float] = []
+
+    def handler(request):
+        starts.append(fake.now)
+        return httpx.Response(200, text="ok")
+
+    async with build_client(handler, fake) as client:
+        await asyncio.gather(*(client.get(f"https://example.test/{n}") for n in range(4)))
+
+    gaps = [later - earlier for earlier, later in zip(starts, starts[1:])]
+    assert len(starts) == 4
+    assert all(gap >= 3.0 for gap in gaps)
+
+
+async def test_different_hosts_do_not_wait_for_each_other():
+    fake = FakeTime()
+    seen: list[str] = []
+
+    def handler(request):
+        seen.append(request.url.host)
+        return httpx.Response(200, text="ok")
+
+    async with build_client(handler, fake) as client:
+        await asyncio.gather(*(client.get(f"https://site{n}.test/") for n in range(5)))
+
+    assert sorted(seen) == [f"site{n}.test" for n in range(5)]
+    assert fake.slept == []
+
+
+async def test_a_host_is_spaced_even_when_other_hosts_are_interleaved():
+    fake = FakeTime()
+    starts: dict[str, list[float]] = {}
+
+    def handler(request):
+        starts.setdefault(request.url.host, []).append(fake.now)
+        return httpx.Response(200, text="ok")
+
+    async with build_client(handler, fake) as client:
+        await asyncio.gather(
+            client.get("https://a.test/1"),
+            client.get("https://b.test/1"),
+            client.get("https://a.test/2"),
+            client.get("https://b.test/2"),
+        )
+
+    for times in starts.values():
+        assert len(times) == 2 and times[1] - times[0] >= 3.0
 
 
 async def test_retries_retryable_statuses_then_succeeds():

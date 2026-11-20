@@ -23,7 +23,8 @@ class PoliteClient:
         self.settings = settings or get_scrape_settings()
         self._sleep = sleep
         self._clock = clock
-        self._last_request_at: float | None = None
+        self._last_request_at: dict[str, float] = {}
+        self._host_locks: dict[str, asyncio.Lock] = {}
         self._client = httpx.AsyncClient(
             transport=transport,
             timeout=self.settings.scrape_timeout_seconds,
@@ -38,13 +39,16 @@ class PoliteClient:
     async def __aexit__(self, *exc_info) -> None:
         await self._client.aclose()
 
-    async def _wait_for_turn(self) -> None:
-        if self._last_request_at is not None:
-            elapsed = self._clock() - self._last_request_at
-            remaining = self.settings.scrape_min_interval_seconds - elapsed
-            if remaining > 0:
-                await self._sleep(remaining)
-        self._last_request_at = self._clock()
+    async def _wait_for_turn(self, url: str) -> None:
+        host = (httpx.URL(url).host or "").lower()
+        lock = self._host_locks.setdefault(host, asyncio.Lock())
+        async with lock:
+            last = self._last_request_at.get(host)
+            if last is not None:
+                remaining = self.settings.scrape_min_interval_seconds - (self._clock() - last)
+                if remaining > 0:
+                    await self._sleep(remaining)
+            self._last_request_at[host] = self._clock()
 
     @staticmethod
     def _retry_after(response: httpx.Response) -> float | None:
@@ -60,7 +64,7 @@ class PoliteClient:
         attempts = self.settings.scrape_max_retries + 1
         last_problem = "no attempt made"
         for attempt in range(attempts):
-            await self._wait_for_turn()
+            await self._wait_for_turn(url)
             self.request_count += 1
             retry_after = None
             try:
