@@ -2,6 +2,8 @@ export const config = {
   web3formsAccessKey: process.env.NEXT_PUBLIC_WEB3FORMS_ACCESS_KEY,
 };
 
+export const SITE_URL = 'https://www.fireons.com';
+
 export const professionalParam = {
   name: 'type',
   value: 'professional',
