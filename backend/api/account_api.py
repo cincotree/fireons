@@ -9,6 +9,7 @@ from database.session import get_session
 from database.models import AccountType, User
 from database.repository import AccountRepository, BalanceRepository, ExchangeRateRepository
 from api.auth_api import get_current_user
+from api.consent_api import require_net_worth_consent
 
 router = APIRouter(prefix="", tags=["accounts"])
 
@@ -153,7 +154,7 @@ async def list_accounts(
 @router.post("/accounts", response_model=AccountResponse)
 async def create_account(
     account_data: AccountCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_net_worth_consent),
     session: AsyncSession = Depends(get_session),
 ):
     account_repo = AccountRepository(session)
@@ -243,7 +244,7 @@ async def update_account_full(
 async def create_balance(
     account_id: str,
     balance_data: BalanceCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_net_worth_consent),
     session: AsyncSession = Depends(get_session),
 ):
     account_repo = AccountRepository(session)

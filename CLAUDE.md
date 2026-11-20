@@ -50,6 +50,14 @@ Fireons is a personal finance tracker for managing net worth and accounts. The s
 - Settings (`backend/.env`): `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `REDDIT_OAUTH_CLIENT_ID`, `REDDIT_OAUTH_CLIENT_SECRET`, `FRONTEND_URL` (default `http://localhost:3000`) and `OAUTH_REDIRECT_BASE_URL` (default `http://localhost:8000`). Register `{OAUTH_REDIRECT_BASE_URL}/auth/google/callback` with Google (OAuth client type Web application) and `{OAUTH_REDIRECT_BASE_URL}/auth/reddit/callback` with Reddit (app type web app, at reddit.com/prefs/apps). Secrets are never put in URLs or logged.
 - Frontend: `RequireAuth` wraps `/professionals`; `authFetch` (`utils/api.ts`) adds the token to registrations calls and on 401 or 403 clears it and goes to `/login`. `rememberPostLoginPath` returns the user to the page they wanted after login.
 
+### Net worth consent (`backend/api/consent_api.py`, `backend/consent.py`, migration `0010`)
+- Net worth data is only collected with the user's consent. `consent_records` is an append-only log (user, purpose `net_worth_processing`, `notice_version`, `granted`, optional 2-letter country, time); the latest row decides, and consent only counts if its `notice_version` equals `NET_WORTH_NOTICE_VERSION` in `consent.py`.
+- `GET/POST/DELETE /consent/net-worth`. POST needs `age_confirmed: true` (400 `age_confirmation_required`) and the current notice version (409 `notice_changed`). DELETE withdraws: it logs a `granted=false` row and immediately deletes the user's accounts (and so balances and postings) and ingestion runs (and documents).
+- `require_net_worth_consent` (403 `consent_required`) guards `POST /ingestion/check`, `POST /ingestion/upload`, `POST /accounts` and `POST /accounts/{id}/balance`. Reads are not gated.
+- Frontend: `NetWorthConsentGate` wraps `/networth` and `/onboarding` and shows `NetWorthNotice` with one unticked checkbox; `/privacy` shows the status, the notice and the withdraw-and-erase control. `NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL` (build time) adds the contact line to the notice.
+- When the notice changes materially, edit `NetWorthNotice.tsx` and bump `NET_WORTH_NOTICE_VERSION`; every user is then asked again. A new purpose needs its own constant, endpoint pair and checkbox, never a reuse of this one. `docs/consent-notice-draft.md` holds the drafting notes, including the addendum for users outside India that is not built.
+- Tests: `backend/tests/test_consent_api.py`; backend tests that call gated endpoints use `grant_net_worth_consent` from `tests/conftest.py`; e2e users are consented by default (`signIn(page, prefix, false)` for an unconsented one), see `e2e-tests/tests/consent.spec.ts`.
+
 ### Statement ingestion pipeline (`backend/ingestion/`)
 Full design rationale lives in `backend/ingestion/README.md` — read it before changing extraction, staleness, or dedup logic. Summary:
 

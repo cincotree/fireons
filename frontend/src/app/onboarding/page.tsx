@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { NetWorthConsentGate } from "@/components/NetWorthConsentGate";
 import { StatementImportFlow } from "@/components/StatementImportFlow";
 
 export default function OnboardingPage() {
@@ -27,5 +28,9 @@ export default function OnboardingPage() {
     return null;
   }
 
-  return <StatementImportFlow />;
+  return (
+    <NetWorthConsentGate>
+      <StatementImportFlow />
+    </NetWorthConsentGate>
+  );
 }

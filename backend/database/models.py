@@ -420,6 +420,28 @@ class User(Base):
         return f"<User(username={self.username}, email={self.email})>"
 
 
+class ConsentRecord(Base):
+    __tablename__ = "consent_records"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    user_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    purpose: Mapped[str] = mapped_column(String(50), nullable=False)
+    notice_version: Mapped[str] = mapped_column(String(20), nullable=False)
+    granted: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    country: Mapped[Optional[str]] = mapped_column(String(2), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        Index("ix_consent_records_user_purpose_created", "user_id", "purpose", "created_at"),
+    )
+
+
 class Admin(Base):
     __tablename__ = "admins"
 
