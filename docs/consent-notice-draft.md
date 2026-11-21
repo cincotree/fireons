@@ -1,6 +1,6 @@
 # Net worth data: consent notice (drafting notes)
 
-The notice shown to users lives in `frontend/src/components/NetWorthNotice.tsx` and is built as described in CLAUDE.md. This file keeps the longer draft, the outside-India addendum (not built) and the open questions.
+The notice shown to users lives in `frontend/src/components/NetWorthNotice.tsx` and is built as described in AGENTS.md. This file keeps the longer draft, the outside-India addendum (not built) and the open questions.
 
 Not legal advice. Items in [square brackets] are decisions or facts to fill in before a lawyer reviews this. Written to meet India's DPDP Act 2023 and Rules 2025, the IT Act SPDI Rules 2011 that apply today, and, for users outside India, GDPR and UK GDPR style expectations.
 
