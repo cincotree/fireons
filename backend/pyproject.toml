@@ -27,6 +27,9 @@ dependencies = [
     "boto3>=1.35",
 ]
 
+[tool.uv]
+constraint-dependencies = ["greenlet<3.3", "psycopg<3.3", "psycopg-binary<3.3"]
+
 [dependency-groups]
 dev = [
     "pytest>=8.0.0",
