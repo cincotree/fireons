@@ -102,7 +102,7 @@ jobs:
 
   deploy-jobs-image:
     name: Release jobs image
-    needs: [changes, deploy-api]
+    needs: [deploy-api]
     if: ${{ !cancelled() && needs.changes.result == 'success' && needs.deploy-api.result != 'failure' && needs.changes.outputs.jobs_image == 'true' }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 20
@@ -129,7 +129,7 @@ jobs:
 
   deploy-webapp:
     name: Release web app
-    needs: [changes, deploy-api]
+    needs: [deploy-api]
     if: ${{ !cancelled() && needs.changes.result == 'success' && needs.deploy-api.result != 'failure' && needs.changes.outputs.webapp == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
