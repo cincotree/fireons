@@ -1,7 +1,6 @@
 #!/bin/bash
 
 export TESTING=true
-export POSTGRES_DB=fireons_test
 
 cleanup() {
   echo "Cleaning up test servers..."
@@ -18,6 +17,11 @@ BACKEND_PID=$!
 
 echo "Waiting for backend to be ready..."
 while ! curl -s http://localhost:8020 > /dev/null; do
+  if ! kill -0 $BACKEND_PID 2>/dev/null; then
+    echo "Backend failed to start. Last lines of backend.log:"
+    tail -5 backend.log
+    exit 1
+  fi
   sleep 1
 done
 echo "Backend is ready"
@@ -28,6 +32,11 @@ FRONTEND_PID=$!
 
 echo "Waiting for frontend to be ready..."
 while ! curl -s http://localhost:3020 > /dev/null; do
+  if ! kill -0 $FRONTEND_PID 2>/dev/null; then
+    echo "Frontend failed to start. Last lines of frontend.log:"
+    tail -5 frontend.log
+    exit 1
+  fi
   sleep 1
 done
 echo "Frontend is ready"

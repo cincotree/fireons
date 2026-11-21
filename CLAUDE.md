@@ -36,6 +36,8 @@ Fireons is a personal finance tracker for managing net worth and accounts. The s
 - **Ledger data model** (`database/models.py`): a double-entry, beancount-style schema — `Account` (hierarchical colon-separated names like `Assets:Bank:HDFC:6789`, typed `Assets`/`Liabilities`/`Equity`/`Income`/`Expenses`), `Transaction`/`Posting` (balanced double-entry postings), and `Balance` (point-in-time verified balances, one row per `account_id`+`date`+`currency`, optionally linked to the `IngestedDocument` it came from).
 - **Authentication**: `auth_api.py` (register/login/`/api/auth/me`), `auth_utils.py` (bcrypt hashing, JWT), 30-minute token expiry.
 - **`account_api.py` / `networth_api.py`**: manual account and balance CRUD, and net worth calculation, against the ledger tables above.
+- **Migrations** are applied before the new code is released, so they must stay backward compatible (see `backend/alembic/README.md`).
+- **Invite-only registration**: with `INVITE_ONLY=true`, `auth_api.register` requires an invite code from the `invites` table (managed with SQL, see `docs/invite-only-registration.md`).
 - **`convert_currency_api.py`**: USD/INR conversion using `ExchangeRate` rows.
 - **Statement ingestion — two independent pipelines, do not conflate them:**
   - `statements/parsers/` — the older pipeline. Regex-based, single-institution-at-a-time (currently HDFC), caller supplies the bank code, single-holding output. Exposed via `statements_api.py`.
@@ -63,6 +65,12 @@ Full design rationale lives in `backend/ingestion/README.md` — read it before 
 
 ## Development Commands
 
+### One-time local setup
+```bash
+make setup  # deps, .env files, Postgres container, fireons_development + fireons_e2e databases, migrations
+```
+Databases: development uses `fireons_development`, backend tests use `fireons_test` (created and dropped by `tests/conftest.py`), e2e uses `fireons_e2e`. `make db-create` creates the first and last from `backend/.env` and `backend/.env.test`.
+
 ### Backend Setup
 ```bash
 cd backend
@@ -74,7 +82,7 @@ uv sync  # Install dependencies using uv
 # Run dev server (from backend/)
 uv run uvicorn app:app --reload
 
-# Run all tests (requires PostgreSQL running; creates/drops a *_test database each session)
+# Run all tests (requires PostgreSQL running; creates/drops the fireons_test database each session)
 uv run pytest
 
 # Run a single test file / test / eval case
@@ -100,7 +108,7 @@ npm install
 
 # Create .env.local from sample
 cp .env.local.sample .env.local
-# Edit .env.local and set BACKEND_HOST if needed (defaults to localhost:8000)
+# Edit .env.local and set NEXT_PUBLIC_API_BASE_URL if needed (for example http://localhost:8000)
 ```
 
 ### Frontend Development
@@ -121,7 +129,17 @@ npm run lint
 docker build -t fireons/frontend .
 
 # Run Docker container
-docker run -p 3000:3000 -e BACKEND_HOST=localhost:8000 fireons/frontend
+docker run -p 3000:3000 fireons/frontend
+```
+
+### E2E Tests
+```bash
+cd e2e-tests
+npm install
+npm test                    # starts backend (:8020) + frontend (:3020) against fireons_e2e DB, runs all specs, tears down
+bash run-tests.sh <spec file>   # run a single spec
+npm run test:headed         # visible browser
+npm run test:ui             # interactive Playwright UI
 ```
 
 ### E2E Tests
@@ -135,20 +153,16 @@ npm run test:ui             # interactive Playwright UI
 ```
 
 ## Python Configuration
-- **Version**: Python 3.10.5 (specified in `backend/.tool-versions` and `pyproject.toml`)
+- **Version**: Python 3.12 (specified in `backend/.tool-versions` and `pyproject.toml`; matches the Lambda `python3.12` runtime)
 - **Package Manager**: uv (fast Python package installer and resolver)
 - **Type Checking**: Pyright with strict mode disabled for general type issues (see `pyrightconfig.json` and `backend/pyproject.toml`)
 
 ## Environment Variables
 
-### Backend `.env` (optional, has defaults)
+### Backend `.env` (`cp .env.sample .env`; `SECRET_KEY` and `DATABASE_URL` are required)
 ```bash
 # Database
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=fireons_development
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/fireons_development
 
 # Authentication
 SECRET_KEY=your-secret-key-change-this-in-production
@@ -160,7 +174,22 @@ ANTHROPIC_API_KEY=
 ANTHROPIC_MODEL=claude-sonnet-5
 ```
 
+### Deployment settings (`backend/app_config.py`, `backend/database/config.py`)
+Every environment is configured the same way, through env vars (locally from `.env`). `SECRET_KEY` and `DATABASE_URL` have no default and the app will not start without them. Everything else is optional and defaults to local dev behavior:
+```bash
+CORS_ORIGINS=http://localhost:3000,http://localhost:3020   # comma-separated
+INGESTION_TEST_ENABLED=true                    # mounts the /ingestion-test debug router
+INGESTION_ENABLED=false                        # false makes /ingestion/* return 503
+INVITE_ONLY=false                              # true requires a valid invite code (invites table) to register
+DATABASE_URL=postgresql+psycopg://...          # used exactly as given by the app and Alembic (add ?sslmode=require for Neon)
+DB_NULL_POOL=false                             # NullPool instead of QueuePool (Lambda)
+EXCHANGE_RATE_SYNC_ENABLED=true                # in-process APScheduler job
+```
+The schema comes from Alembic only; the app never creates tables. Run `uv run alembic upgrade head` before starting a fresh database (`make backend` and the e2e runner do this).
+
+When `APP_ENV` is set (e.g. `APP_ENV=production` on the Lambda), settings missing from the environment are read from the AWS Secrets Manager secret `fireons/<APP_ENV>`, a JSON object such as `{"SECRET_KEY": ..., "DATABASE_URL": ..., "ANTHROPIC_API_KEY": ...}` (`backend/secrets_source.py`). Env vars and `.env` take precedence. Locally `APP_ENV` is unset and nothing calls AWS.
+
 ### Frontend `.env.local` (required)
 ```bash
-BACKEND_HOST=localhost:8000
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```

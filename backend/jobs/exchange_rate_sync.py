@@ -52,22 +52,21 @@ async def store_rate(
     )
 
 
-async def sync_exchange_rates() -> None:
+async def run_exchange_rate_sync() -> Decimal:
     settings = get_exchange_rate_sync_settings()
     base = settings.exchange_rate_base_currency
     quote = settings.exchange_rate_quote_currency
 
-    try:
-        rate = await fetch_rate(base, quote)
-    except Exception:
-        logger.exception("Nightly exchange rate sync failed to fetch %s/%s", base, quote)
-        return
-
-    try:
-        async with session_context() as session:
-            await store_rate(session, base, quote, rate)
-    except Exception:
-        logger.exception("Nightly exchange rate sync failed to store %s/%s", base, quote)
-        return
+    rate = await fetch_rate(base, quote)
+    async with session_context() as session:
+        await store_rate(session, base, quote, rate)
 
     logger.info("Synced exchange rate %s/%s = %s", base, quote, rate)
+    return rate
+
+
+async def sync_exchange_rates() -> None:
+    try:
+        await run_exchange_rate_sync()
+    except Exception:
+        logger.exception("Nightly exchange rate sync failed")

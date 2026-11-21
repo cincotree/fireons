@@ -11,9 +11,47 @@ import { appRoutes } from '@/lib/config';
 import { NumberField } from './CalculatorFormFields';
 import { ChoiceField } from './ChoiceField';
 
-type Path = 'savings-rate' | 'retirement' | 'coast-fire';
+type Path =
+  | 'savings-rate'
+  | 'retirement'
+  | 'coast-fire'
+  | 'sip-for-fire'
+  | 'lumpsum-for-fire'
+  | 'fire-by-city'
+  | 'return-to-india'
+  | 'epf'
+  | 'ppf'
+  | 'nps';
+
+type Category = 'track' | 'where' | 'india-accounts';
+
+const PREFILLED_PATHS = new Set<Path>(['savings-rate', 'retirement', 'coast-fire']);
+
+const PATH_LABELS: Record<Path, string> = {
+  'savings-rate': 'Savings Rate',
+  retirement: 'Retirement',
+  'coast-fire': 'Coast FIRE',
+  'sip-for-fire': 'SIP for FIRE',
+  'lumpsum-for-fire': 'Lumpsum for FIRE',
+  'fire-by-city': 'FIRE Number by City',
+  'return-to-india': 'Return to India',
+  epf: 'EPF',
+  ppf: 'PPF',
+  nps: 'NPS',
+};
+
+const DIRECT_ROUTES: Partial<Record<Path, string>> = {
+  'sip-for-fire': appRoutes.sipFireCalculator,
+  'lumpsum-for-fire': appRoutes.lumpsumFireCalculator,
+  'fire-by-city': appRoutes.cityFireCalculator,
+  'return-to-india': appRoutes.returnToIndiaCalculator,
+  epf: appRoutes.epfCalculator,
+  ppf: appRoutes.ppfCalculator,
+  nps: appRoutes.npsCalculator,
+};
 
 interface Answers {
+  category?: Category;
   path?: Path;
   currentAge?: number;
   monthlyIncome?: number;
@@ -23,9 +61,16 @@ interface Answers {
   riskComfort?: AllocationChoice;
 }
 
-type NumberKey = Exclude<keyof Answers, 'path' | 'riskComfort'>;
+type NumberKey = Exclude<keyof Answers, 'category' | 'path' | 'riskComfort'>;
 
 type Question =
+  | {
+      key: 'category';
+      kind: 'choice';
+      label: string;
+      insight: string;
+      options: { value: Category; label: string; description?: string }[];
+    }
   | {
       key: 'path';
       kind: 'choice';
@@ -42,18 +87,109 @@ type Question =
       options: { value: AllocationChoice; label: string; description?: string }[];
     };
 
-const ROUTING_QUESTION: Question = {
-  key: 'path',
+const CATEGORY_OPTIONS: { value: Category; label: string; description: string }[] = [
+  {
+    value: 'track',
+    label: 'Am I on track to hit my number?',
+    description: 'Savings rate, monthly SIP, lumpsum, or coast FIRE',
+  },
+  {
+    value: 'where',
+    label: 'Where should I retire?',
+    description: 'Cost of living by city, or moving back from abroad',
+  },
+  {
+    value: 'india-accounts',
+    label: 'What will my India retirement accounts add up to?',
+    description: 'EPF, PPF, or NPS',
+  },
+];
+
+const CATEGORY_QUESTION: Question = {
+  key: 'category',
   kind: 'choice',
   label: "What's on your mind right now?",
   insight:
     'FIRE (Financial Independence, Retire Early) has a few common starting questions — pick the one closest to yours.',
-  options: [
-    { value: 'savings-rate', label: 'How fast am I moving toward FI?', description: 'Based on your savings rate' },
-    { value: 'retirement', label: 'How much do I need to invest monthly?', description: 'To retire on your terms' },
-    { value: 'coast-fire', label: 'Have I already saved enough to stop?', description: 'Coast to retirement' },
-  ],
+  options: CATEGORY_OPTIONS,
 };
+
+const PATH_OPTIONS: { value: Path; label: string; description: string; category: Category }[] = [
+  {
+    value: 'savings-rate',
+    label: 'How fast am I moving toward FI?',
+    description: 'Based on your savings rate',
+    category: 'track',
+  },
+  {
+    value: 'retirement',
+    label: 'How much do I need to invest monthly?',
+    description: 'To retire on your terms',
+    category: 'track',
+  },
+  {
+    value: 'coast-fire',
+    label: 'Have I already saved enough to stop?',
+    description: 'Coast to retirement',
+    category: 'track',
+  },
+  {
+    value: 'sip-for-fire',
+    label: 'Will my current SIP get me to FIRE?',
+    description: 'Check your monthly SIP against your FIRE number',
+    category: 'track',
+  },
+  {
+    value: 'lumpsum-for-fire',
+    label: 'Will a lumpsum I have get me to FIRE?',
+    description: 'Check a one-time investment against your FIRE number',
+    category: 'track',
+  },
+  {
+    value: 'fire-by-city',
+    label: 'What does FIRE cost where I want to live?',
+    description: 'Pick a city, see your FIRE number',
+    category: 'where',
+  },
+  {
+    value: 'return-to-india',
+    label: "I'm an NRI — when can I move back to India?",
+    description: 'FIRE number in rupees, invest in dollars',
+    category: 'where',
+  },
+  {
+    value: 'epf',
+    label: 'How much will my EPF alone grow to?',
+    description: 'Your Employee Provident Fund corpus',
+    category: 'india-accounts',
+  },
+  {
+    value: 'ppf',
+    label: 'How much will my PPF alone grow to?',
+    description: 'Your Public Provident Fund corpus',
+    category: 'india-accounts',
+  },
+  {
+    value: 'nps',
+    label: 'What will my NPS pension look like?',
+    description: 'Lump sum, annuity, and monthly pension',
+    category: 'india-accounts',
+  },
+];
+
+function pathQuestionForCategory(category: Category): Question {
+  return {
+    key: 'path',
+    kind: 'choice',
+    label: 'Which of these is closest to your situation?',
+    insight: CATEGORY_OPTIONS.find((option) => option.value === category)?.description ?? '',
+    options: PATH_OPTIONS.filter((option) => option.category === category).map((option) => ({
+      value: option.value,
+      label: option.label,
+      description: option.description,
+    })),
+  };
+}
 
 const AGE_QUESTION: Question = {
   key: 'currentAge',
@@ -113,13 +249,18 @@ const RISK_QUESTION: Question = {
   ],
 };
 
-function questionsForPath(path: Path | undefined): Question[] {
+function questionsFor(category: Category | undefined, path: Path | undefined): Question[] {
+  if (!category) return [CATEGORY_QUESTION];
+
+  const pathQuestion = pathQuestionForCategory(category);
+
   if (path === 'savings-rate') {
-    return [ROUTING_QUESTION, AGE_QUESTION, INCOME_QUESTION, EXPENSES_QUESTION, SAVINGS_QUESTION];
+    return [CATEGORY_QUESTION, pathQuestion, AGE_QUESTION, INCOME_QUESTION, EXPENSES_QUESTION, SAVINGS_QUESTION];
   }
   if (path === 'retirement' || path === 'coast-fire') {
     return [
-      ROUTING_QUESTION,
+      CATEGORY_QUESTION,
+      pathQuestion,
       AGE_QUESTION,
       EXPENSES_QUESTION,
       SAVINGS_QUESTION,
@@ -127,7 +268,7 @@ function questionsForPath(path: Path | undefined): Question[] {
       RISK_QUESTION,
     ];
   }
-  return [ROUTING_QUESTION];
+  return [CATEGORY_QUESTION, pathQuestion];
 }
 
 function buildDestinationHref(answers: Answers): string | null {
@@ -144,25 +285,29 @@ function buildDestinationHref(answers: Answers): string | null {
     return `${appRoutes.savingsRateCalculator}?${encodeInputsToParams(inputs).toString()}`;
   }
 
-  const sharedOverrides = {
-    ...(answers.currentAge !== undefined && { currentAge: answers.currentAge }),
-    ...(answers.monthlyExpenses !== undefined && { monthlyExpenseToday: answers.monthlyExpenses }),
-    ...(answers.currentSavings !== undefined && { currentSavings: answers.currentSavings }),
-    ...(answers.retirementAge !== undefined && { retirementAge: answers.retirementAge }),
-    ...(answers.riskComfort !== undefined && { preRetirementAllocation: answers.riskComfort }),
-  };
-
-  if (answers.path === 'retirement') {
-    const inputs: RetirementInputs = {
-      ...RETIREMENT_DEFAULTS,
-      ...sharedOverrides,
-      ...(answers.retirementAge !== undefined && { contributionEndAge: answers.retirementAge }),
+  if (answers.path === 'retirement' || answers.path === 'coast-fire') {
+    const sharedOverrides = {
+      ...(answers.currentAge !== undefined && { currentAge: answers.currentAge }),
+      ...(answers.monthlyExpenses !== undefined && { monthlyExpenseToday: answers.monthlyExpenses }),
+      ...(answers.currentSavings !== undefined && { currentSavings: answers.currentSavings }),
+      ...(answers.retirementAge !== undefined && { retirementAge: answers.retirementAge }),
+      ...(answers.riskComfort !== undefined && { preRetirementAllocation: answers.riskComfort }),
     };
-    return `${appRoutes.retirementCalculator}?${encodeInputsToParams(inputs).toString()}`;
+
+    if (answers.path === 'retirement') {
+      const inputs: RetirementInputs = {
+        ...RETIREMENT_DEFAULTS,
+        ...sharedOverrides,
+        ...(answers.retirementAge !== undefined && { contributionEndAge: answers.retirementAge }),
+      };
+      return `${appRoutes.retirementCalculator}?${encodeInputsToParams(inputs).toString()}`;
+    }
+
+    const inputs: CoastFireInputs = { ...COAST_FIRE_DEFAULTS, ...sharedOverrides };
+    return `${appRoutes.coastFireCalculator}?${encodeInputsToParams(inputs).toString()}`;
   }
 
-  const inputs: CoastFireInputs = { ...COAST_FIRE_DEFAULTS, ...sharedOverrides };
-  return `${appRoutes.coastFireCalculator}?${encodeInputsToParams(inputs).toString()}`;
+  return DIRECT_ROUTES[answers.path] ?? null;
 }
 
 export default function GetStartedQuestionnaire() {
@@ -170,7 +315,7 @@ export default function GetStartedQuestionnaire() {
   const [answers, setAnswers] = useState<Answers>({});
   const [draft, setDraft] = useState<number | undefined>(undefined);
 
-  const questions = questionsForPath(answers.path);
+  const questions = questionsFor(answers.category, answers.path);
   const isDone = step >= questions.length;
   const question = questions[step];
 
@@ -180,21 +325,26 @@ export default function GetStartedQuestionnaire() {
   };
 
   const answerAndAdvance = (key: keyof Answers, value: Answers[keyof Answers]) => {
-    setAnswers((current) => ({ ...current, [key]: value }));
+    setAnswers((current) => ({
+      ...current,
+      [key]: value,
+      ...(key === 'category' ? { path: undefined } : {}),
+    }));
     setDraft(undefined);
     setStep((s) => s + 1);
   };
 
   if (isDone) {
     const href = buildDestinationHref(answers);
-    const pathLabel =
-      answers.path === 'savings-rate' ? 'Savings Rate' : answers.path === 'retirement' ? 'Retirement' : 'Coast FIRE';
+    const pathLabel = answers.path ? PATH_LABELS[answers.path] : '';
+    const isPrefilled = answers.path !== undefined && PREFILLED_PATHS.has(answers.path);
     return (
       <div className="max-w-xl mx-auto text-center space-y-6">
         <h2 className="text-2xl font-bold text-slate-900">Here&apos;s where to start</h2>
         <p className="text-slate-600">
-          Based on your answers, the {pathLabel} Calculator is the best fit — we&apos;ve pre-filled it with what you
-          told us.
+          {isPrefilled
+            ? `Based on your answers, the ${pathLabel} Calculator is the best fit — we've pre-filled it with what you told us.`
+            : `Based on your answer, the ${pathLabel} Calculator is the best fit for what you're asking.`}
         </p>
         {href && (
           <button
@@ -214,7 +364,7 @@ export default function GetStartedQuestionnaire() {
     );
   }
 
-  const currentValue = question.key === 'path' ? undefined : answers[question.key];
+  const currentValue = question.key === 'path' || question.key === 'category' ? undefined : answers[question.key];
 
   return (
     <div className="max-w-xl mx-auto space-y-6">

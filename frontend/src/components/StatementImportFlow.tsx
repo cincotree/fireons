@@ -61,7 +61,7 @@ export function StatementImportFlow({ embedded = false, onImported }: StatementI
   };
 
   const checkFiles = async (candidates: File[]): Promise<FileCheckResult[]> => {
-    const baseUrl = await getBaseHttpUrl();
+    const baseUrl = getBaseHttpUrl();
     const token = localStorage.getItem("token");
 
     const formData = new FormData();
@@ -143,7 +143,7 @@ export function StatementImportFlow({ embedded = false, onImported }: StatementI
   };
 
   const pollRun = async (runId: string) => {
-    const baseUrl = await getBaseHttpUrl();
+    const baseUrl = getBaseHttpUrl();
     const token = localStorage.getItem("token");
 
     pollIntervalRef.current = setInterval(async () => {
@@ -182,7 +182,7 @@ export function StatementImportFlow({ embedded = false, onImported }: StatementI
     setSubmitError(null);
     setIsSubmitting(true);
     try {
-      const baseUrl = await getBaseHttpUrl();
+      const baseUrl = getBaseHttpUrl();
       const token = localStorage.getItem("token");
 
       const formData = new FormData();

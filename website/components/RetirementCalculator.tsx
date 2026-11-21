@@ -7,6 +7,7 @@ import { decodeParamsToInputs, encodeInputsToParams, isAllocationChoice } from '
 import RetirementCalculatorForm from './RetirementCalculatorForm';
 import RetirementCalculatorChart from './RetirementCalculatorChart';
 import ShareButton from './ShareButton';
+import EmailResultForm from './EmailResultForm';
 
 export const DEFAULT_INPUTS: RetirementInputs = {
   currentAge: 30,
@@ -118,6 +119,15 @@ export default function RetirementCalculator() {
             }
             buildUrl={() =>
               `${window.location.origin}${window.location.pathname}?${encodeInputsToParams(inputs).toString()}`
+            }
+          />
+
+          <EmailResultForm
+            calculatorTitle="Retirement Calculator"
+            resultSummary={
+              result.isAlreadyOnTrack
+                ? `You're already on track to retire at ${inputs.retirementAge} with a projected corpus of ${formatRupees(result.corpusAtRetirement)}.`
+                : `To retire at ${inputs.retirementAge} with a corpus of ${formatRupees(result.corpusAtRetirement)}, invest ${formatRupees(result.requiredMonthlySip)}/mo starting now.`
             }
           />
         </div>

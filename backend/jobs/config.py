@@ -24,3 +24,29 @@ def get_exchange_rate_sync_settings() -> ExchangeRateSyncSettings:
     if os.getenv("TESTING", "").lower() == "true":
         return ExchangeRateSyncSettings(_env_file=".env.test", exchange_rate_sync_enabled=False)
     return ExchangeRateSyncSettings()
+
+
+class JobsSettings(BaseSettings):
+    app_env: str = ""
+    project: str = "fireons"
+    jobs_run_locally: bool = False
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        extra = "ignore"
+
+    @property
+    def jobs_name(self) -> str:
+        if not self.app_env:
+            raise RuntimeError("APP_ENV is not set, so Fargate jobs are not configured")
+        return f"{self.project}-{self.app_env}-jobs"
+
+
+@lru_cache
+def get_jobs_settings() -> JobsSettings:
+    import os
+
+    if os.getenv("TESTING", "").lower() == "true":
+        return JobsSettings(_env_file=".env.test")
+    return JobsSettings()

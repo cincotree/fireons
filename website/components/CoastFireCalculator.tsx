@@ -7,6 +7,7 @@ import { decodeParamsToInputs, encodeInputsToParams, isAllocationChoice } from '
 import CoastFireCalculatorForm from './CoastFireCalculatorForm';
 import RetirementCalculatorChart from './RetirementCalculatorChart';
 import ShareButton from './ShareButton';
+import EmailResultForm from './EmailResultForm';
 
 export const DEFAULT_INPUTS: CoastFireInputs = {
   currentAge: 30,
@@ -102,6 +103,15 @@ export default function CoastFireCalculator() {
             }
             buildUrl={() =>
               `${window.location.origin}${window.location.pathname}?${encodeInputsToParams(inputs).toString()}`
+            }
+          />
+
+          <EmailResultForm
+            calculatorTitle="Coast FIRE Calculator"
+            resultSummary={
+              result.isAlreadyCoastFire
+                ? `You're already Coast FIRE — ${formatRupees(result.projectedCorpusAtRetirement)} projected at retirement with zero further contributions. Your Coast FIRE number was ${formatRupees(result.coastFireNumber)}.`
+                : `You need ${formatRupees(result.coastFireNumber - inputs.currentSavings)} more to reach your Coast FIRE number of ${formatRupees(result.coastFireNumber)}.`
             }
           />
         </div>

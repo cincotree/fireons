@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Metadata } from 'next';
 import { appRoutes } from '@/lib/config';
 import SavingsRateCalculator from '@/components/SavingsRateCalculator';
+import EmbedCodeSnippet from '@/components/EmbedCodeSnippet';
 
 export const metadata: Metadata = {
   title: 'Savings Rate Calculator - Fireons',
@@ -16,7 +17,7 @@ export default function SavingsRateCalculatorPage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-4xl sm:text-5xl font-bold mb-6">Savings Rate Calculator</h1>
           <p className="text-xl text-blue-100">
-            See how many years until you're financially independent, based on your savings rate — entirely in your
+            See how many years until you&apos;re financially independent, based on your savings rate — entirely in your
             browser, nothing is sent anywhere.
           </p>
         </div>
@@ -25,6 +26,11 @@ export default function SavingsRateCalculatorPage() {
       {/* Calculator */}
       <section className="py-16 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <SavingsRateCalculator />
+      </section>
+
+      {/* Embed */}
+      <section className="pb-16 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <EmbedCodeSnippet slug="savings-rate" title="Savings Rate Calculator" />
       </section>
 
       {/* CTA */}

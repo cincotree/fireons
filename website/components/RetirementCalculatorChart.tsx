@@ -6,19 +6,30 @@ interface Props {
   series: RetirementSeriesPoint[];
   milestoneAge: number;
   milestoneLabel?: string;
+  currency?: 'inr' | 'usd';
 }
 
 const WIDTH = 800;
 const HEIGHT = 320;
 const PADDING = { top: 20, right: 20, bottom: 32, left: 64 };
 
-function axisUnitFor(maxAbsValue: number): { divisor: number; suffix: string } {
+function axisUnitFor(maxAbsValue: number, currency: 'inr' | 'usd'): { divisor: number; suffix: string } {
+  if (currency === 'usd') {
+    if (maxAbsValue >= 1_000_000) return { divisor: 1_000_000, suffix: 'M' };
+    if (maxAbsValue >= 1_000) return { divisor: 1_000, suffix: 'K' };
+    return { divisor: 1, suffix: '' };
+  }
   if (maxAbsValue >= 10_000_000) return { divisor: 10_000_000, suffix: 'Cr' };
   if (maxAbsValue >= 100_000) return { divisor: 100_000, suffix: 'L' };
   return { divisor: 1, suffix: '' };
 }
 
-export default function RetirementCalculatorChart({ series, milestoneAge, milestoneLabel = 'Retirement' }: Props) {
+export default function RetirementCalculatorChart({
+  series,
+  milestoneAge,
+  milestoneLabel = 'Retirement',
+  currency = 'inr',
+}: Props) {
   if (series.length < 2) return null;
 
   const ages = series.map((point) => point.age);
@@ -46,9 +57,12 @@ export default function RetirementCalculatorChart({ series, milestoneAge, milest
   const milestoneLabelAnchor = milestoneX > WIDTH - 200 ? 'end' : 'start';
   const milestoneLabelX = milestoneX + (milestoneLabelAnchor === 'end' ? -6 : 6);
   const yTicks = [0, 0.25, 0.5, 0.75, 1].map((fraction) => minValue + fraction * (maxValue - minValue));
-  const axisUnit = axisUnitFor(Math.max(Math.abs(minValue), Math.abs(maxValue)));
+  const axisUnit = axisUnitFor(Math.max(Math.abs(minValue), Math.abs(maxValue)), currency);
+  const currencySymbol = currency === 'usd' ? '$' : '₹';
   const formatAxisValue = (value: number) =>
-    `₹${(value / axisUnit.divisor).toFixed(axisUnit.divisor === 1 ? 0 : 1)}${axisUnit.suffix}`;
+    axisUnit.divisor === 1
+      ? `${currencySymbol}${Math.round(value).toLocaleString(currency === 'usd' ? 'en-US' : 'en-IN')}`
+      : `${currencySymbol}${(value / axisUnit.divisor).toFixed(1)}${axisUnit.suffix}`;
 
   const depletionPoint = series.find((point) => point.age > milestoneAge && point.value <= 0);
   const depletionAge = depletionPoint && depletionPoint.age < maxAge ? depletionPoint.age : null;

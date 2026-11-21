@@ -45,7 +45,7 @@ export function AssetAllocationChart({ asOfDate, currency = "INR" }: AssetAlloca
     setIsLoading(true);
     setError(null);
     try {
-      const baseUrl = await getBaseHttpUrl();
+      const baseUrl = getBaseHttpUrl();
       const token = localStorage.getItem("token");
       const params = new URLSearchParams({ currency });
       if (asOfDate) params.append("as_of_date", asOfDate);

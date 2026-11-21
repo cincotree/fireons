@@ -194,6 +194,7 @@
   files: [fixtures/unknown_document.pdf]
   expected_nw: !include expected/unknown_format.json
   permute: false
+  requires_llm: true
 
 - id: stale_exhaustive_does_not_zero
   description: >
@@ -575,6 +576,7 @@
   files: [fixtures/fidelity_2026_07.pdf]
   expected_nw: !include expected/international_stock_fresh.json
   permute: false
+  requires_llm: true
 
 - id: chase_real_layout_fresh
   description: >
@@ -595,3 +597,4 @@
   files: [fixtures/chase_real_layout_2026_07.pdf]
   expected_nw: !include expected/chase_real_layout_fresh.json
   permute: false
+  requires_llm: true
