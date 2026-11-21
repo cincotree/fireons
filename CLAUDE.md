@@ -142,6 +142,16 @@ npm run test:headed         # visible browser
 npm run test:ui             # interactive Playwright UI
 ```
 
+### E2E Tests
+```bash
+cd e2e-tests
+npm install
+npm test                    # starts backend (:8020) + frontend (:3020) against fireons_test DB, runs all specs, tears down
+bash run-tests.sh <spec file>   # run a single spec
+npm run test:headed         # visible browser
+npm run test:ui             # interactive Playwright UI
+```
+
 ## Python Configuration
 - **Version**: Python 3.12 (specified in `backend/.tool-versions` and `pyproject.toml`; matches the Lambda `python3.12` runtime)
 - **Package Manager**: uv (fast Python package installer and resolver)

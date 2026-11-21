@@ -144,6 +144,7 @@ class AccountRepository:
         account_id: str,
         name: str | None = None,
         description: str | None = None,
+        meta: dict | None = None,
     ) -> Account | None:
         """
         Update an account.
@@ -152,6 +153,7 @@ class AccountRepository:
             account_id: Account ID to update
             name: New account name (will update account_type automatically)
             description: New description
+            meta: New metadata dictionary (replaces any existing meta)
 
         Returns:
             Updated Account or None if not found
@@ -174,6 +176,9 @@ class AccountRepository:
 
         if description is not None:
             account.description = description
+
+        if meta is not None:
+            account.meta = meta
 
         await self.session.flush()
         return account
