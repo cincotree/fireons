@@ -63,6 +63,7 @@ Checks: `terraform plan` is clean after apply, the budget alert test email arriv
 ## Background jobs
 
 Jobs run as on-demand Fargate tasks, so idle cost is the ECR storage only. The in-process APScheduler job stays disabled in production (`EXCHANGE_RATE_SYNC_ENABLED=false`) because a Lambda is frozen between requests.
+Each exchange rate sync appends a new row to `exchange_rates` instead of updating in place, so history is kept. The latest row per currency pair (by `date`, then `created_at`) is the current rate.
 
 - Each task runs `python -m jobs.runner`. The runner records a row in `job_runs` (status, error, task ARN, timestamps), runs the job from `backend/jobs/registry.py`, and exits non-zero on failure.
 - EventBridge Scheduler: each entry in `scheduled_jobs` starts a task directly with `JOB_NAME`; the runner creates the `job_runs` row itself. The default entry runs `exchange_rate_sync` at 20:30 UTC.

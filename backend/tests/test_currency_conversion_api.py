@@ -66,7 +66,7 @@ class TestAccountsDisplayCurrency:
         exchange_rate_repo: ExchangeRateRepository,
         test_user: User,
     ):
-        await exchange_rate_repo.create_or_update(
+        await exchange_rate_repo.create(
             date=date(2024, 1, 1),
             from_currency="USD",
             to_currency="INR",
@@ -134,7 +134,7 @@ class TestAllocationDisplayCurrency:
         exchange_rate_repo: ExchangeRateRepository,
         test_user: User,
     ):
-        await exchange_rate_repo.create_or_update(
+        await exchange_rate_repo.create(
             date=date(2024, 1, 1),
             from_currency="USD",
             to_currency="INR",

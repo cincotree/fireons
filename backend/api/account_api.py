@@ -427,7 +427,7 @@ async def create_exchange_rate(
 ):
     rate_repo = ExchangeRateRepository(session)
 
-    rate = await rate_repo.create_or_update(
+    rate = await rate_repo.create(
         date=rate_data.date,
         from_currency=rate_data.from_currency,
         to_currency=rate_data.to_currency,
@@ -457,6 +457,7 @@ async def list_exchange_rates(
     rates = await rate_repo.list_all(
         from_currency=from_currency,
         to_currency=to_currency,
+        latest_only=True,
     )
 
     return [
