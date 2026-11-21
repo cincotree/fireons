@@ -17,6 +17,15 @@ Every new feature must ship with tests, not just the happy path:
 - Extend existing test file patterns rather than inventing a new style. Flag pre-existing broken/stale tests found nearby instead of silently ignoring them or scope-creeping into unrelated fixes.
 - Manually verify UI changes in a running browser — a green test suite is not proof the feature actually works end to end.
 
+## Shipping Changes to Production
+
+Passing tests from the source tree does not prove a change deploys. Before calling a change done:
+
+- **Lambda package**: `backend/scripts/build_lambda.sh` copies top-level backend modules and packages from fixed lists. A new top-level module or package must be added to those lists, or the Lambda fails on import after the release. `tests/test_lambda_package.py` checks this; for anything it cannot see, run `backend/scripts/build_lambda.sh` and inspect `backend/build/package`.
+- **Other images**: `backend/Dockerfile.worker` also copies an explicit list of files, so a module imported by `jobs/` must be added there.
+- **Settings and secrets**: for every new environment variable or secret, say in the PR description where it is set (the `fireons/production` secret, Terraform, or a GitHub repo variable) and whether the app still works when it is unset.
+- **Migrations**: they run before the new code is live, so old code must keep working against the new schema (see `backend/alembic/README.md`).
+
 ## Handling Personal Data
 
 Never commit real personal, financial, or otherwise sensitive documents or data to this repository, even temporarily:
