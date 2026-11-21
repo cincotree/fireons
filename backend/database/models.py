@@ -12,6 +12,7 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Index,
+    Integer,
     JSON,
     Numeric,
     String,
@@ -200,7 +201,14 @@ class Balance(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
+    source_document_id: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("ingested_documents.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
     account: Mapped["Account"] = relationship(back_populates="balances")
+    source_document: Mapped[Optional["IngestedDocument"]] = relationship()
 
     __table_args__ = (
         UniqueConstraint("account_id", "date", "currency", name="uq_balance_account_date_currency"),
@@ -209,6 +217,114 @@ class Balance(Base):
 
     def __repr__(self) -> str:
         return f"<Balance(account={self.account_id}, date={self.date}, amount={self.amount})>"
+
+
+class IngestionRunStatus(enum.Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+class IngestionRun(Base):
+    __tablename__ = "ingestion_runs"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    user_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    status: Mapped[IngestionRunStatus] = mapped_column(
+        Enum(IngestionRunStatus), default=IngestionRunStatus.PENDING, nullable=False
+    )
+    file_count: Mapped[int] = mapped_column(nullable=False)
+    positions_count: Mapped[Optional[int]] = mapped_column(nullable=True)
+    warnings: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    llm_call_count: Mapped[Optional[int]] = mapped_column(nullable=True)
+    llm_input_tokens: Mapped[Optional[int]] = mapped_column(nullable=True)
+    llm_output_tokens: Mapped[Optional[int]] = mapped_column(nullable=True)
+    llm_cache_creation_tokens: Mapped[Optional[int]] = mapped_column(nullable=True)
+    llm_cache_read_tokens: Mapped[Optional[int]] = mapped_column(nullable=True)
+    llm_estimated_cost_usd: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(precision=10, scale=6), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    documents: Mapped[list["IngestedDocument"]] = relationship(
+        back_populates="ingestion_run", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (Index("ix_ingestion_runs_user_id", "user_id"),)
+
+    def __repr__(self) -> str:
+        return f"<IngestionRun(id={self.id}, status={self.status.value})>"
+
+
+class JobRunStatus(enum.Enum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+class JobRun(Base):
+    __tablename__ = "job_runs"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    job: Mapped[str] = mapped_column(String(100), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    status: Mapped[JobRunStatus] = mapped_column(
+        Enum(JobRunStatus), default=JobRunStatus.QUEUED, nullable=False
+    )
+    task_arn: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index("ix_job_runs_status", "status"),
+        Index("ix_job_runs_job_created_at", "job", "created_at"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<JobRun(id={self.id}, job={self.job}, status={self.status.value})>"
+
+
+class IngestedDocument(Base):
+    __tablename__ = "ingested_documents"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    ingestion_run_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("ingestion_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    source: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    doc_issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    ingestion_run: Mapped["IngestionRun"] = relationship(back_populates="documents")
+
+    __table_args__ = (
+        Index("ix_ingested_documents_run_source_date", "ingestion_run_id", "source", "doc_issued_at"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<IngestedDocument(source={self.source}, doc_issued_at={self.doc_issued_at})>"
 
 
 class ExchangeRate(Base):
@@ -303,3 +419,53 @@ class User(Base):
 
     def __repr__(self) -> str:
         return f"<User(username={self.username}, email={self.email})>"
+
+
+class Admin(Base):
+    __tablename__ = "admins"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    username: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    def __repr__(self) -> str:
+        return f"<Admin(username={self.username})>"
+
+
+class Invite(Base):
+    __tablename__ = "invites"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    code: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    label: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    max_uses: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    use_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class InviteRedemption(Base):
+    __tablename__ = "invite_redemptions"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    invite_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("invites.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

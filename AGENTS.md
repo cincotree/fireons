@@ -35,7 +35,7 @@ Fireons is a personal finance tracker for managing net worth and accounts. FastA
 - `app.py`: Main server with `/api` path rewriting middleware
 - Authentication: `auth_api.py`, `auth_utils.py`, JWT-based (30min expiry)
 - API routes: `convert_currency_api.py`, `networth_api.py`
-- Package manager: uv. Python 3.10.5.
+- Package manager: uv. Python 3.12.
 - Type checking: Pyright (strict mode disabled)
 
 ### Frontend (Next.js 15/React/TypeScript)
@@ -45,27 +45,48 @@ Fireons is a personal finance tracker for managing net worth and accounts. FastA
 
 ## Development Commands
 
+A top-level `Makefile` wraps the commands below. `make setup` is the one-time local setup: it runs `install` (all three `*-setup` targets), `env`, `db`, `db-create` and `migrate`, and is safe to rerun. `make test` runs `backend-test` + `e2e`.
+
+### Database
+- `make db` — start (or create, first time) a local Postgres container matching the dev defaults: `postgres:16-alpine`, user/pass `postgres`, db `fireons_development`, port 5432. Idempotent — safe to rerun.
+- `make db-create` — create the development database (from `backend/.env`) and the e2e database (from `backend/.env.test`) if missing. Works with any reachable Postgres, not only the `make db` container.
+- `make migrate` — `alembic upgrade head` on the development database.
+
+Each suite has its own database: development uses `fireons_development`, backend tests use `fireons_test` (created and dropped by `tests/conftest.py` on the server from `DATABASE_URL`), and e2e uses `fireons_e2e`.
+
 ### Backend
-- `cd backend && uv sync` — install deps
-- `uv run uvicorn app:app --reload` — dev server
-- `uv run pytest tests/ -v` — run tests
+- `make backend-setup` (`cd backend && uv sync`) — install deps
+- `make backend` (`uv run uvicorn app:app --reload`) — dev server
+- `make backend-test` (`uv run pytest`) — run tests
 
 ### Frontend
-- `cd frontend && npm install` — install deps
-- `npm run dev` — dev server on localhost:3000
-- `npm run build` — production build
-- `npm run lint` — lint
-- Needs `.env.local` with `BACKEND_HOST=localhost:8000`
+- `make frontend-setup` (`cd frontend && npm install`) — install deps
+- `make frontend` (`npm run dev`) — dev server on localhost:3000
+- `make frontend-build` (`npm run build`) — production build
+- `make frontend-lint` (`npm run lint`) — lint
+- Needs `.env.local` with `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000`
+
+### E2E tests
+Make targets wrap the Playwright suite in `e2e-tests/` (see `e2e-tests/package.json` for the underlying scripts):
+
+- `make e2e-setup` — first-time setup: `npm install` + `npx playwright install chromium`
+- `make e2e` — run the full suite headless (`bash e2e-tests/run-tests.sh`)
+- `make e2e-headed` — same, with a visible browser window
+- `make e2e-ui` — Playwright's interactive UI mode (test explorer, timeline, DOM snapshots per step)
+- `make e2e-debug` — step through with the inspector
+- `make e2e-report` — open the HTML report from the last run
+
+`e2e-headed` and `e2e-ui` need a display, so they only work on a local machine, not headless CI/sandboxes.
+
+Prerequisites: Postgres reachable per `backend/.env.test`, and the `fireons_e2e` database must already exist (`make db-create`, included in `make setup`). `run-tests.sh` does not create it.
+
+`run-tests.sh` starts the backend (`TESTING=true`, port 8020) and frontend (port 3020) itself, waits for both, runs the suite, then drops and recreates the `fireons_e2e` schema in teardown. Because of that teardown, don't run `npx playwright test` directly against an already-running backend from a prior `run-tests.sh` invocation — the tables will be gone and every test will fail with "relation does not exist". Always go through `run-tests.sh` (i.e. `make e2e`), or restart the backend first if running Playwright manually.
 
 ## Environment Variables
 
 ### Backend `.env` (optional)
 ```env
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=fireons_development
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/fireons_development
 SECRET_KEY=your-secret-key-change-this-in-production
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
@@ -73,5 +94,5 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 
 ### Frontend `.env.local` (required)
 ```env
-BACKEND_HOST=localhost:8000
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```

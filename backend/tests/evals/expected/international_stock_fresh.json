@@ -1,0 +1,15 @@
+{
+  "as_of": "2026-07-31",
+  "reporting_currency": "INR",
+  "positions": {
+    "Assets:Investment:Equity:US:GLOBEX": {
+      "account_name": "Assets:Investment:Equity:US:GLOBEX",
+      "units": "10.000",
+      "nav": "350.0000",
+      "value": "3500.00",
+      "currency": "USD",
+      "as_of": "2026-07-31"
+    }
+  },
+  "total": "0.00"
+}

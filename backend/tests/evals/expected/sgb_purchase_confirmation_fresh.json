@@ -1,0 +1,15 @@
+{
+  "as_of": "2026-07-06",
+  "reporting_currency": "INR",
+  "positions": {
+    "Assets:Investment:SGB:SGB2028SeriesIV": {
+      "account_name": "Assets:Investment:SGB:SGB2028SeriesIV",
+      "units": "10.000",
+      "nav": "6200.0000",
+      "value": "62000.00",
+      "currency": "INR",
+      "as_of": "2026-07-06"
+    }
+  },
+  "total": "62000.00"
+}

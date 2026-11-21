@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **IMPORTANT: Do not add code comments anywhere unless explicitly requested.** The code should be self-documenting through clear naming and structure. Comments will only be added when the user specifically asks for them.
 
+Never use em dashes (--) in any content or code.
+
 ## Testing Requirements
 
 **Every new feature must ship with tests, not just the happy path.** Before considering a change done:
@@ -30,30 +32,44 @@ Fireons is a personal finance tracker for managing net worth and accounts. The s
 ## Architecture
 
 ### Backend (Python/FastAPI)
-- **FastAPI Application** (`app.py`): Main server with middleware to rewrite `/api` paths
-- **Authentication System**:
-  - `auth_api.py`: User registration, login, and JWT authentication endpoints
-  - `auth_utils.py`: Password hashing (bcrypt) and JWT token generation/validation
-  - `database/models.py`: User model with email, username, password, profile fields
-  - JWT-based authentication with 30-minute token expiration
-  - Endpoints: `/api/auth/register`, `/api/auth/login`, `/api/auth/me`
-- **API Routes**:
-  - `convert_currency_api.py`: Currency conversion (USD to INR)
-  - `networth_api.py`: Net worth tracking and calculations
+- **FastAPI Application** (`app.py`): Main server; middleware rewrites `/api`-prefixed request paths before routing.
+- **Ledger data model** (`database/models.py`): a double-entry, beancount-style schema — `Account` (hierarchical colon-separated names like `Assets:Bank:HDFC:6789`, typed `Assets`/`Liabilities`/`Equity`/`Income`/`Expenses`), `Transaction`/`Posting` (balanced double-entry postings), and `Balance` (point-in-time verified balances, one row per `account_id`+`date`+`currency`, optionally linked to the `IngestedDocument` it came from).
+- **Authentication**: `auth_api.py` (register/login/`/api/auth/me`), `auth_utils.py` (bcrypt hashing, JWT), 30-minute token expiry.
+- **`account_api.py` / `networth_api.py`**: manual account and balance CRUD, and net worth calculation, against the ledger tables above.
+- **Migrations** are applied before the new code is released, so they must stay backward compatible (see `backend/alembic/README.md`).
+- **Invite-only registration**: with `INVITE_ONLY=true`, `auth_api.register` requires an invite code from the `invites` table (managed with SQL, see `docs/invite-only-registration.md`).
+- **`convert_currency_api.py`**: USD/INR conversion using `ExchangeRate` rows.
+- **Statement ingestion — two independent pipelines, do not conflate them:**
+  - `statements/parsers/` — the older pipeline. Regex-based, single-institution-at-a-time (currently HDFC), caller supplies the bank code, single-holding output. Exposed via `statements_api.py`.
+  - `ingestion/` — the current pipeline (see below), exposed via `ingestion_api.py`. `ingestion_test_api.py` is a debug-only endpoint that runs one file through `ingest()` from an empty net worth, for interactively checking parser/extraction output without needing a real ingestion run or the database.
+
+### Statement ingestion pipeline (`backend/ingestion/`)
+Full design rationale lives in `backend/ingestion/README.md` — read it before changing extraction, staleness, or dedup logic. Summary:
+
+- **Entry point**: `pipeline.ingest(current_nw, files) -> NetWorth`, a pure function (`ingestion/model.py` defines `NetWorth`/`Position`). It does not touch the database itself.
+- **Two-tier extraction**, chosen per-document by `router.route_extract()`: a deterministic parser tier (`parsers/`, one module per document-type group — bank accounts, loans, deposits, mutual funds, demat, retirement, SGB, insurance, brokerage) tries first; each `try_parse_X(text) -> dict | None` either returns a complete, confident result or defers. Anything no parser recognizes falls back to `extract.py`, a single Anthropic tool-use schema covering 11 document types (bank/loan/brokerage/demat/MF-CAS/EPF/SGB/deposit/NPS/insurance/unrecognized) — nothing is hardcoded per-institution.
+- **Deterministic account keys** are always built in code (`pipeline._account_name`) from stable identifiers (folio number, ISIN, account number), never generated as free text by the LLM — this is what makes cross-document dedup and the staleness/supersession logic reliable.
+- **`invariants.py`**: label-free self-checks on any produced `NetWorth` (units × NAV ≈ value, positions sum to total, no future `as_of`, account keys match their type prefix).
+- **Async flow for real uploads**: `api/ingestion_api.py` (`POST /ingestion/upload`) writes files to a per-request temp dir, rate-limits (`rate_limit.py` — 50MB/hour cumulative upload volume per user is the binding guard, cost tracks bytes not requests), creates an `IngestionRun` row, and hands off to a `BackgroundTasks` job (`background.run_ingestion`), which runs the (synchronous, possibly slow/LLM-calling) `ingest()` in a thread, then persists via `persistence.py` (`load_current_networth` / `persist_networth`, which upsert `Account`/`Balance`/`IngestedDocument` rows). Clients poll `GET /ingestion/runs/{run_id}` for status.
+- **Eval suite** (`backend/tests/evals/`): 31 cases in `cases/core.yaml`, run against synthetic fixtures generated by `fixtures/generate_eval_fixtures.py` (no real financial documents are ever committed — see `generate_eval_fixtures.py`'s own docstring on which fixtures are/aren't validated against real document layouts). `harness.py` loads cases and, when a case sets `permute: true`, runs every file-ordering permutation to prove order-independence. Run just this suite with `uv run pytest tests/evals/ -v`; a single case can be targeted with `uv run pytest tests/evals/ -k <case_id> -v`.
 
 ### Frontend (Next.js 15/React/TypeScript)
 - **App Router** (`frontend/src/app/`): Next.js 15 with app directory structure
-  - `/login`: User login page
-  - `/register`: User registration page with email, username, password, optional fields
-  - `/networth`: Net worth tracking dashboard (requires authentication)
-  - `/`: Homepage - redirects to `/networth` if authenticated, `/login` if not
-- **Authentication** (`frontend/src/contexts/`):
-  - `AuthContext.tsx`: Global auth state, login/register/logout functions, JWT token management
-  - Automatic token validation on page load
-  - Protected routes redirect to login if not authenticated
-- **Tech Stack**: Next.js 15, React 18, TanStack Table, Chart.js, Tailwind CSS, Radix UI, Ant Design
+  - `/login`, `/register`: auth
+  - `/networth`: net worth tracking dashboard (requires authentication)
+  - `/onboarding`: statement upload flow driving the `ingestion/` pipeline above
+  - `/ingestion-test`: debug UI for `ingestion-test` endpoint
+  - `/`: Homepage — redirects to `/networth` if authenticated, `/login` if not
+- **Authentication** (`frontend/src/contexts/AuthContext.tsx`): global auth state, login/register/logout, JWT token management, automatic validation on load; protected routes redirect to login.
+- **Tech Stack**: Next.js 15, React 18, TanStack Table, Chart.js/Recharts, Tailwind CSS, Radix UI, Ant Design.
 
 ## Development Commands
+
+### One-time local setup
+```bash
+make setup  # deps, .env files, Postgres container, fireons_development + fireons_e2e databases, migrations
+```
+Databases: development uses `fireons_development`, backend tests use `fireons_test` (created and dropped by `tests/conftest.py`), e2e uses `fireons_e2e`. `make db-create` creates the first and last from `backend/.env` and `backend/.env.test`.
 
 ### Backend Setup
 ```bash
@@ -65,6 +81,18 @@ uv sync  # Install dependencies using uv
 ```bash
 # Run dev server (from backend/)
 uv run uvicorn app:app --reload
+
+# Run all tests (requires PostgreSQL running; creates/drops the fireons_test database each session)
+uv run pytest
+
+# Run a single test file / test / eval case
+uv run pytest tests/test_ingestion_pipeline_robustness.py -v
+uv run pytest tests/test_ingestion_pipeline_robustness.py::test_some_case -v
+uv run pytest tests/evals/ -k <case_id> -v
+
+# Alembic migrations (see backend/alembic/README.md)
+uv run alembic upgrade head
+uv run alembic revision --autogenerate -m "description"
 
 # Build Docker image
 docker build -t fireons/backend .
@@ -80,7 +108,7 @@ npm install
 
 # Create .env.local from sample
 cp .env.local.sample .env.local
-# Edit .env.local and set BACKEND_HOST if needed (defaults to localhost:8000)
+# Edit .env.local and set NEXT_PUBLIC_API_BASE_URL if needed (for example http://localhost:8000)
 ```
 
 ### Frontend Development
@@ -101,32 +129,67 @@ npm run lint
 docker build -t fireons/frontend .
 
 # Run Docker container
-docker run -p 3000:3000 -e BACKEND_HOST=localhost:8000 fireons/frontend
+docker run -p 3000:3000 fireons/frontend
+```
+
+### E2E Tests
+```bash
+cd e2e-tests
+npm install
+npm test                    # starts backend (:8020) + frontend (:3020) against fireons_e2e DB, runs all specs, tears down
+bash run-tests.sh <spec file>   # run a single spec
+npm run test:headed         # visible browser
+npm run test:ui             # interactive Playwright UI
+```
+
+### E2E Tests
+```bash
+cd e2e-tests
+npm install
+npm test                    # starts backend (:8020) + frontend (:3020) against fireons_test DB, runs all specs, tears down
+bash run-tests.sh <spec file>   # run a single spec
+npm run test:headed         # visible browser
+npm run test:ui             # interactive Playwright UI
 ```
 
 ## Python Configuration
-- **Version**: Python 3.10.5 (specified in `backend/.tool-versions` and `pyproject.toml`)
+- **Version**: Python 3.12 (specified in `backend/.tool-versions` and `pyproject.toml`; matches the Lambda `python3.12` runtime)
 - **Package Manager**: uv (fast Python package installer and resolver)
 - **Type Checking**: Pyright with strict mode disabled for general type issues (see `pyrightconfig.json` and `backend/pyproject.toml`)
 
 ## Environment Variables
 
-### Backend `.env` (optional, has defaults)
+### Backend `.env` (`cp .env.sample .env`; `SECRET_KEY` and `DATABASE_URL` are required)
 ```bash
 # Database
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=fireons_development
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/fireons_development
 
 # Authentication
 SECRET_KEY=your-secret-key-change-this-in-production
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# Ingestion pipeline (backend/ingestion/config.py)
+ANTHROPIC_API_KEY=
+ANTHROPIC_MODEL=claude-sonnet-5
 ```
+
+### Deployment settings (`backend/app_config.py`, `backend/database/config.py`)
+Every environment is configured the same way, through env vars (locally from `.env`). `SECRET_KEY` and `DATABASE_URL` have no default and the app will not start without them. Everything else is optional and defaults to local dev behavior:
+```bash
+CORS_ORIGINS=http://localhost:3000,http://localhost:3020   # comma-separated
+INGESTION_TEST_ENABLED=true                    # mounts the /ingestion-test debug router
+INGESTION_ENABLED=false                        # false makes /ingestion/* return 503
+INVITE_ONLY=false                              # true requires a valid invite code (invites table) to register
+DATABASE_URL=postgresql+psycopg://...          # used exactly as given by the app and Alembic (add ?sslmode=require for Neon)
+DB_NULL_POOL=false                             # NullPool instead of QueuePool (Lambda)
+EXCHANGE_RATE_SYNC_ENABLED=true                # in-process APScheduler job
+```
+The schema comes from Alembic only; the app never creates tables. Run `uv run alembic upgrade head` before starting a fresh database (`make backend` and the e2e runner do this).
+
+When `APP_ENV` is set (e.g. `APP_ENV=production` on the Lambda), settings missing from the environment are read from the AWS Secrets Manager secret `fireons/<APP_ENV>`, a JSON object such as `{"SECRET_KEY": ..., "DATABASE_URL": ..., "ANTHROPIC_API_KEY": ...}` (`backend/secrets_source.py`). Env vars and `.env` take precedence. Locally `APP_ENV` is unset and nothing calls AWS.
 
 ### Frontend `.env.local` (required)
 ```bash
-BACKEND_HOST=localhost:8000
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```

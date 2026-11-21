@@ -1,0 +1,218 @@
+import Link from 'next/link';
+import { Metadata } from 'next';
+import { appRoutes } from '@/lib/config';
+
+export const metadata: Metadata = {
+  title: 'Free FIRE Calculators - Fireons',
+  description: 'Free, interactive calculators for your FIRE journey — entirely in your browser, nothing is sent anywhere.',
+};
+
+export default function Calculators() {
+  return (
+    <div className="bg-white">
+      {/* Header */}
+      <section className="py-12 text-center">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-3">Free FIRE Calculators</h1>
+          <p className="text-lg text-slate-600">
+            See your numbers in under a minute — entirely in your browser, nothing is sent anywhere.
+          </p>
+        </div>
+      </section>
+
+      {/* Not sure where to start? */}
+      <section className="pb-8">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+          <Link
+            href={appRoutes.getStarted}
+            className="group flex items-center justify-between gap-4 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-2xl px-6 py-5 transition-colors"
+          >
+            <span className="font-semibold text-amber-900">
+              Not sure where to start? Answer a few quick questions and we&apos;ll point you to the right calculator.
+            </span>
+            <span className="text-amber-700 font-semibold whitespace-nowrap group-hover:underline">Get started →</span>
+          </Link>
+        </div>
+      </section>
+
+      {/* Calculator grid */}
+      <section className="pb-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <Link
+              href={appRoutes.retirementCalculator}
+              className="group bg-cyan-50/60 hover:bg-cyan-50 p-8 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-cyan-100 hover:-translate-y-1"
+            >
+              <div className="w-14 h-14 bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-xl flex items-center justify-center mb-6 shadow-lg group-hover:scale-110 transition-transform">
+                <span className="text-2xl font-bold text-white">₹</span>
+              </div>
+              <p className="text-xs font-semibold text-cyan-700 uppercase tracking-wide mb-2">Retirement Calculator</p>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">What&apos;s my FIRE number?</h3>
+              <p className="text-slate-600 leading-relaxed mb-4">
+                See how much to invest monthly to retire on your own terms.
+              </p>
+              <span className="text-cyan-700 font-semibold group-hover:underline">Try it now →</span>
+            </Link>
+
+            <Link
+              href={appRoutes.coastFireCalculator}
+              className="group bg-emerald-50/60 hover:bg-emerald-50 p-8 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-emerald-100 hover:-translate-y-1"
+            >
+              <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center mb-6 shadow-lg group-hover:scale-110 transition-transform">
+                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3v18h2v-7h13l-3-4 3-4H5V3H3z" />
+                </svg>
+              </div>
+              <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-2">Coast FIRE Calculator</p>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">Can I stop investing today?</h3>
+              <p className="text-slate-600 leading-relaxed mb-4">
+                Find out if you&apos;ve already saved enough to coast to retirement.
+              </p>
+              <span className="text-emerald-700 font-semibold group-hover:underline">Try it now →</span>
+            </Link>
+
+            <Link
+              href={appRoutes.savingsRateCalculator}
+              className="group bg-indigo-50/60 hover:bg-indigo-50 p-8 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-indigo-100 hover:-translate-y-1"
+            >
+              <div className="w-14 h-14 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl flex items-center justify-center mb-6 shadow-lg group-hover:scale-110 transition-transform">
+                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                </svg>
+              </div>
+              <p className="text-xs font-semibold text-indigo-700 uppercase tracking-wide mb-2">Savings Rate Calculator</p>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">How many years to freedom?</h3>
+              <p className="text-slate-600 leading-relaxed mb-4">
+                See how fast your savings rate gets you to financial independence.
+              </p>
+              <span className="text-indigo-700 font-semibold group-hover:underline">Try it now →</span>
+            </Link>
+            <Link
+              href={appRoutes.cityFireCalculator}
+              className="group bg-rose-50/60 hover:bg-rose-50 p-8 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-rose-100 hover:-translate-y-1"
+            >
+              <div className="w-14 h-14 bg-gradient-to-br from-rose-500 to-rose-600 rounded-xl flex items-center justify-center mb-6 shadow-lg group-hover:scale-110 transition-transform">
+                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </div>
+              <p className="text-xs font-semibold text-rose-700 uppercase tracking-wide mb-2">FIRE Number by City</p>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">What does FIRE cost where I live?</h3>
+              <p className="text-slate-600 leading-relaxed mb-4">
+                Pick your city and see your FIRE number based on its cost of living.
+              </p>
+              <span className="text-rose-700 font-semibold group-hover:underline">Try it now →</span>
+            </Link>
+
+            <Link
+              href={appRoutes.returnToIndiaCalculator}
+              className="group bg-orange-50/60 hover:bg-orange-50 p-8 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-orange-100 hover:-translate-y-1"
+            >
+              <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center mb-6 shadow-lg group-hover:scale-110 transition-transform">
+                <span className="text-2xl font-bold text-white">$→₹</span>
+              </div>
+              <p className="text-xs font-semibold text-orange-700 uppercase tracking-wide mb-2">Return to India Calculator</p>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">When can I move back to India?</h3>
+              <p className="text-slate-600 leading-relaxed mb-4">
+                For NRIs: your FIRE number in rupees and how much to invest in dollars to get there.
+              </p>
+              <span className="text-orange-700 font-semibold group-hover:underline">Try it now →</span>
+            </Link>
+
+            <Link
+              href={appRoutes.epfCalculator}
+              className="group bg-teal-50/60 hover:bg-teal-50 p-8 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-teal-100 hover:-translate-y-1"
+            >
+              <div className="w-14 h-14 bg-gradient-to-br from-teal-500 to-teal-600 rounded-xl flex items-center justify-center mb-6 shadow-lg group-hover:scale-110 transition-transform">
+                <span className="text-xl font-bold text-white">EPF</span>
+              </div>
+              <p className="text-xs font-semibold text-teal-700 uppercase tracking-wide mb-2">EPF Calculator</p>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">How much will my EPF grow to?</h3>
+              <p className="text-slate-600 leading-relaxed mb-4">
+                See your EPF corpus at retirement and how much of your FIRE number it covers.
+              </p>
+              <span className="text-teal-700 font-semibold group-hover:underline">Try it now →</span>
+            </Link>
+
+            <Link
+              href={appRoutes.ppfCalculator}
+              className="group bg-violet-50/60 hover:bg-violet-50 p-8 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-violet-100 hover:-translate-y-1"
+            >
+              <div className="w-14 h-14 bg-gradient-to-br from-violet-500 to-violet-600 rounded-xl flex items-center justify-center mb-6 shadow-lg group-hover:scale-110 transition-transform">
+                <span className="text-xl font-bold text-white">PPF</span>
+              </div>
+              <p className="text-xs font-semibold text-violet-700 uppercase tracking-wide mb-2">PPF Calculator</p>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">How much will my PPF grow to?</h3>
+              <p className="text-slate-600 leading-relaxed mb-4">
+                See your PPF corpus at your target age and how much of your FIRE number it covers.
+              </p>
+              <span className="text-violet-700 font-semibold group-hover:underline">Try it now →</span>
+            </Link>
+
+            <Link
+              href={appRoutes.npsCalculator}
+              className="group bg-sky-50/60 hover:bg-sky-50 p-8 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-sky-100 hover:-translate-y-1"
+            >
+              <div className="w-14 h-14 bg-gradient-to-br from-sky-500 to-sky-600 rounded-xl flex items-center justify-center mb-6 shadow-lg group-hover:scale-110 transition-transform">
+                <span className="text-xl font-bold text-white">NPS</span>
+              </div>
+              <p className="text-xs font-semibold text-sky-700 uppercase tracking-wide mb-2">NPS Calculator</p>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">What will my NPS pension look like?</h3>
+              <p className="text-slate-600 leading-relaxed mb-4">
+                See your NPS lump sum, monthly pension, and FIRE number coverage.
+              </p>
+              <span className="text-sky-700 font-semibold group-hover:underline">Try it now →</span>
+            </Link>
+
+            <Link
+              href={appRoutes.sipFireCalculator}
+              className="group bg-fuchsia-50/60 hover:bg-fuchsia-50 p-8 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-fuchsia-100 hover:-translate-y-1"
+            >
+              <div className="w-14 h-14 bg-gradient-to-br from-fuchsia-500 to-fuchsia-600 rounded-xl flex items-center justify-center mb-6 shadow-lg group-hover:scale-110 transition-transform">
+                <span className="text-xl font-bold text-white">SIP</span>
+              </div>
+              <p className="text-xs font-semibold text-fuchsia-700 uppercase tracking-wide mb-2">SIP Calculator</p>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">Will my SIP get me to FIRE?</h3>
+              <p className="text-slate-600 leading-relaxed mb-4">
+                See if your current SIP is enough to hit your FIRE number, and by what age.
+              </p>
+              <span className="text-fuchsia-700 font-semibold group-hover:underline">Try it now →</span>
+            </Link>
+
+            <Link
+              href={appRoutes.lumpsumFireCalculator}
+              className="group bg-lime-50/60 hover:bg-lime-50 p-8 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-lime-100 hover:-translate-y-1"
+            >
+              <div className="w-14 h-14 bg-gradient-to-br from-lime-500 to-lime-600 rounded-xl flex items-center justify-center mb-6 shadow-lg group-hover:scale-110 transition-transform">
+                <span className="text-xl font-bold text-white">LS</span>
+              </div>
+              <p className="text-xs font-semibold text-lime-700 uppercase tracking-wide mb-2">Lumpsum Calculator</p>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">Will my lumpsum get me to FIRE?</h3>
+              <p className="text-slate-600 leading-relaxed mb-4">
+                See if a one-time investment is enough to hit your FIRE number, and by what age.
+              </p>
+              <span className="text-lime-700 font-semibold group-hover:underline">Try it now →</span>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="py-16 bg-gray-50">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-3xl font-bold text-gray-900 mb-4">Want to track your actual progress?</h2>
+          <p className="text-xl text-gray-600 mb-8">
+            Join Fireons to track your real net worth, not just a one-time estimate
+          </p>
+          <Link
+            href={appRoutes.waitlist}
+            className="inline-block bg-blue-800 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-blue-900 transition-colors shadow-lg"
+          >
+            Join the Waitlist
+          </Link>
+        </div>
+      </section>
+    </div>
+  );
+}
