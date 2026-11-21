@@ -21,7 +21,6 @@ async def test_user(session: AsyncSession) -> User:
     user = User(
         email="ingestion-persistence-test@example.com",
         username="ingestion_persistence_test_user",
-        hashed_password="unused-in-these-tests",
     )
     session.add(user)
     await session.flush()
@@ -120,7 +119,6 @@ class TestIngestionRunLifecycle:
         other_user = User(
             email="other-user@example.com",
             username="other_user",
-            hashed_password="unused",
         )
         session.add(other_user)
         await session.flush()

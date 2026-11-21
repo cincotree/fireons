@@ -11,12 +11,12 @@ Terraform (OpenTofu compatible) for the AWS foundation in `ap-southeast-1`. Noth
 ## What it creates
 
 - GitHub OIDC provider and the `fireons-production-github-deploy` role, assumable only by `repo:cincotree/fireons:environment:production`
-- Secrets Manager secret `fireons/production` as an empty shell (no secret version is managed, so values never enter Terraform state) for the keys `SECRET_KEY`, `DATABASE_URL`, `ANTHROPIC_API_KEY`
+- Secrets Manager secret `fireons/production` as an empty shell (no secret version is managed, so values never enter Terraform state) for the keys `SECRET_KEY`, `DATABASE_URL`, `ANTHROPIC_API_KEY` and the sign-in keys below
 - ACM certificates for `app.fireons.com` and `api.fireons.com` in `us-east-1` (CloudFront)
 - API: Lambda `fireons-production-api` (arm64, Python 3.12, Lambda Web Adapter layer) with alias `live`, a Function URL on the alias, and a CloudFront distribution in front
 - Web app: private S3 bucket `fireons-production-webapp-<account>`, CloudFront distribution with OAC, a path rewrite function, custom 404 and security headers
 - The API Lambda has reserved concurrency (`api_reserved_concurrency`, default 3, set it to `null` for no reservation) so a flood of requests cannot exhaust database connections or run up costs
-- The API runs with `INVITE_ONLY=true` (`invite_only`, default true): registration needs an invite code from the `invites` table
+- The API runs with `INVITE_ONLY=true` (`invite_only`, default true): a new Google or Reddit sign-up needs an invite code from the `invites` table, and Terraform sets `FRONTEND_URL` to the web app URL for the sign-in redirects
 - AWS Budgets at 1 and 10 USD per month (actual and forecasted) notifying `budget_email`
 
 ## Make targets
@@ -40,12 +40,12 @@ Apply, phase 1 (CloudFront default domains):
 4. `./bootstrap.sh` creates the versioned, encrypted state bucket and writes `environments/production/backend.hcl` (gitignored).
 5. `cd environments/production`, `cp terraform.tfvars.example terraform.tfvars` and set `budget_email`.
 6. `terraform init -backend-config=backend.hcl`, then `terraform plan` and `terraform apply`.
-7. Fill the secret with `aws secretsmanager put-secret-value --secret-id fireons/production --secret-string file://secret.json`, keys `SECRET_KEY`, `DATABASE_URL` (Neon direct URL as `postgresql+psycopg://...?sslmode=require`) and `ANTHROPIC_API_KEY`. Delete `secret.json` afterwards.
+7. Fill the secret with `aws secretsmanager put-secret-value --secret-id fireons/production --secret-string file://secret.json`, keys `SECRET_KEY`, `DATABASE_URL` (Neon direct URL as `postgresql+psycopg://...?sslmode=require`), `ANTHROPIC_API_KEY` and the sign-in keys from [docs/oauth-sign-in.md](../docs/oauth-sign-in.md): `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, optionally `REDDIT_OAUTH_CLIENT_ID` and `REDDIT_OAUTH_CLIENT_SECRET`, and `OAUTH_REDIRECT_BASE_URL` (the API's public URL, `api_base_url` output, for example `https://api.fireons.com`). Register `<OAUTH_REDIRECT_BASE_URL>/auth/google/callback` (and `/auth/reddit/callback`) with the providers. Delete `secret.json` afterwards. Setting a secret needs the API redeployed or a cold start to take effect.
 
 First deploy from your machine (AWS credentials for the same account, `uv`, Node, `zip`):
 8. `make deploy-api` (names derive from `DEPLOY_ENV`, default `production`) builds the zip, runs migrations against Neon, publishes a version, smoke tests `/health` and `/health/ready`, then moves alias `live`.
 9. Export the values from `terraform output -json github_environment_variables` (`WEBAPP_BUCKET`, `WEBAPP_DISTRIBUTION_ID`, `WEBAPP_URL`, `NEXT_PUBLIC_API_BASE_URL`) and run `make deploy-webapp`.
-10. Open the `webapp_url` output. Register or log in and check the net worth page. `curl <api_base_url>/health` should return 200.
+10. Open the `webapp_url` output. Sign in with Google and check the directory and net worth pages. `curl <api_base_url>/health` should return 200.
 
 Deploy from GitHub Actions:
 11. In GitHub, create the `production` environment (deployment branches: `main` only, no required reviewers) and add the keys of the `github_environment_variables` output as environment variables.
@@ -74,6 +74,7 @@ Jobs run as on-demand Fargate tasks, so idle cost is the ECR storage only. The i
 - Resources: ECR repository (keeps 5 images), ECS cluster, task definition (arm64, 0.5 vCPU, 1 GB), egress only security group, log group. There is no service and no NAT gateway. Tasks use the default VPC public subnets with a public IP to reach Neon and AWS APIs.
 - The Release workflow builds the arm64 image on a GitHub arm64 runner and pushes it to ECR as `latest` and the commit hash whenever `backend/` changes (job "Release jobs image"), so the runner never drifts from the API. The task definition uses `latest`, so new tasks pick it up. `make deploy-jobs-image` is the manual fallback: it derives the repository from the current AWS account (`fireons-<env>-jobs`), or from `JOBS_ECR_REPOSITORY_URL` if set. Roll back by re-running the Release workflow for an older ref.
 - Add a job by registering it in `backend/jobs/registry.py`, and add a `scheduled_jobs` entry if it is periodic.
+- Today the only job is `exchange_rate_sync`. The registry scrapers and enrichment are run locally, see [docs/professionals-data.md](../docs/professionals-data.md).
 
 ## Invite-only registration
 

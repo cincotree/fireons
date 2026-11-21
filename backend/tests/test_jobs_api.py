@@ -24,7 +24,7 @@ async def make_admin(session, username: str = "root_admin") -> Admin:
 
 
 async def make_user(session, name: str) -> User:
-    user = User(email=f"{name}@example.com", username=name, hashed_password=get_password_hash("user-password"))
+    user = User(email=f"{name}@example.com", username=name)
     session.add(user)
     await session.flush()
     return user
@@ -217,7 +217,7 @@ async def test_admin_login_rejects_bad_credentials(client, admin, username, pass
 async def test_user_login_does_not_accept_admin_credentials(client, admin):
     response = await client.post("/auth/login", json={"username": admin.username, "password": ADMIN_PASSWORD})
 
-    assert response.status_code == 401
+    assert response.status_code == 404
 
 
 @pytest.mark.asyncio

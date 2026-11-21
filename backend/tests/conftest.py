@@ -54,6 +54,11 @@ async def setup_test_database():
 
     await admin_engine.dispose()
 
+    test_engine = create_async_engine(TEST_DATABASE_URL, isolation_level="AUTOCOMMIT")
+    async with test_engine.connect() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+    await test_engine.dispose()
+
     yield
 
     # Teardown: drop test database
@@ -122,7 +127,6 @@ async def test_user(session: AsyncSession) -> User:
     user = User(
         email="fixture-test@example.com",
         username="fixture_test_user",
-        hashed_password="unused-in-these-tests",
     )
     session.add(user)
     await session.flush()
@@ -156,3 +160,18 @@ async def sample_accounts(account_repo: AccountRepository, test_user: User) -> d
         accounts[key] = account
 
     return accounts
+
+
+async def grant_net_worth_consent(session: AsyncSession, user: User) -> None:
+    from consent import NET_WORTH_NOTICE_VERSION, NET_WORTH_PURPOSE
+    from database.models import ConsentRecord
+
+    session.add(
+        ConsentRecord(
+            user_id=user.id,
+            purpose=NET_WORTH_PURPOSE,
+            notice_version=NET_WORTH_NOTICE_VERSION,
+            granted=True,
+        )
+    )
+    await session.flush()

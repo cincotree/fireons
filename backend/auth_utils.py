@@ -16,7 +16,7 @@ ADMIN_TOKEN_EXPIRE_MINUTES = 15
 class TokenData(BaseModel):
     user_id: str
     username: str
-    email: str
+    email: Optional[str] = None
 
 
 class Token(BaseModel):
@@ -78,9 +78,9 @@ def decode_token(token: str) -> Optional[TokenData]:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
         user_id: str = payload.get("sub")
         username: str = payload.get("username")
-        email: str = payload.get("email")
+        email: Optional[str] = payload.get("email")
 
-        if user_id is None or username is None or email is None:
+        if user_id is None or username is None:
             return None
 
         return TokenData(user_id=user_id, username=username, email=email)

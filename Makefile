@@ -3,8 +3,9 @@
 TF_ENV ?= production
 TF_DIR = infra/environments/$(TF_ENV)
 
-.PHONY: tf-bootstrap tf-init tf-fmt tf-validate tf-plan tf-apply tf-output create-admin deploy-api deploy-jobs-image deploy-webapp help setup install env db db-create migrate \
-	backend-setup backend backend-test \
+.PHONY: daily weekly tf-bootstrap tf-init tf-fmt tf-validate tf-plan tf-apply tf-output create-admin deploy-api deploy-jobs-image deploy-webapp help setup install env db db-create migrate \
+	backend-setup backend backend-test scrape export-places import-places enrich-places enrich-nri find-websites scraper-worker \
+	compose-up compose-up-scraper compose-down \
 	frontend-setup frontend frontend-build frontend-lint \
 	e2e-setup e2e e2e-headed e2e-ui e2e-debug e2e-report \
 	test
@@ -27,6 +28,24 @@ help:
 	@echo "Run"
 	@echo "  backend          Apply migrations and start the backend with reload"
 	@echo "  frontend         Start the frontend dev server"
+	@echo ""
+	@echo "Registry data (run from your machine; set DATABASE_URL inline to target another database)"
+	@echo "  daily               Export, import and enrich Google listings, then check sites for NRI signals"
+	@echo "  weekly              Scrape every register (continues past a failing source, exits non-zero if any failed)"
+	@echo ""
+	@echo "Registry scraper (single steps)"
+	@echo "  scrape              Run one scraper once (SOURCE=sebi_ria, sebi_research_analyst, fee_only_india or fpsb_cfp)"
+	@echo "  scraper-worker      Run the weekly scraper scheduler in the foreground"
+	@echo "  enrich-nri          Check firm websites for NRI signals (python -m enrichment review-queue to review)"
+	@echo "  export-places       Export professionals found via Google Places to backend/exports (resumable, quota-capped)"
+	@echo "  enrich-places       Search the web (Tavily) for details of imported Google listings; run daily until done"
+	@echo "  find-websites       Find websites for unverified listings (register match, domain guess, Tavily search; run daily)"
+	@echo "  import-places       Load the Google Places CSV into the directory as unverified listings"
+	@echo ""
+	@echo "Docker (local)"
+	@echo "  compose-up          Start Postgres, migrations, backend and frontend in Docker"
+	@echo "  compose-up-scraper  Same, plus the scheduled scraper worker"
+	@echo "  compose-down        Stop the Docker stack"
 	@echo ""
 	@echo "Deploy (needs AWS credentials, see infra/README.md)"
 	@echo "  deploy-api       Build and release the API to Lambda"
@@ -71,6 +90,49 @@ db-create:
 
 migrate:
 	cd backend && uv run alembic upgrade head
+
+SOURCE ?= sebi_ria
+WEEKLY_SOURCES = sebi_ria sebi_research_analyst fee_only_india fpsb_cfp
+
+daily: export-places import-places enrich-places enrich-nri
+
+weekly:
+	@failed=""; \
+	for source in $(WEEKLY_SOURCES); do \
+		echo "== scraping $$source"; \
+		$(MAKE) --no-print-directory scrape SOURCE=$$source || failed="$$failed $$source"; \
+	done; \
+	if [ -n "$$failed" ]; then echo "Failed sources:$$failed"; exit 1; fi
+
+scrape:
+	cd backend && uv run python -m scraping run $(SOURCE)
+
+import-places:
+	cd backend && uv run python -m scraping import-places exports/places_professionals.csv
+
+export-places:
+	cd backend && uv run python -m enrichment places
+
+enrich-places:
+	cd backend && uv run python -m enrichment enrich-places exports/places_professionals.csv
+
+find-websites:
+	cd backend && uv run python -m enrichment find-websites
+
+enrich-nri:
+	cd backend && uv run python -m enrichment nri
+
+scraper-worker:
+	cd backend && uv run python -m scraping worker
+
+compose-up:
+	docker compose up --build
+
+compose-up-scraper:
+	docker compose --profile scraper up --build
+
+compose-down:
+	docker compose --profile scraper down
 
 backend-setup:
 	cd backend && uv sync
