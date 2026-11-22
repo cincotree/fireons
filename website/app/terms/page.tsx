@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Metadata } from 'next';
-import { appRoutes } from '@/lib/config';
+import { appRoutes, config } from '@/lib/config';
 
 export const metadata: Metadata = {
   title: 'Terms of Service - Fireons',
@@ -98,12 +98,6 @@ const sections = [
       'These terms are governed by the laws of India, and the courts of India have jurisdiction over any dispute about them.',
     ],
   },
-  {
-    title: 'Contact',
-    body: [
-      'Questions about these terms can be sent to our support team through the Fireons website.',
-    ],
-  },
 ];
 
 export default function Terms() {
@@ -140,6 +134,26 @@ export default function Terms() {
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="mt-10">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">
+            {sections.length + 1}. Contact
+          </h2>
+          <p className="text-gray-700">
+            Questions about these terms can be sent to{' '}
+            {config.privacyContactEmail ? (
+              <a
+                href={`mailto:${config.privacyContactEmail}`}
+                className="text-cyan-700 underline hover:text-cyan-800"
+              >
+                {config.privacyContactEmail}
+              </a>
+            ) : (
+              'our support team through the Fireons website'
+            )}
+            .
+          </p>
         </div>
 
         <p className="text-gray-700 mt-12">

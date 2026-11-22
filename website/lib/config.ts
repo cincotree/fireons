@@ -1,5 +1,6 @@
 export const config = {
   web3formsAccessKey: process.env.NEXT_PUBLIC_WEB3FORMS_ACCESS_KEY,
+  privacyContactEmail: process.env.NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL,
 };
 
 export const professionalParam = {
