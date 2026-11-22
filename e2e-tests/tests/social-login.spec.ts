@@ -28,6 +28,21 @@ test.describe('Sign in with Google or Reddit, and the directory behind login', (
     await expect(page.getByRole('link', { name: 'Continue with Reddit' })).toBeVisible();
   });
 
+  test('the join page is open to everyone and ignores an old invite link', async ({ page }) => {
+    await page.goto('/register?invite=old-code');
+
+    await expect(page.getByRole('heading', { name: 'Join Fireons' })).toBeVisible();
+    await expect(page.getByLabel(/Invite code/i)).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Continue with Google' })).not.toHaveAttribute('href', /invite/);
+  });
+
+  test('an old invite_required error link shows the generic sign-in failure', async ({ page }) => {
+    await page.goto('/login?error=invite_required');
+
+    await expect(page.getByText(/need an invite code/i)).toHaveCount(0);
+    await expect(page.getByText('Sign-in failed. Please try again.')).toBeVisible();
+  });
+
   test('the social buttons are hidden when no provider is configured', async ({ page }) => {
     await page.route('**/api/auth/providers', (route) => route.fulfill({ json: { google: false, reddit: false } }));
 

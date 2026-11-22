@@ -38,7 +38,7 @@ OAUTH_REDIRECT_BASE_URL=http://localhost:8000
 
 1. Open http://localhost:3000/login and click Continue with Google or Continue with Reddit.
 2. After approving, you land on `/professionals`.
-3. If you return to `/login?error=...`, the message names the cause. `provider_failed` usually means a wrong secret or a redirect URI that does not match exactly. `invite_required` means `INVITE_ONLY` is on and you need an invite code on the Join page.
+3. If you return to `/login?error=...`, the message names the cause. `provider_failed` usually means a wrong secret or a redirect URI that does not match exactly.
 
 ## Production
 

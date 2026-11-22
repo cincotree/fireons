@@ -46,16 +46,15 @@ Fireons is a personal finance tracker for managing net worth and accounts. The s
 - **Authentication**: sign-in is Google or Reddit only (see "Sign in with Google or Reddit" below). `auth_api.py` (`/api/auth/me`, `/api/auth/registration`), `auth_utils.py` (JWT), 30-minute token expiry.
 - **`account_api.py` / `networth_api.py`**: manual account and balance CRUD, and net worth calculation, against the ledger tables above.
 - **Migrations** are applied before the new code is released, so they must stay backward compatible (see `backend/alembic/README.md`).
-- **Invite-only registration**: with `INVITE_ONLY=true`, a new social sign-up (`oauth_api`) requires an invite code from the `invites` table (managed with SQL, see `docs/invite-only-registration.md`).
 - **`convert_currency_api.py`**: USD/INR conversion using `ExchangeRate` rows.
 - **Statement ingestion - two independent pipelines, do not conflate them:**
   - `statements/parsers/` - the older pipeline. Regex-based, single-institution-at-a-time (currently HDFC), caller supplies the bank code, single-holding output. Exposed via `statements_api.py`.
   - `ingestion/` - the current pipeline (see below), exposed via `ingestion_api.py`. `ingestion_test_api.py` is a debug-only endpoint that runs one file through `ingest()` from an empty net worth, for interactively checking parser/extraction output without needing a real ingestion run or the database.
 
 ### Sign in with Google or Reddit (`backend/api/oauth_api.py`, `backend/oauth_providers.py`, migration `0007`)
-- Authorization code flow handled entirely by the backend. `GET /auth/{google|reddit}/login[?invite_code=]` redirects to the provider (state is a signed 10 minute JWT with a nonce that must match an HttpOnly cookie); `GET /auth/{provider}/callback` exchanges the code, resolves the user and redirects to `{FRONTEND_URL}/auth/callback/#token=<jwt>` (fragment, so it is not logged), where the frontend stores the token like a password login. Failures redirect to `{FRONTEND_URL}/login/?error=<code>` (`state_invalid`, `provider_denied`, `provider_failed`, `invite_required`, `email_unverified`). `GET /auth/providers` says which providers are configured; the buttons only show for those.
-- Users: `oauth_identities` (`UNIQUE (provider, provider_user_id)`) links a provider account to a `users` row. `users.email` is nullable because Reddit returns no email. Google with a verified email links to an existing user with that email; an unverified email that matches an existing user is refused. Usernames come from the email prefix or Reddit name, with a random suffix on collision. With `INVITE_ONLY` a new social user needs an invite code (passed from the Register page); existing social users sign in without one.
-- There is no password sign-in or registration: `POST /auth/register` and `/auth/login` do not exist and `users.hashed_password` was dropped (migration `0007`). Google and Reddit are the only ways in. The Register page (`/register`, "Join Fireons") only collects an invite code when `INVITE_ONLY` is on and passes it to the provider buttons. Without OAuth keys nobody can sign in locally; the e2e tests create users directly in the database and sign their own JWT (`e2e-tests/tests/support/session.ts`).
+- Authorization code flow handled entirely by the backend. `GET /auth/{google|reddit}/login` redirects to the provider (state is a signed 10 minute JWT with a nonce that must match an HttpOnly cookie); `GET /auth/{provider}/callback` exchanges the code, resolves the user and redirects to `{FRONTEND_URL}/auth/callback/#token=<jwt>` (fragment, so it is not logged), where the frontend stores the token like a password login. Failures redirect to `{FRONTEND_URL}/login/?error=<code>` (`state_invalid`, `provider_denied`, `provider_failed`, `email_unverified`). `GET /auth/providers` says which providers are configured; the buttons only show for those.
+- Users: `oauth_identities` (`UNIQUE (provider, provider_user_id)`) links a provider account to a `users` row. `users.email` is nullable because Reddit returns no email. Google with a verified email links to an existing user with that email; an unverified email that matches an existing user is refused. Usernames come from the email prefix or Reddit name, with a random suffix on collision.
+- There is no password sign-in or registration: `POST /auth/register` and `/auth/login` do not exist and `users.hashed_password` was dropped (migration `0007`). Google and Reddit are the only ways in. The Register page (`/register`, "Join Fireons") just shows the provider buttons; sign-up is open to anyone. Without OAuth keys nobody can sign in locally; the e2e tests create users directly in the database and sign their own JWT (`e2e-tests/tests/support/session.ts`).
 - Settings (`backend/.env`): `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `REDDIT_OAUTH_CLIENT_ID`, `REDDIT_OAUTH_CLIENT_SECRET`, `FRONTEND_URL` (default `http://localhost:3000`) and `OAUTH_REDIRECT_BASE_URL` (default `http://localhost:8000`). Register `{OAUTH_REDIRECT_BASE_URL}/auth/google/callback` with Google (OAuth client type Web application) and `{OAUTH_REDIRECT_BASE_URL}/auth/reddit/callback` with Reddit (app type web app, at reddit.com/prefs/apps). Secrets are never put in URLs or logged.
 - Frontend: `RequireAuth` wraps `/professionals`; `authFetch` (`utils/api.ts`) adds the token to registrations calls and on 401 or 403 clears it and goes to `/login`. `rememberPostLoginPath` returns the user to the page they wanted after login.
 
@@ -110,7 +109,7 @@ Full design rationale lives in `backend/ingestion/README.md` - read it before ch
 
 ## Database Migrations and Extensions
 
-Alembic owns the schema and the app never creates tables (see Deployment settings). Migration `0001` is the baseline; `0002` adds invites; `0003` adds the registry tables and the `pg_trgm` extension.
+Alembic owns the schema and the app never creates tables (see Deployment settings). Migration `0001` is the baseline; `0002` adds invites (no longer used by the app); `0003` adds the registry tables and the `pg_trgm` extension.
 
 - `make migrate` (`cd backend && uv run alembic upgrade head`) - apply migrations. Required before first run, after pulling new migrations, and as a release step in deployment.
 - Changing `database/models.py` requires a migration: `uv run alembic revision --autogenerate -m "description"`, review it, commit it with the model change. `tests/test_migrations.py` fails if models and migrations drift apart.
@@ -254,7 +253,6 @@ Every environment is configured the same way, through env vars (locally from `.e
 CORS_ORIGINS=http://localhost:3000,http://localhost:3020   # comma-separated
 INGESTION_TEST_ENABLED=true                    # mounts the /ingestion-test debug router
 INGESTION_ENABLED=false                        # false makes /ingestion/* return 503
-INVITE_ONLY=false                              # true requires a valid invite code (invites table) to register
 DATABASE_URL=postgresql+psycopg://...          # used exactly as given by the app and Alembic (add ?sslmode=require for Neon)
 DB_NULL_POOL=false                             # NullPool instead of QueuePool (Lambda)
 EXCHANGE_RATE_SYNC_ENABLED=true                # in-process APScheduler job

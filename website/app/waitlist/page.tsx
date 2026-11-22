@@ -12,7 +12,7 @@ export default function Waitlist() {
     <div className="bg-gradient-to-b from-cyan-50 to-white min-h-[70vh]">
       <section className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-24 sm:py-32 text-center">
         <div className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-100 text-cyan-700 rounded-full text-sm font-medium mb-8">
-          Launching soon (invite-only)
+          Launching soon
         </div>
         <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-slate-900 mb-6">
           Be First in Line

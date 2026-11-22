@@ -40,10 +40,6 @@ variable "api_reserved_concurrency" {
   type = number
 }
 
-variable "invite_only" {
-  type = bool
-}
-
 variable "api_memory_mb" {
   type = number
 }

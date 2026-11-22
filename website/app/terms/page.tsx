@@ -29,7 +29,7 @@ const sections = [
     body: [
       'You sign in with a Google or Reddit account. You are responsible for that account and for everything done through your Fireons session.',
       'You must be at least 18 years old to use the net worth features. Give us accurate information and tell us if you think someone else has access to your account.',
-      'Fireons may be invite-only at times. We can decline or close an account that does not follow these terms.',
+      'We can decline or close an account that does not follow these terms.',
     ],
   },
   {

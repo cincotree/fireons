@@ -108,7 +108,6 @@ resource "aws_lambda_function" "api" {
       CORS_ORIGINS                 = local.webapp_url
       FRONTEND_URL                 = local.webapp_url
       INGESTION_TEST_ENABLED       = "false"
-      INVITE_ONLY                  = tostring(var.invite_only)
       DB_NULL_POOL                 = "false"
       POOL_SIZE                    = "1"
       MAX_OVERFLOW                 = "1"
