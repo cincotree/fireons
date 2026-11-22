@@ -12,6 +12,7 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Index,
+    Integer,
     JSON,
     Numeric,
     String,
@@ -19,7 +20,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -200,7 +201,14 @@ class Balance(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
+    source_document_id: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("ingested_documents.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
     account: Mapped["Account"] = relationship(back_populates="balances")
+    source_document: Mapped[Optional["IngestedDocument"]] = relationship()
 
     __table_args__ = (
         UniqueConstraint("account_id", "date", "currency", name="uq_balance_account_date_currency"),
@@ -209,6 +217,114 @@ class Balance(Base):
 
     def __repr__(self) -> str:
         return f"<Balance(account={self.account_id}, date={self.date}, amount={self.amount})>"
+
+
+class IngestionRunStatus(enum.Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+class IngestionRun(Base):
+    __tablename__ = "ingestion_runs"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    user_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    status: Mapped[IngestionRunStatus] = mapped_column(
+        Enum(IngestionRunStatus), default=IngestionRunStatus.PENDING, nullable=False
+    )
+    file_count: Mapped[int] = mapped_column(nullable=False)
+    positions_count: Mapped[Optional[int]] = mapped_column(nullable=True)
+    warnings: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    llm_call_count: Mapped[Optional[int]] = mapped_column(nullable=True)
+    llm_input_tokens: Mapped[Optional[int]] = mapped_column(nullable=True)
+    llm_output_tokens: Mapped[Optional[int]] = mapped_column(nullable=True)
+    llm_cache_creation_tokens: Mapped[Optional[int]] = mapped_column(nullable=True)
+    llm_cache_read_tokens: Mapped[Optional[int]] = mapped_column(nullable=True)
+    llm_estimated_cost_usd: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(precision=10, scale=6), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    documents: Mapped[list["IngestedDocument"]] = relationship(
+        back_populates="ingestion_run", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (Index("ix_ingestion_runs_user_id", "user_id"),)
+
+    def __repr__(self) -> str:
+        return f"<IngestionRun(id={self.id}, status={self.status.value})>"
+
+
+class JobRunStatus(enum.Enum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+class JobRun(Base):
+    __tablename__ = "job_runs"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    job: Mapped[str] = mapped_column(String(100), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    status: Mapped[JobRunStatus] = mapped_column(
+        Enum(JobRunStatus), default=JobRunStatus.QUEUED, nullable=False
+    )
+    task_arn: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index("ix_job_runs_status", "status"),
+        Index("ix_job_runs_job_created_at", "job", "created_at"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<JobRun(id={self.id}, job={self.job}, status={self.status.value})>"
+
+
+class IngestedDocument(Base):
+    __tablename__ = "ingested_documents"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    ingestion_run_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("ingestion_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    source: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    doc_issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    ingestion_run: Mapped["IngestionRun"] = relationship(back_populates="documents")
+
+    __table_args__ = (
+        Index("ix_ingested_documents_run_source_date", "ingestion_run_id", "source", "doc_issued_at"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<IngestedDocument(source={self.source}, doc_issued_at={self.doc_issued_at})>"
 
 
 class ExchangeRate(Base):
@@ -284,9 +400,8 @@ class User(Base):
     id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
     )
-    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    email: Mapped[Optional[str]] = mapped_column(String(255), unique=True, nullable=True, index=True)
     username: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
-    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     location: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     primary_currency: Mapped[str] = mapped_column(String(10), default="USD", nullable=False)
@@ -303,3 +418,363 @@ class User(Base):
 
     def __repr__(self) -> str:
         return f"<User(username={self.username}, email={self.email})>"
+
+
+class ConsentRecord(Base):
+    __tablename__ = "consent_records"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    user_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    purpose: Mapped[str] = mapped_column(String(50), nullable=False)
+    notice_version: Mapped[str] = mapped_column(String(20), nullable=False)
+    granted: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    country: Mapped[Optional[str]] = mapped_column(String(2), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        Index("ix_consent_records_user_purpose_created", "user_id", "purpose", "created_at"),
+    )
+
+
+class Admin(Base):
+    __tablename__ = "admins"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    username: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    def __repr__(self) -> str:
+        return f"<Admin(username={self.username})>"
+
+
+class OAuthIdentity(Base):
+    __tablename__ = "oauth_identities"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    user_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    provider: Mapped[str] = mapped_column(String(30), nullable=False)
+    provider_user_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_user_id", name="uq_oauth_provider_subject"),
+    )
+
+
+class Invite(Base):
+    __tablename__ = "invites"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    code: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    label: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    max_uses: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    use_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class InviteRedemption(Base):
+    __tablename__ = "invite_redemptions"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    invite_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("invites.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class DataSource(Base):
+    __tablename__ = "data_sources"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    key: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    regulator: Mapped[str] = mapped_column(String(100), nullable=False)
+    default_profession_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    base_url: Mapped[str] = mapped_column(Text, nullable=False)
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    verification_level: Mapped[str] = mapped_column(
+        String(20), default="verified", server_default="verified", nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    def __repr__(self) -> str:
+        return f"<DataSource(key={self.key})>"
+
+
+class FinancialProfessional(Base):
+    __tablename__ = "financial_professionals"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    display_name: Mapped[str] = mapped_column(String(500), nullable=False)
+    name_normalized: Mapped[str] = mapped_column(String(500), nullable=False)
+    kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    registrations: Mapped[list["ProfessionalRegistration"]] = relationship(
+        back_populates="professional"
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_financial_professionals_name_trgm",
+            "name_normalized",
+            postgresql_using="gin",
+            postgresql_ops={"name_normalized": "gin_trgm_ops"},
+        ),
+    )
+
+    def __repr__(self) -> str:
+        return f"<FinancialProfessional(display_name={self.display_name})>"
+
+
+class ScrapeRun(Base):
+    __tablename__ = "scrape_runs"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    source_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("data_sources.id", ondelete="CASCADE"), nullable=False
+    )
+    trigger: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    finished_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    expected_total: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    pages_fetched: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    records_seen: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    inserted: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    updated: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    unchanged: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    parse_errors: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    marked_delisted: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (Index("ix_scrape_runs_source_started", "source_id", "started_at"),)
+
+
+class ProfessionalRegistration(Base):
+    __tablename__ = "professional_registrations"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    professional_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("financial_professionals.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    source_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("data_sources.id", ondelete="CASCADE"), nullable=False
+    )
+    profession_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    registration_number: Mapped[str] = mapped_column(String(100), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    valid_from: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    valid_until: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    validity_raw: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    city: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    state: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    pincode: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    address_raw: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    email: Mapped[Optional[str]] = mapped_column(String(320), nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    contact_person: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    attributes: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    source_url: Mapped[str] = mapped_column(Text, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    first_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    last_changed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    missing_runs: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    professional: Mapped["FinancialProfessional"] = relationship(back_populates="registrations")
+    source: Mapped["DataSource"] = relationship()
+    versions: Mapped[list["RegistrationVersion"]] = relationship(
+        back_populates="registration", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        UniqueConstraint("source_id", "registration_number", name="uq_registration_source_number"),
+        Index("ix_registrations_type_status", "profession_type", "status"),
+        Index("ix_registrations_state_city", "state", "city"),
+        Index("ix_registrations_professional", "professional_id"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<ProfessionalRegistration(registration_number={self.registration_number})>"
+
+
+class RegistrationVersion(Base):
+    __tablename__ = "registration_versions"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    registration_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("professional_registrations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    run_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("scrape_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    scraped_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+
+    registration: Mapped["ProfessionalRegistration"] = relationship(back_populates="versions")
+
+    __table_args__ = (
+        UniqueConstraint("registration_id", "run_id", name="uq_version_registration_run"),
+        Index("ix_versions_registration_scraped", "registration_id", "scraped_at"),
+    )
+
+
+class ProfessionalWebsite(Base):
+    __tablename__ = "professional_websites"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    professional_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("financial_professionals.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    domain: Mapped[str] = mapped_column(String(255), nullable=False)
+    url: Mapped[str] = mapped_column(Text, nullable=False)
+    derived_from: Mapped[str] = mapped_column(String(50), nullable=False)
+    check_status: Mapped[str] = mapped_column(String(30), nullable=False)
+    pages_checked: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    last_checked_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    professional: Mapped["FinancialProfessional"] = relationship()
+    signals: Mapped[list["NriSignal"]] = relationship(
+        back_populates="website", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        UniqueConstraint("professional_id", "domain", name="uq_website_professional_domain"),
+        Index("ix_websites_last_checked", "last_checked_at"),
+    )
+
+
+class WebsiteLookup(Base):
+    __tablename__ = "website_lookups"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    professional_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("financial_professionals.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    method: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    domain: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    last_attempt_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    professional: Mapped["FinancialProfessional"] = relationship()
+
+
+class NriSignal(Base):
+    __tablename__ = "nri_signals"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    website_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("professional_websites.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    professional_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("financial_professionals.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    page_url: Mapped[str] = mapped_column(Text, nullable=False)
+    signal_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    matched_text: Mapped[str] = mapped_column(Text, nullable=False)
+    text_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    location: Mapped[str] = mapped_column(String(30), nullable=False)
+    confidence: Mapped[str] = mapped_column(String(10), nullable=False)
+    review_status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    first_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    website: Mapped["ProfessionalWebsite"] = relationship(back_populates="signals")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "website_id", "page_url", "signal_type", "text_hash", name="uq_signal_identity"
+        ),
+        Index("ix_nri_signals_professional", "professional_id"),
+        Index("ix_nri_signals_review", "review_status", "confidence"),
+    )

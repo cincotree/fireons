@@ -43,3 +43,4 @@ Acct_Statement_*.pdf
 backend/build/
 backend/exports/
 .terraform/
+frontend/out/

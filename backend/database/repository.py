@@ -4,10 +4,11 @@ Repository pattern for database operations.
 Provides clean abstractions for CRUD operations on accounting entities.
 """
 
-from datetime import date
+from dataclasses import dataclass
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -15,7 +16,13 @@ from database.models import (
     Account,
     AccountType,
     Balance,
+    Admin,
     ExchangeRate,
+    IngestedDocument,
+    IngestionRun,
+    IngestionRunStatus,
+    JobRun,
+    JobRunStatus,
 )
 
 
@@ -77,6 +84,14 @@ class AccountRepository:
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
 
+    async def get_by_name(self, user_id: str, name: str) -> Account | None:
+        """Get an account by its exact (user_id, name) — the find half of
+        find-or-create, matching uq_account_user_name."""
+        result = await self.session.execute(
+            select(Account).where(Account.user_id == user_id, Account.name == name)
+        )
+        return result.scalar_one_or_none()
+
     async def list_all(
         self,
         user_id: str | None = None,
@@ -129,6 +144,7 @@ class AccountRepository:
         account_id: str,
         name: str | None = None,
         description: str | None = None,
+        meta: dict | None = None,
     ) -> Account | None:
         """
         Update an account.
@@ -137,6 +153,7 @@ class AccountRepository:
             account_id: Account ID to update
             name: New account name (will update account_type automatically)
             description: New description
+            meta: New metadata dictionary (replaces any existing meta)
 
         Returns:
             Updated Account or None if not found
@@ -159,6 +176,9 @@ class AccountRepository:
 
         if description is not None:
             account.description = description
+
+        if meta is not None:
+            account.meta = meta
 
         await self.session.flush()
         return account
@@ -186,6 +206,7 @@ class BalanceRepository:
         date: date,
         amount: Decimal,
         currency: str,
+        source_document_id: str | None = None,
     ) -> Balance:
         existing = await self.session.execute(
             select(Balance).where(
@@ -200,6 +221,8 @@ class BalanceRepository:
 
         if balance:
             balance.amount = amount
+            if source_document_id is not None:
+                balance.source_document_id = source_document_id
         else:
             balance = Balance(
                 account_id=account_id,
@@ -207,6 +230,7 @@ class BalanceRepository:
                 amount=amount,
                 currency=currency,
                 is_verified=True,
+                source_document_id=source_document_id,
             )
             self.session.add(balance)
 
@@ -244,7 +268,7 @@ class BalanceRepository:
                 ),
             )
             .join(Account, Balance.account_id == Account.id)
-            .options(selectinload(Balance.account))
+            .options(selectinload(Balance.account), selectinload(Balance.source_document))
         )
 
         if user_id is not None:
@@ -306,6 +330,114 @@ class BalanceRepository:
 
         result = await self.session.execute(query)
         return list(result.scalars().all())
+
+
+class IngestionRunRepository:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def create(self, user_id: str, file_count: int) -> IngestionRun:
+        run = IngestionRun(user_id=user_id, file_count=file_count)
+        self.session.add(run)
+        await self.session.flush()
+        return run
+
+    async def get_by_id(self, run_id: str, user_id: str) -> IngestionRun | None:
+        result = await self.session.execute(
+            select(IngestionRun).where(
+                IngestionRun.id == run_id, IngestionRun.user_id == user_id
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def mark_processing(self, run_id: str) -> IngestionRun | None:
+        result = await self.session.execute(
+            select(IngestionRun).where(IngestionRun.id == run_id)
+        )
+        run = result.scalar_one_or_none()
+        if run:
+            run.status = IngestionRunStatus.PROCESSING
+            await self.session.flush()
+        return run
+
+    async def mark_succeeded(
+        self,
+        run_id: str,
+        positions_count: int,
+        warnings: list[str],
+        llm_call_count: int | None = None,
+        llm_input_tokens: int | None = None,
+        llm_output_tokens: int | None = None,
+        llm_cache_creation_tokens: int | None = None,
+        llm_cache_read_tokens: int | None = None,
+        llm_estimated_cost_usd: Decimal | None = None,
+    ) -> IngestionRun | None:
+        result = await self.session.execute(
+            select(IngestionRun).where(IngestionRun.id == run_id)
+        )
+        run = result.scalar_one_or_none()
+        if run:
+            run.status = IngestionRunStatus.SUCCEEDED
+            run.positions_count = positions_count
+            run.warnings = warnings
+            run.completed_at = datetime.now()
+            run.llm_call_count = llm_call_count
+            run.llm_input_tokens = llm_input_tokens
+            run.llm_output_tokens = llm_output_tokens
+            run.llm_cache_creation_tokens = llm_cache_creation_tokens
+            run.llm_cache_read_tokens = llm_cache_read_tokens
+            run.llm_estimated_cost_usd = llm_estimated_cost_usd
+            await self.session.flush()
+        return run
+
+    async def mark_failed(self, run_id: str, error_message: str) -> IngestionRun | None:
+        result = await self.session.execute(
+            select(IngestionRun).where(IngestionRun.id == run_id)
+        )
+        run = result.scalar_one_or_none()
+        if run:
+            run.status = IngestionRunStatus.FAILED
+            run.error_message = error_message
+            run.completed_at = datetime.now()
+            await self.session.flush()
+        return run
+
+
+class IngestedDocumentRepository:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def get_or_create(
+        self,
+        ingestion_run_id: str,
+        source: str | None,
+        doc_issued_at: datetime,
+    ) -> IngestedDocument:
+        existing = await self.session.execute(
+            select(IngestedDocument).where(
+                and_(
+                    IngestedDocument.ingestion_run_id == ingestion_run_id,
+                    IngestedDocument.source == source,
+                    IngestedDocument.doc_issued_at == doc_issued_at,
+                )
+            )
+        )
+        document = existing.scalar_one_or_none()
+        if document is None:
+            document = IngestedDocument(
+                ingestion_run_id=ingestion_run_id,
+                source=source,
+                doc_issued_at=doc_issued_at,
+            )
+            self.session.add(document)
+            await self.session.flush()
+        return document
+
+
+@dataclass
+class ConversionResult:
+    amount: Decimal
+    rate_available: bool
 
 
 class ExchangeRateRepository:
@@ -376,6 +508,7 @@ class ExchangeRateRepository:
         self,
         from_currency: str | None = None,
         to_currency: str | None = None,
+        limit: int | None = None,
     ) -> list[ExchangeRate]:
         query = select(ExchangeRate).order_by(
             ExchangeRate.date.desc(),
@@ -387,6 +520,8 @@ class ExchangeRateRepository:
             query = query.where(ExchangeRate.from_currency == from_currency)
         if to_currency:
             query = query.where(ExchangeRate.to_currency == to_currency)
+        if limit is not None:
+            query = query.limit(limit)
 
         result = await self.session.execute(query)
         return list(result.scalars().all())
@@ -402,31 +537,138 @@ class ExchangeRateRepository:
             return True
         return False
 
+    async def _get_rate_or_inverse(
+        self,
+        from_currency: str,
+        to_currency: str,
+        as_of_date: date,
+    ) -> Decimal | None:
+        rate = await self.get_rate(from_currency, to_currency, as_of_date)
+        if rate:
+            return rate
+
+        inverse_rate = await self.get_rate(to_currency, from_currency, as_of_date)
+        if inverse_rate and inverse_rate != 0:
+            return Decimal(1) / inverse_rate
+
+        return None
+
     async def convert_amount(
         self,
         amount: Decimal,
         from_currency: str,
         to_currency: str,
         as_of_date: date | None = None,
-    ) -> Decimal:
+    ) -> ConversionResult:
         """
         Convert an amount from one currency to another using exchange rates.
-        Returns the amount unchanged if currencies are the same.
+        Tries a direct rate, then an inverse rate, then triangulates through
+        USD as a bridge currency (all seed data is USD-anchored). If no path
+        exists, returns the raw amount with rate_available=False rather than
+        silently pretending a conversion happened.
         """
         if from_currency == to_currency:
-            return amount
+            return ConversionResult(amount=amount, rate_available=True)
 
         if as_of_date is None:
             as_of_date = date.today()
 
+        direct = await self._get_rate_or_inverse(from_currency, to_currency, as_of_date)
+        if direct is not None:
+            return ConversionResult(amount=amount * direct, rate_available=True)
 
-        rate = await self.get_rate(from_currency, to_currency, as_of_date)
-        if rate:
-            return amount * rate
+        if from_currency != "USD" and to_currency != "USD":
+            to_usd = await self._get_rate_or_inverse(from_currency, "USD", as_of_date)
+            from_usd = await self._get_rate_or_inverse("USD", to_currency, as_of_date)
+            if to_usd is not None and from_usd is not None:
+                return ConversionResult(amount=amount * to_usd * from_usd, rate_available=True)
+
+        return ConversionResult(amount=amount, rate_available=False)
 
 
-        inverse_rate = await self.get_rate(to_currency, from_currency, as_of_date)
-        if inverse_rate and inverse_rate != 0:
-            return amount / inverse_rate
+class AdminRepository:
+    def __init__(self, session: AsyncSession):
+        self.session = session
 
-        return amount
+    async def get_by_username(self, username: str) -> Admin | None:
+        result = await self.session.execute(select(Admin).where(Admin.username == username))
+        return result.scalar_one_or_none()
+
+    async def get_by_id(self, admin_id: str) -> Admin | None:
+        return await self.session.get(Admin, admin_id)
+
+    async def create(self, username: str, hashed_password: str) -> Admin:
+        admin = Admin(username=username, hashed_password=hashed_password)
+        self.session.add(admin)
+        await self.session.flush()
+        return admin
+
+
+class JobRunNotFoundError(LookupError):
+    pass
+
+
+class JobRunRepository:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def create(self, job: str, payload: dict | None = None) -> JobRun:
+        run = JobRun(job=job, payload=payload or {})
+        self.session.add(run)
+        await self.session.flush()
+        return run
+
+    async def get(self, run_id: str) -> JobRun | None:
+        return await self.session.get(JobRun, run_id)
+
+    async def list_recent(self, limit: int = 50, status: JobRunStatus | None = None) -> list[JobRun]:
+        query = select(JobRun).order_by(JobRun.created_at.desc()).limit(limit)
+        if status is not None:
+            query = query.where(JobRun.status == status)
+        result = await self.session.execute(query)
+        return list(result.scalars().all())
+
+    async def _require(self, run_id: str) -> JobRun:
+        run = await self.session.get(JobRun, run_id)
+        if run is None:
+            raise JobRunNotFoundError(f"Job run {run_id} not found")
+        return run
+
+    async def reset_for_launch(self, run_id: str) -> JobRun:
+        run = await self._require(run_id)
+        run.status = JobRunStatus.QUEUED
+        run.task_arn = None
+        run.error_message = None
+        run.started_at = None
+        run.completed_at = None
+        await self.session.flush()
+        return run
+
+    async def set_task_arn(self, run_id: str, task_arn: str) -> None:
+        result = await self.session.execute(
+            update(JobRun).where(JobRun.id == run_id).values(task_arn=task_arn)
+        )
+        if result.rowcount == 0:
+            raise JobRunNotFoundError(f"Job run {run_id} not found")
+
+    async def mark_running(self, run_id: str) -> JobRun:
+        run = await self._require(run_id)
+        run.status = JobRunStatus.RUNNING
+        run.started_at = datetime.now(timezone.utc)
+        await self.session.flush()
+        return run
+
+    async def mark_succeeded(self, run_id: str) -> JobRun:
+        run = await self._require(run_id)
+        run.status = JobRunStatus.SUCCEEDED
+        run.completed_at = datetime.now(timezone.utc)
+        await self.session.flush()
+        return run
+
+    async def mark_failed(self, run_id: str, error_message: str) -> JobRun:
+        run = await self._require(run_id)
+        run.status = JobRunStatus.FAILED
+        run.error_message = error_message
+        run.completed_at = datetime.now(timezone.utc)
+        await self.session.flush()
+        return run

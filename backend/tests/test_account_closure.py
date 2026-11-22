@@ -11,6 +11,7 @@ from auth_utils import create_access_token
 from database.models import User
 from database.repository import AccountRepository, BalanceRepository
 from database.session import get_session
+from tests.conftest import grant_net_worth_consent
 
 
 @pytest_asyncio.fixture
@@ -23,10 +24,10 @@ async def test_user(session: AsyncSession) -> User:
     user = User(
         email="closure-test@example.com",
         username="closure_test_user",
-        hashed_password="unused-in-these-tests",
     )
     session.add(user)
     await session.flush()
+    await grant_net_worth_consent(session, user)
     return user
 
 
@@ -229,4 +230,4 @@ class TestClosedAccountExcludedFromDashboardEndpoints:
         response = await client.get("/api/networth-history?currency=USD", headers=auth_headers)
 
         assert response.status_code == 200
-        assert response.json() == []
+        assert response.json()["data"] == []

@@ -9,6 +9,17 @@ A personal finance tracker for managing net worth and accounts.
 
 ### Setup
 
+#### Quick start
+With [uv](https://docs.astral.sh/uv/), Node.js 22 and Docker installed, run from the repository root:
+
+```bash
+make setup
+```
+
+This installs backend, frontend and e2e dependencies, creates `backend/.env` and `frontend/.env.local` from the samples if missing, starts a Postgres container on port 5432, creates the `fireons_development` and `fireons_e2e` databases, and applies migrations. It is safe to rerun. Backend tests create and drop their own `fireons_test` database.
+
+The sections below describe the same steps by hand, for example to use a Postgres you installed yourself.
+
 #### PostgreSQL Database
 The application requires PostgreSQL to be installed and running. Set up the database:
 
@@ -21,7 +32,11 @@ The application requires PostgreSQL to be installed and running. Set up the data
 psql postgres -c "CREATE ROLE postgres WITH LOGIN PASSWORD 'postgres' SUPERUSER CREATEDB CREATEROLE;"
 ```
 
-3. The application will automatically create the database when it runs.
+3. Create the databases and apply migrations (after the backend setup below):
+```bash
+make db-create
+make migrate
+```
 
 #### Backend
 - Install [uv](https://docs.astral.sh/uv/) package manager
@@ -39,7 +54,7 @@ Install
 - cd frontend
 - npm install
 - cp .env.local.sample .env.local
-- Edit `.env.local` and set `BACKEND_HOST` (defaults to `localhost:8000` for local development)
+- Edit `.env.local` and set `NEXT_PUBLIC_API_BASE_URL` (for example `http://localhost:8000`)
 
 ### Run
 
@@ -76,5 +91,28 @@ Visit localhost:3000
 Build and run using Docker:
 ```bash
 docker build -t fireons/frontend .
-docker run -p 3000:3000 -e BACKEND_HOST=localhost:8000 fireons/frontend
+docker run -p 3000:3000 fireons/frontend
 ```
+
+### Production registration
+
+Registration is invite-only in production. See [docs/invite-only-registration.md](docs/invite-only-registration.md) for how to create and manage invites, and [infra/README.md](infra/README.md) for deploying the AWS infrastructure.
+
+### Professionals directory data
+
+The `/professionals` directory is filled from your machine, not from AWS. The only job that runs in production is `exchange_rate_sync`. Details are in [docs/professionals-data.md](docs/professionals-data.md).
+
+Keys go in `backend/.env`: `GOOGLE_API_KEY` for the Google Places export and `TAVILY_API_KEY` for enrichment. Migrations are applied by the deploy (`scripts/deploy-api.sh`), so production is ready after the first release. Only if you run these before that release, apply them yourself first (`make migrate` with `DATABASE_URL` set). Run these from one machine only, because the usage counters and the export CSV live in `backend/exports/`.
+
+```bash
+make daily     # export and import Google places, enrich them via Tavily, check sites for NRI signals
+make weekly    # scrape SEBI RIAs, SEBI research analysts, Fee-Only India and FPSB CFPs
+```
+
+To load production, set the database for that command only (never `export` it in a shell that also runs the e2e tests):
+
+```bash
+DATABASE_URL='postgresql+psycopg://...?sslmode=require' make daily
+```
+
+`make daily` stops at the first failing step. `make weekly` continues past a failing source and exits non-zero if any failed. Scrape registers weekly rather than daily, because a register row is delisted after two consecutive missed runs.

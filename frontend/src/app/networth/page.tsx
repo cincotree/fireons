@@ -1,5 +1,6 @@
 "use client";
 
+import { NetWorthConsentGate } from "@/components/NetWorthConsentGate";
 import { NetWorthDashboard } from "@/components/NetWorthDashboard";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
@@ -27,5 +28,9 @@ export default function NetWorthPage() {
     return null;
   }
 
-  return <NetWorthDashboard />;
+  return (
+    <NetWorthConsentGate>
+      <NetWorthDashboard />
+    </NetWorthConsentGate>
+  );
 }

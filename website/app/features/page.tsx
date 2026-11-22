@@ -121,7 +121,7 @@ export default function Features() {
                   <h3 className="text-2xl font-bold text-gray-900 mb-3">Community Feedback & Support</h3>
                   <p className="text-gray-600 mb-4">
                     Connect with thousands of like-minded individuals pursuing FIRE. Share your journey, get
-                    feedback, and learn from others' experiences.
+                    feedback, and learn from others&apos; experiences.
                   </p>
                   <ul className="space-y-2 text-gray-600">
                     <li className="flex items-start">

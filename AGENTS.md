@@ -1,98 +1,277 @@
 # AGENTS.md
 
-Guidance for AI coding agents working on this repository.
+Guidance for AI coding agents (Claude Code, Codex and others) working on this repository.
 
 ## Coding Standards
 
-- **Do not add code comments anywhere unless explicitly requested.**
-- Code should be self-documenting through clear naming and structure.
-- Never use em dashes (--) in any content or code.
+**IMPORTANT: Do not add code comments anywhere unless explicitly requested.** The code should be self-documenting through clear naming and structure. Comments will only be added when the user specifically asks for them.
+
+Never use em dashes (--) in any content or code.
 
 ## Testing Requirements
 
-Every new feature must ship with tests, not just the happy path:
+**Every new feature must ship with tests, not just the happy path.** Before considering a change done:
 
-- **Backend**: unit tests for new business logic, plus request-level tests for new API endpoints covering auth, validation errors, and success responses. Run `uv run pytest` and confirm new tests actually pass.
-- **Frontend user flows**: a Playwright e2e spec (`e2e-tests/tests/`) driving the real UI, including at least one failure path, not only the happy path. Run it and confirm it passes against the real app before calling the work done.
-- Extend existing test file patterns rather than inventing a new style. Flag pre-existing broken/stale tests found nearby instead of silently ignoring them or scope-creeping into unrelated fixes.
-- Manually verify UI changes in a running browser — a green test suite is not proof the feature actually works end to end.
+- **Backend**: add unit tests for new business logic (`backend/tests/`) and, for new API endpoints, request-level tests that exercise auth, validation errors, and success responses. Run `uv run pytest` and confirm your new tests pass - don't just eyeball the code.
+- **Frontend user flows**: add a Playwright e2e spec (`e2e-tests/tests/`) that drives the actual UI for the new flow, including at least one realistic failure path (bad input, wrong credentials, rejected upload, etc.), not only the happy path. Run it (`bash e2e-tests/run-tests.sh <spec file>`) and confirm it passes against the real app.
+- Prefer extending an existing test file's patterns over inventing a new style. If you find pre-existing broken/stale tests while working nearby, flag them rather than silently leaving them broken or trying to fix unrelated debt in the same change.
+- Manually verify UI changes in a running browser before reporting a frontend change complete - a passing test suite is not a substitute for seeing the feature work.
+
+## Shipping Changes to Production
+
+Passing tests from the source tree does not prove a change deploys. Before calling a change done:
+
+- **Lambda package**: `backend/scripts/build_lambda.sh` copies top-level backend modules and packages from fixed lists. A new top-level module or package must be added to those lists, or the Lambda fails on import after the release. `tests/test_lambda_package.py` checks this; for anything it cannot see, run `backend/scripts/build_lambda.sh` and inspect `backend/build/package`.
+- **Other images**: `backend/Dockerfile.worker` also copies an explicit list of files, so a module imported by `jobs/` must be added there.
+- **Settings and secrets**: for every new environment variable or secret, say in the PR description where it is set (the `fireons/production` secret, Terraform, or a GitHub repo variable) and whether the app still works when it is unset.
+- **Migrations**: they run before the new code is live, so old code must keep working against the new schema (see `backend/alembic/README.md`).
 
 ## Handling Personal Data
 
-Never commit real personal, financial, or otherwise sensitive documents or data to this repository, even temporarily:
+**Never commit real personal, financial, or otherwise sensitive documents or data to this repository, even temporarily.** This includes real bank statements, real account numbers, real names/addresses, screenshots containing real personal data, or any file downloaded from a live personal account.
 
-- Test fixtures must be synthetic, generated programmatically. Never copy in a real document, even redacted.
-- If a real personal document is shared to help debug or validate logic, it's fine to process it locally, but never copy it into the repo tree, never reference its real contents (names, account numbers, amounts) in code/comments/commits/fixtures, and delete any temporary extracted copies once done.
-- Before committing, check `git status`/`git diff` for anything resembling real personal data, not just secrets.
+- Test fixtures must always be synthetic. When a feature needs a sample document (e.g. a bank statement PDF), generate one programmatically with fake data - don't copy in a real one, even redacted.
+- If a user shares a real personal document to help validate or debug logic (e.g. "here's my real statement, fix the parser"), it's fine to read and process it locally to inform the fix, but never copy it into the repository working tree, never reference its real contents (names, account numbers, amounts) in code, comments, commit messages, or fixtures, and delete any temporary extracted copies (e.g. in scratch/tmp dirs) once done.
+- Before committing, check `git status`/`git diff` for anything that looks like real personal data, not just secrets - a filename or fixture that looks synthetic is worth a second look if it was derived from something real.
 
 ## Project Overview
 
-Fireons is a personal finance tracker for managing net worth and accounts. FastAPI backend with PostgreSQL, Next.js frontend.
+Fireons is a personal finance tracker for managing net worth and accounts. The system uses a FastAPI backend with PostgreSQL and a Next.js frontend.
 
 ## Architecture
 
 ### Backend (Python/FastAPI)
-- `app.py`: Main server with `/api` path rewriting middleware
-- Authentication: `auth_api.py`, `auth_utils.py`, JWT-based (30min expiry)
-- API routes: `convert_currency_api.py`, `networth_api.py`
-- Package manager: uv. Python 3.10.5.
-- Type checking: Pyright (strict mode disabled)
+- **FastAPI Application** (`app.py`): Main server; middleware rewrites `/api`-prefixed request paths before routing.
+- **Ledger data model** (`database/models.py`): a double-entry, beancount-style schema - `Account` (hierarchical colon-separated names like `Assets:Bank:HDFC:6789`, typed `Assets`/`Liabilities`/`Equity`/`Income`/`Expenses`), `Transaction`/`Posting` (balanced double-entry postings), and `Balance` (point-in-time verified balances, one row per `account_id`+`date`+`currency`, optionally linked to the `IngestedDocument` it came from).
+- **Authentication**: sign-in is Google or Reddit only (see "Sign in with Google or Reddit" below). `auth_api.py` (`/api/auth/me`, `/api/auth/registration`), `auth_utils.py` (JWT), 30-minute token expiry.
+- **`account_api.py` / `networth_api.py`**: manual account and balance CRUD, and net worth calculation, against the ledger tables above.
+- **Migrations** are applied before the new code is released, so they must stay backward compatible (see `backend/alembic/README.md`).
+- **Invite-only registration**: with `INVITE_ONLY=true`, a new social sign-up (`oauth_api`) requires an invite code from the `invites` table (managed with SQL, see `docs/invite-only-registration.md`).
+- **`convert_currency_api.py`**: USD/INR conversion using `ExchangeRate` rows.
+- **Statement ingestion - two independent pipelines, do not conflate them:**
+  - `statements/parsers/` - the older pipeline. Regex-based, single-institution-at-a-time (currently HDFC), caller supplies the bank code, single-holding output. Exposed via `statements_api.py`.
+  - `ingestion/` - the current pipeline (see below), exposed via `ingestion_api.py`. `ingestion_test_api.py` is a debug-only endpoint that runs one file through `ingest()` from an empty net worth, for interactively checking parser/extraction output without needing a real ingestion run or the database.
+
+### Sign in with Google or Reddit (`backend/api/oauth_api.py`, `backend/oauth_providers.py`, migration `0007`)
+- Authorization code flow handled entirely by the backend. `GET /auth/{google|reddit}/login[?invite_code=]` redirects to the provider (state is a signed 10 minute JWT with a nonce that must match an HttpOnly cookie); `GET /auth/{provider}/callback` exchanges the code, resolves the user and redirects to `{FRONTEND_URL}/auth/callback/#token=<jwt>` (fragment, so it is not logged), where the frontend stores the token like a password login. Failures redirect to `{FRONTEND_URL}/login/?error=<code>` (`state_invalid`, `provider_denied`, `provider_failed`, `invite_required`, `email_unverified`). `GET /auth/providers` says which providers are configured; the buttons only show for those.
+- Users: `oauth_identities` (`UNIQUE (provider, provider_user_id)`) links a provider account to a `users` row. `users.email` is nullable because Reddit returns no email. Google with a verified email links to an existing user with that email; an unverified email that matches an existing user is refused. Usernames come from the email prefix or Reddit name, with a random suffix on collision. With `INVITE_ONLY` a new social user needs an invite code (passed from the Register page); existing social users sign in without one.
+- There is no password sign-in or registration: `POST /auth/register` and `/auth/login` do not exist and `users.hashed_password` was dropped (migration `0007`). Google and Reddit are the only ways in. The Register page (`/register`, "Join Fireons") only collects an invite code when `INVITE_ONLY` is on and passes it to the provider buttons. Without OAuth keys nobody can sign in locally; the e2e tests create users directly in the database and sign their own JWT (`e2e-tests/tests/support/session.ts`).
+- Settings (`backend/.env`): `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `REDDIT_OAUTH_CLIENT_ID`, `REDDIT_OAUTH_CLIENT_SECRET`, `FRONTEND_URL` (default `http://localhost:3000`) and `OAUTH_REDIRECT_BASE_URL` (default `http://localhost:8000`). Register `{OAUTH_REDIRECT_BASE_URL}/auth/google/callback` with Google (OAuth client type Web application) and `{OAUTH_REDIRECT_BASE_URL}/auth/reddit/callback` with Reddit (app type web app, at reddit.com/prefs/apps). Secrets are never put in URLs or logged.
+- Frontend: `RequireAuth` wraps `/professionals`; `authFetch` (`utils/api.ts`) adds the token to registrations calls and on 401 or 403 clears it and goes to `/login`. `rememberPostLoginPath` returns the user to the page they wanted after login.
+
+### Net worth consent (`backend/api/consent_api.py`, `backend/consent.py`, migration `0010`)
+- Net worth data is only collected with the user's consent. `consent_records` is an append-only log (user, purpose `net_worth_processing`, `notice_version`, `granted`, optional 2-letter country, time); the latest row decides, and consent only counts if its `notice_version` equals `NET_WORTH_NOTICE_VERSION` in `consent.py`.
+- `GET/POST/DELETE /consent/net-worth`. POST needs `age_confirmed: true` (400 `age_confirmation_required`) and the current notice version (409 `notice_changed`). DELETE withdraws: it logs a `granted=false` row and immediately deletes the user's accounts (and so balances and postings) and ingestion runs (and documents).
+- `require_net_worth_consent` (403 `consent_required`) guards `POST /ingestion/check`, `POST /ingestion/upload`, `POST /accounts` and `POST /accounts/{id}/balance`. Reads are not gated.
+- Frontend: `NetWorthConsentGate` wraps `/networth` and `/onboarding` and shows `NetWorthNotice` with one unticked checkbox; `/privacy` shows the status, the notice and the withdraw-and-erase control. `NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL` (build time) adds the contact line to the notice.
+- When the notice changes materially, edit `NetWorthNotice.tsx` and bump `NET_WORTH_NOTICE_VERSION`; every user is then asked again. A new purpose needs its own constant, endpoint pair and checkbox, never a reuse of this one. `docs/consent-notice-draft.md` holds the drafting notes, including the addendum for users outside India that is not built.
+- Tests: `backend/tests/test_consent_api.py`; backend tests that call gated endpoints use `grant_net_worth_consent` from `tests/conftest.py`; e2e users are consented by default (`signIn(page, prefix, false)` for an unconsented one), see `e2e-tests/tests/consent.spec.ts`.
+
+### Statement ingestion pipeline (`backend/ingestion/`)
+Full design rationale lives in `backend/ingestion/README.md` - read it before changing extraction, staleness, or dedup logic. Summary:
+
+- **Entry point**: `pipeline.ingest(current_nw, files) -> NetWorth`, a pure function (`ingestion/model.py` defines `NetWorth`/`Position`). It does not touch the database itself.
+- **Two-tier extraction**, chosen per-document by `router.route_extract()`: a deterministic parser tier (`parsers/`, one module per document-type group - bank accounts, loans, deposits, mutual funds, demat, retirement, SGB, insurance, brokerage) tries first; each `try_parse_X(text) -> dict | None` either returns a complete, confident result or defers. Anything no parser recognizes falls back to `extract.py`, a single Anthropic tool-use schema covering 11 document types (bank/loan/brokerage/demat/MF-CAS/EPF/SGB/deposit/NPS/insurance/unrecognized) - nothing is hardcoded per-institution.
+- **Deterministic account keys** are always built in code (`pipeline._account_name`) from stable identifiers (folio number, ISIN, account number), never generated as free text by the LLM - this is what makes cross-document dedup and the staleness/supersession logic reliable.
+- **`invariants.py`**: label-free self-checks on any produced `NetWorth` (units × NAV ≈ value, positions sum to total, no future `as_of`, account keys match their type prefix).
+- **Async flow for real uploads**: `api/ingestion_api.py` (`POST /ingestion/upload`) writes files to a per-request temp dir, rate-limits (`rate_limit.py` - 50MB/hour cumulative upload volume per user is the binding guard, cost tracks bytes not requests), creates an `IngestionRun` row, and hands off to a `BackgroundTasks` job (`background.run_ingestion`), which runs the (synchronous, possibly slow/LLM-calling) `ingest()` in a thread, then persists via `persistence.py` (`load_current_networth` / `persist_networth`, which upsert `Account`/`Balance`/`IngestedDocument` rows). Clients poll `GET /ingestion/runs/{run_id}` for status.
+- **Eval suite** (`backend/tests/evals/`): 31 cases in `cases/core.yaml`, run against synthetic fixtures generated by `fixtures/generate_eval_fixtures.py` (no real financial documents are ever committed - see `generate_eval_fixtures.py`'s own docstring on which fixtures are/aren't validated against real document layouts). `harness.py` loads cases and, when a case sets `permute: true`, runs every file-ordering permutation to prove order-independence. Run just this suite with `uv run pytest tests/evals/ -v`; a single case can be targeted with `uv run pytest tests/evals/ -k <case_id> -v`.
 
 ### Frontend (Next.js 15/React/TypeScript)
-- App Router: `/login`, `/register`, `/networth`, `/`
-- Auth: `AuthContext.tsx` with JWT token management
-- Tech: Next.js 15, React 18, TanStack Table, Chart.js, Tailwind CSS, Radix UI, Ant Design
+- **App Router** (`frontend/src/app/`): Next.js 15 with app directory structure
+  - `/login`, `/register` (Join), `/auth/callback`: sign in with Google or Reddit
+  - `/networth`: net worth tracking dashboard (requires authentication)
+  - `/onboarding`: statement upload flow driving the `ingestion/` pipeline above
+  - `/ingestion-test`: debug UI for `ingestion-test` endpoint
+  - `/`: Homepage - redirects to `/networth` if authenticated, `/login` if not
+- **Authentication** (`frontend/src/contexts/AuthContext.tsx`): global auth state, `completeLogin`/logout, JWT token management, automatic validation on load; protected routes redirect to login.
+- **Tech Stack**: Next.js 15, React 18, TanStack Table, Chart.js/Recharts, Tailwind CSS, Radix UI, Ant Design.
+
+### Registry data and scraping (`backend/scraping/`)
+- Purpose: periodically scrape public regulator registers of financial professionals into Postgres, shown on the `/professionals` page (behind login) (nav link "Find professionals", tab title "Find a registered financial professional | Fireons"; the copy is deliberately not tied to one regulator, and the source chip shows each source's `regulator`). Sources: SEBI Registered Investment Advisers (`sebi_ria`), SEBI Registered Research Analysts (`sebi_research_analyst`, same SEBI page with `intmId=14` and `INH` numbers, about 2,300 records; both use `SebiListingSource` in `scraping/sources/sebi_ria.py`), Fee-Only India members (`fee_only_india`) and FPSB India CFP certificants (`fpsb_cfp`: one public table of about 3,700 rows with FPSB number, name and city, no contact details; the key is the FPSB number).
+- Tables: `data_sources` (one per register), `financial_professionals` (who someone is, across sources), `professional_registrations` (one row per register entry, `UNIQUE (source_id, registration_number)`, `profession_type` says what kind of professional), `registration_versions` (append-only history, written on first sight and on every content change), `scrape_runs` (one row per execution).
+- Add a source: implement a `Source` (a `SourceDefinition` plus `fetch_pages(client)` yielding normalized `ScrapedRegistration` records) in `scraping/sources/`, register it in `scraping/sources/__init__.py`. No schema change is needed.
+- Idempotent by `content_hash`: a rerun with unchanged data writes no versions and only bumps `last_seen_at`.
+- Delisting: a registration missing from a run is only counted as missing when that run `succeeded` (all pages fetched, zero parse errors, record count within 98% of the register's own total). After 2 consecutive missed succeeded runs it becomes `delisted`. Partial or failed runs never change status.
+- A per-source Postgres advisory lock prevents overlapping runs.
+- Politeness: minimum 3s between requests to the same host (`SCRAPE_MIN_INTERVAL_SECONDS`, tracked per host in `PoliteClient`), identifying User-Agent, retry with backoff honouring `Retry-After`. Do not lower the interval or remove the retry cap.
+- Schedule: `SCRAPE_SCHEDULE_CRON`, default `0 3 * * sun` in `Asia/Kolkata`. APScheduler numbers weekdays from Monday = 0, so use weekday names, not digits.
+- Run it: `make scrape` (once), `make scraper-worker` (scheduler in the foreground), or `docker compose --profile scraper up` (worker in Docker). A deployed worker is not set up yet.
+- Public API: `GET /registrations`, `/registrations/{id}`, `/registrations/{id}/history`, `/registrations/sources`, `/registrations/facets`. Requires a signed-in user (Bearer token; the page redirects signed-out visitors to `/login` and returns them afterwards), per-IP rate limit (`PUBLIC_READ_LIMIT_PER_MINUTE`, default 240; the e2e backend raises it because one test run is one IP), `page_size` capped at 100, no bulk export.
+- Search: `q` is one fuzzy box. It is split into words (max 8); every word must match at least one of name, city, state, source name (substring, or `pg_trgm` word similarity >= 0.4 for words of 4+ letters) or part of the registration number. Results rank by closeness. Exact filters `source`, `state`, `city`, `status`, `profession_type` combine with it. `/registrations/facets` returns the states and cities (scoped by `source`/`state`) for the dropdowns. The UI is one search box plus a Filters button that reveals Source, State and City dropdowns (there is no status filter in the UI; the API still accepts `status`).
+- NRI enrichment (`backend/enrichment/`, migration `0004`): `make enrich-nri` (`python -m enrichment nri [--limit N]`) derives a firm website from each registration email domain (generic providers such as gmail and domains shared by more than 3 professionals are skipped), then checks the homepage plus up to 4 same-site pages whose links look NRI or services related. It honours robots.txt, waits 3s between requests to the same host (the wait is per host, so sites on different hosts are crawled in parallel, up to `NRI_CONCURRENCY` at a time, default 10), and re-checks a site only after `NRI_RECHECK_DAYS` (30). Signals (`nri_signals`) store the matched text, page URL, signal type, location (title, meta, heading, link, body), a `high`/`medium`/`low` confidence and a `review_status` (`pending`, `confirmed`, `rejected`). Confidence: NRI or NRE/NRO wording in a title, heading, meta or link is high; a body mention is medium (high if the page has several signal types); FEMA, repatriation or overseas-audience wording alone is low or medium; a negated mention is always low. Reruns keep reviewed signals and delete stale pending ones; unreachable sites keep their old signals. Review with `python -m enrichment review-queue [--confidence high]` and `python -m enrichment review <signal_id> confirmed|rejected`. Signals are not exposed by the public API or UI until reviewed. It is not on the scraper schedule yet.
+- Fee-Only India (`fee_only_india`): a curated member list, not a regulator register (the `regulator` chip reads "Fee-Only India"). One page, about 32 planners with name, firm, website and languages; no registration number, address or contact details, so the key is `FOI-<name slug>` and a renamed planner shows as a new row. Planner cards are repeater items that contain an `h6`; the independent completeness check is the count of "Website" buttons. The listed website is stored in `attributes` and NRI enrichment crawls it (`derived_from=source_listing`). Members are also SEBI RIAs, so the same person appears under `sebi_ria` too (no cross-source merging yet).
+- Source terms and robots (checked 2026-10-28). Not built: AMFI (its terms of use allow personal non-commercial use only and prohibit publishing and storing a significant portion of the site without written approval; a scraper was built and removed), IRDAI (`irdai.gov.in` and `policyholder.gov.in` disallow all crawlers), PFRDA (`pfrda.org.in` disallows all but Googlebot), ICAI CA Connect (terms prohibit reproduction and commercial use, profiles need login, results capped at 200), GST practitioners (logged-in search with captcha). Fee-Only India has no terms page (all rights reserved). FPSB terms restrict copying the site text and design, not the directory.
+- Google Places export (`backend/enrichment/places.py`, `make export-places`): a resumable one-off job that searches 7 categories across about 90 cities and appends to `backend/exports/places_professionals.csv` (gitignored; it holds real business details, never commit it). `GOOGLE_API_KEY` comes from `backend/.env`. Every attempted call counts toward a shared ledger (`exports/places_usage.json`) that enforces both a daily cap (monthly free calls divided by 31: 161 on the default `pro` tier, 32 on `enterprise`) and the monthly free tier; the day rolls over at midnight Pacific like Google's quotas. `pro` returns no phone or website; `--tier enterprise` adds them but only 1,000 calls a month are free. Progress is per output file, so a rerun continues where the last stopped. Google restricts how long Places results may be stored (only place IDs indefinitely), so treat the CSV as a one-off working file.
+- Google Places import (`make import-places`, `python -m scraping import-places <csv>`, source `google_places`, `scraping/sources/google_places.py`): loads the export CSV but persists only `GP-<place_id>`, `attributes.google_place_id`, the Maps URL (`source_url`), the profession type and the searched city (our own data). The name is a placeholder ("Google Maps listing"); address, state, pincode, phone, website, coordinates and types are never stored, to stay within Google's storage terms (only place IDs may be kept), and nothing is fetched from Google at display time. The data source has `verification_level` `unverified` (register sources are `verified`). It is not in `SOURCES`, so the scheduler never runs it, and it never delists. A reimport only inserts place IDs not already stored, so it never undoes enrichment. Rows with a closed-permanently status, school or software style names or irrelevant place types are skipped and listed in `<csv>.rejected.csv`.
+- Google listing enrichment (`make enrich-places`, `python -m enrichment enrich-places <csv> [--limit N]`, `enrichment/places_enrichment.py`): for each imported listing, a Tavily search on the CSV's name and searched city (the Google name is only used in memory as the query and match key, never stored), sharing the Tavily ledger and daily/monthly caps with the website finder (resumable across days). Listings are searched `PLACES_ENRICH_CONCURRENCY` at a time (default 5); the cap is checked and counted before each search, so it holds exactly under concurrency, and a Tavily quota or API error stops every worker. A result is accepted only if its site is not a directory and its homepage mentions every distinctive name word, the city and a finance term. A result also needs a title segment (split on `|`, ` - ` or `:`) that shares at least half of the listing's distinctive name words and is not generic ("Contact Us", "Home"). On a match the registration's name becomes that segment, `attributes.web_enriched` is set, and the site is stored as a `professional_websites` row (`derived_from=web_search`) for NRI enrichment. With no match nothing else is stored: the row stays `GP-<place_id>` plus the Maps link. `website_lookups` records the outcome so finished listings are not searched again. The API returns `listing_only` (a Google row without `web_enriched`) and filters with `?details=listing_only|with_details`; the UI shows those rows as "View on Google Maps" and has a Details filter. Because no Google name is stored, Maps-link-only rows are not found by name search, and the website finder skips Google rows. The CSV and rejected file are local working files holding Google content (gitignored, never commit). Later: owner verification and user "trusted" marks.
+- Website finder (`make find-websites`, `python -m enrichment find-websites [--limit N] [--no-search]`, migration `0006` `website_lookups`): finds a website for unverified listings that have none (Google listings are excluded: they are enriched by `enrich-places` instead), so NRI enrichment can crawl it. Three steps per listing: (1) `register_match`: the same distinctive name words and city as a verified register row that has a known domain; (2) `domain_guess`: guess domains from the distinctive name words (`.com`, `.in`, `.co.in`), skip any that do not resolve, and accept one only if its robots-allowed homepage mentions every distinctive name word, the city and a finance term; (3) `web_search`: a Tavily search for rows still unmatched, capped by a shared ledger (`exports/tavily_usage.json`, `WEBSITE_SEARCH_DAILY_LIMIT` 30, `WEBSITE_SEARCH_MONTHLY_LIMIT` 1000, Pacific-time day), each candidate verified on its homepage the same way, directory and social sites skipped. `TAVILY_API_KEY` is read from `backend/.env` and sent in a header. Results are `professional_websites` rows with `derived_from` `register_match`, `domain_guess` or `web_search`; `website_lookups.status` is `found`, `needs_search` or `not_found`, and finished lookups are not repeated. Listings that already have a website, and register rows, are skipped. It does not merge a Google listing into a register row. It is not on the scraper schedule.
+- Test fixtures are synthetic (`backend/tests/fixtures/generate_sebi_fixtures.py`). Never commit scraped pages or rows: they contain real people's names and contact details (see Handling Personal Data).
+
+## Database Migrations and Extensions
+
+Alembic owns the schema and the app never creates tables (see Deployment settings). Migration `0001` is the baseline; `0002` adds invites; `0003` adds the registry tables and the `pg_trgm` extension.
+
+- `make migrate` (`cd backend && uv run alembic upgrade head`) - apply migrations. Required before first run, after pulling new migrations, and as a release step in deployment.
+- Changing `database/models.py` requires a migration: `uv run alembic revision --autogenerate -m "description"`, review it, commit it with the model change. `tests/test_migrations.py` fails if models and migrations drift apart.
+- Never edit an applied migration; add a new one.
+- `tests/conftest.py` builds the test database with `create_all` (after creating `pg_trgm`); `tests/test_migrations.py` runs the migrations on an empty database and fails if they drift from the models, which CI also checks with `alembic check`.
+- UUID primary keys and several `NOT NULL` defaults (`is_enabled`, run counters, `missing_runs`) are Python-side defaults, not database defaults. Raw SQL inserts must supply them explicitly (see `e2e-tests/tests/professionals.spec.ts`).
+
+### pg_trgm extension (required)
+
+Name search uses a GIN trigram index (`ix_financial_professionals_name_trgm`, `gin_trgm_ops`), which needs the `pg_trgm` extension.
+
+- Migration `0003` runs `CREATE EXTENSION IF NOT EXISTS pg_trgm` before creating the index, so `alembic upgrade head` is the only step needed. `pg_trgm` is a trusted extension on Postgres 13+, so the normal application role can create it as long as the contrib package is installed (it is in the official `postgres` Docker images and Homebrew; managed services such as RDS, Cloud SQL, Supabase and Neon provide it).
+- If the deployment role cannot create extensions, run `CREATE EXTENSION pg_trgm;` once as an admin before `alembic upgrade head`.
+- Any new trigram index must be created in a migration that runs after the extension exists.
+- Managed Postgres services (including Neon) provide `pg_trgm`; confirm migration `0003` succeeds on the first deploy.
+- The e2e teardown drops and recreates the `public` schema, which also drops the extension; `start-backend.sh` re-runs migrations, which recreates it.
 
 ## Development Commands
 
-A top-level `Makefile` wraps the commands below. `make install` runs all three `*-setup` targets; `make test` runs `backend-test` + `e2e`.
+### One-time local setup
+```bash
+make setup  # deps, .env files, Postgres container, fireons_development + fireons_e2e databases, migrations
+```
+Databases: development uses `fireons_development`, backend tests use `fireons_test` (created and dropped by `tests/conftest.py`), e2e uses `fireons_e2e`. `make db-create` creates the first and last from `backend/.env` and `backend/.env.test`.
 
-### Database
-- `make db` — start (or create, first time) a local Postgres container matching the dev defaults: `postgres:16-alpine`, user/pass `postgres`, db `fireons_development`, port 5432. Idempotent — safe to rerun.
+### Migrations and Docker
+`make migrate` applies Alembic migrations (required before first run). `docker-compose.yml` runs postgres (published on 5433 to avoid clashing with a local Postgres), migrate, backend and frontend locally (`make compose-up`); its database starts empty until a scrape runs; the scheduled scraper is opt-in (`make compose-up-scraper`).
 
-### Backend
-- `make backend-setup` (`cd backend && uv sync`) — install deps
-- `make backend` (`uv run uvicorn app:app --reload`) — dev server
-- `make backend-test` (`uv run pytest`) — run tests
+### Backend Setup
+```bash
+cd backend
+uv sync  # Install dependencies using uv
+```
 
-### Frontend
-- `make frontend-setup` (`cd frontend && npm install`) — install deps
-- `make frontend` (`npm run dev`) — dev server on localhost:3000
-- `make frontend-build` (`npm run build`) — production build
-- `make frontend-lint` (`npm run lint`) — lint
-- Needs `.env.local` with `BACKEND_HOST=localhost:8000`
+### Backend Development
+```bash
+# Run dev server (from backend/)
+uv run uvicorn app:app --reload
+
+# Run all tests (requires PostgreSQL running; creates/drops the fireons_test database each session)
+uv run pytest
+
+# Run a single test file / test / eval case
+uv run pytest tests/test_ingestion_pipeline_robustness.py -v
+uv run pytest tests/test_ingestion_pipeline_robustness.py::test_some_case -v
+uv run pytest tests/evals/ -k <case_id> -v
+
+# Alembic migrations (see backend/alembic/README.md)
+uv run alembic upgrade head
+uv run alembic revision --autogenerate -m "description"
+
+# Build Docker image
+docker build -t fireons/backend .
+
+# Run Docker container
+docker run -p 8000:8000 fireons/backend
+```
+
+### Frontend Setup
+```bash
+cd frontend
+npm install
+
+# Create .env.local from sample
+cp .env.local.sample .env.local
+# Edit .env.local and set NEXT_PUBLIC_API_BASE_URL if needed (for example http://localhost:8000)
+```
+
+### Frontend Development
+```bash
+# Run dev server (from frontend/)
+npm run dev  # Starts on localhost:3000
+
+# Build production
+npm run build
+
+# Start production server
+npm start
+
+# Lint
+npm run lint
+
+# Build Docker image
+docker build -t fireons/frontend .
+
+# Run Docker container
+docker run -p 3000:3000 fireons/frontend
+```
 
 ### E2E tests
 Make targets wrap the Playwright suite in `e2e-tests/` (see `e2e-tests/package.json` for the underlying scripts):
 
-- `make e2e-setup` — first-time setup: `npm install` + `npx playwright install chromium`
-- `make e2e` — run the full suite headless (`bash e2e-tests/run-tests.sh`)
-- `make e2e-headed` — same, with a visible browser window
-- `make e2e-ui` — Playwright's interactive UI mode (test explorer, timeline, DOM snapshots per step)
-- `make e2e-debug` — step through with the inspector
-- `make e2e-report` — open the HTML report from the last run
+- `make e2e-setup` - first-time setup: `npm install` + `npx playwright install chromium`
+- `make e2e` - run the full suite headless (`bash e2e-tests/run-tests.sh`)
+- `make e2e-headed` - same, with a visible browser window
+- `make e2e-ui` - Playwright's interactive UI mode (test explorer, timeline, DOM snapshots per step)
+- `make e2e-debug` - step through with the inspector
+- `make e2e-report` - open the HTML report from the last run
 
 `e2e-headed` and `e2e-ui` need a display, so they only work on a local machine, not headless CI/sandboxes.
 
-Prerequisites: Postgres reachable per `backend/.env.test`, and the `fireons_test` database must already exist (`psql -U postgres -c "CREATE DATABASE fireons_test;"`) — `run-tests.sh` does not create it. (`make db` creates the dev database, not the test one.)
+Prerequisites: Postgres reachable per `backend/.env.test`, and the `fireons_e2e` database must already exist (`make db-create`, included in `make setup`). `run-tests.sh` does not create it.
 
-`run-tests.sh` starts the backend (`TESTING=true`, port 8020) and frontend (port 3020) itself, waits for both, runs the suite, then drops and recreates the `fireons_test` schema in teardown. Because of that teardown, don't run `npx playwright test` directly against an already-running backend from a prior `run-tests.sh` invocation — the tables will be gone and every test will fail with "relation does not exist". Always go through `run-tests.sh` (i.e. `make e2e`), or restart the backend first if running Playwright manually.
+`run-tests.sh` starts the backend (`TESTING=true`, port 8020) and frontend (port 3020) itself, waits for both, runs the suite, then drops and recreates the `fireons_e2e` schema in teardown. Because of that teardown, don't run `npx playwright test` directly against an already-running backend from a prior `run-tests.sh` invocation - the tables will be gone and every test will fail with "relation does not exist". Always go through `run-tests.sh` (i.e. `make e2e`), or restart the backend first if running Playwright manually.
+
+### E2E Tests
+```bash
+cd e2e-tests
+npm install
+npm test                    # starts backend (:8020) + frontend (:3020) against fireons_test DB, runs all specs, tears down
+bash run-tests.sh <spec file>   # run a single spec
+npm run test:headed         # visible browser
+npm run test:ui             # interactive Playwright UI
+```
+
+## Python Configuration
+- **Version**: Python 3.12 (specified in `backend/.tool-versions` and `pyproject.toml`; matches the Lambda `python3.12` runtime)
+- **Package Manager**: uv (fast Python package installer and resolver)
+- **Type Checking**: Pyright with strict mode disabled for general type issues (see `pyrightconfig.json` and `backend/pyproject.toml`)
 
 ## Environment Variables
 
-### Backend `.env` (optional)
-```env
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=fireons_development
+### Backend `.env` (`cp .env.sample .env`; `SECRET_KEY` and `DATABASE_URL` are required)
+```bash
+# Database
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/fireons_development
+
+# Authentication
 SECRET_KEY=your-secret-key-change-this-in-production
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# Ingestion pipeline (backend/ingestion/config.py)
+ANTHROPIC_API_KEY=
+ANTHROPIC_MODEL=claude-sonnet-5
+```
+
+### Deployment settings (`backend/app_config.py`, `backend/database/config.py`)
+Every environment is configured the same way, through env vars (locally from `.env`). `SECRET_KEY` and `DATABASE_URL` have no default and the app will not start without them. Everything else is optional and defaults to local dev behavior:
+```bash
+CORS_ORIGINS=http://localhost:3000,http://localhost:3020   # comma-separated
+INGESTION_TEST_ENABLED=true                    # mounts the /ingestion-test debug router
+INGESTION_ENABLED=false                        # false makes /ingestion/* return 503
+INVITE_ONLY=false                              # true requires a valid invite code (invites table) to register
+DATABASE_URL=postgresql+psycopg://...          # used exactly as given by the app and Alembic (add ?sslmode=require for Neon)
+DB_NULL_POOL=false                             # NullPool instead of QueuePool (Lambda)
+EXCHANGE_RATE_SYNC_ENABLED=true                # in-process APScheduler job
+```
+The schema comes from Alembic only; the app never creates tables. Run `uv run alembic upgrade head` before starting a fresh database (`make backend` and the e2e runner do this).
+
+When `APP_ENV` is set (e.g. `APP_ENV=production` on the Lambda), settings missing from the environment are read from the AWS Secrets Manager secret `fireons/<APP_ENV>`, a JSON object such as `{"SECRET_KEY": ..., "DATABASE_URL": ..., "ANTHROPIC_API_KEY": ...}` (`backend/secrets_source.py`). Env vars and `.env` take precedence. Locally `APP_ENV` is unset and nothing calls AWS.
+
+### Scraper settings (optional, backend `.env`)
+```env
+SCRAPE_MIN_INTERVAL_SECONDS=3.0
+SCRAPE_MAX_RETRIES=4
+SCRAPE_SCHEDULE_CRON=0 3 * * sun
+SCRAPE_SCHEDULE_TIMEZONE=Asia/Kolkata
 ```
 
 ### Frontend `.env.local` (required)
-```env
-BACKEND_HOST=localhost:8000
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```

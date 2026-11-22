@@ -21,15 +21,24 @@ async def seed_rates():
             ("USD", "INR", Decimal("83.0"), "2025-02-01"),
             ("USD", "EUR", Decimal("0.92"), "2025-02-01"),
             ("USD", "GBP", Decimal("0.79"), "2025-02-01"),
+            ("USD", "JPY", Decimal("150.0"), "2025-02-01"),
+            ("USD", "CAD", Decimal("1.44"), "2025-02-01"),
+            ("USD", "AUD", Decimal("1.58"), "2025-02-01"),
 
             # Add some historical rates for testing
             ("USD", "INR", Decimal("82.5"), "2025-01-01"),
             ("USD", "EUR", Decimal("0.91"), "2025-01-01"),
             ("USD", "GBP", Decimal("0.78"), "2025-01-01"),
+            ("USD", "JPY", Decimal("149.0"), "2025-01-01"),
+            ("USD", "CAD", Decimal("1.43"), "2025-01-01"),
+            ("USD", "AUD", Decimal("1.57"), "2025-01-01"),
 
             ("USD", "INR", Decimal("82.0"), "2024-12-01"),
             ("USD", "EUR", Decimal("0.90"), "2024-12-01"),
             ("USD", "GBP", Decimal("0.77"), "2024-12-01"),
+            ("USD", "JPY", Decimal("148.0"), "2024-12-01"),
+            ("USD", "CAD", Decimal("1.42"), "2024-12-01"),
+            ("USD", "AUD", Decimal("1.56"), "2024-12-01"),
         ]
 
         for from_curr, to_curr, rate, date_str in rates:

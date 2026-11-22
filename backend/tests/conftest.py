@@ -3,33 +3,35 @@ Pytest fixtures for database testing with PostgreSQL.
 """
 
 import asyncio
+import os
 from datetime import date
 from typing import AsyncGenerator
 
 import pytest
 import pytest_asyncio
 from sqlalchemy import text
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     create_async_engine,
     async_sessionmaker,
 )
 
+os.environ.setdefault("SECRET_KEY", "pytest-secret-key")
+os.environ.setdefault("INGESTION_ENABLED", "true")
+os.environ.setdefault(
+    "DATABASE_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/fireons_development"
+)
+
 from database.config import get_settings
-from database.models import Base, Account
+from database.models import Base, Account, User
 from database.repository import AccountRepository, TransactionRepository
 
 # Test database configuration
-settings = get_settings()
-TEST_DB_NAME = f"{settings.postgres_db}_test"
-TEST_DATABASE_URL = (
-    f"postgresql+psycopg://{settings.postgres_user}:{settings.postgres_password}"
-    f"@{settings.postgres_host}:{settings.postgres_port}/{TEST_DB_NAME}"
-)
-ADMIN_DATABASE_URL = (
-    f"postgresql+psycopg://{settings.postgres_user}:{settings.postgres_password}"
-    f"@{settings.postgres_host}:{settings.postgres_port}/postgres"
-)
+_base_url = make_url(get_settings().database_url)
+TEST_DB_NAME = "fireons_test"
+TEST_DATABASE_URL = _base_url.set(database=TEST_DB_NAME).render_as_string(hide_password=False)
+ADMIN_DATABASE_URL = _base_url.set(database="postgres").render_as_string(hide_password=False)
 
 
 @pytest.fixture(scope="session")
@@ -51,6 +53,11 @@ async def setup_test_database():
         await conn.execute(text(f"CREATE DATABASE {TEST_DB_NAME}"))
 
     await admin_engine.dispose()
+
+    test_engine = create_async_engine(TEST_DATABASE_URL, isolation_level="AUTOCOMMIT")
+    async with test_engine.connect() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+    await test_engine.dispose()
 
     yield
 
@@ -116,7 +123,18 @@ async def transaction_repo(session: AsyncSession) -> TransactionRepository:
 
 
 @pytest_asyncio.fixture
-async def sample_accounts(account_repo: AccountRepository) -> dict[str, Account]:
+async def test_user(session: AsyncSession) -> User:
+    user = User(
+        email="fixture-test@example.com",
+        username="fixture_test_user",
+    )
+    session.add(user)
+    await session.flush()
+    return user
+
+
+@pytest_asyncio.fixture
+async def sample_accounts(account_repo: AccountRepository, test_user: User) -> dict[str, Account]:
     accounts = {}
 
     account_data = [
@@ -136,8 +154,24 @@ async def sample_accounts(account_repo: AccountRepository) -> dict[str, Account]
             open_date=date(2024, 1, 1),
             currency=currency,
             description=description,
+            user_id=test_user.id,
         )
         key = name.split(":")[-1]
         accounts[key] = account
 
     return accounts
+
+
+async def grant_net_worth_consent(session: AsyncSession, user: User) -> None:
+    from consent import NET_WORTH_NOTICE_VERSION, NET_WORTH_PURPOSE
+    from database.models import ConsentRecord
+
+    session.add(
+        ConsentRecord(
+            user_id=user.id,
+            purpose=NET_WORTH_PURPOSE,
+            notice_version=NET_WORTH_NOTICE_VERSION,
+            granted=True,
+        )
+    )
+    await session.flush()

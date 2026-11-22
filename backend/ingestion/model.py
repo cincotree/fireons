@@ -22,12 +22,22 @@ class Position(BaseModel):
         return v
 
 
+class LLMUsage(BaseModel):
+    call_count: int
+    input_tokens: int
+    output_tokens: int
+    cache_creation_input_tokens: int
+    cache_read_input_tokens: int
+    estimated_cost_usd: float | None = None
+
+
 class NetWorth(BaseModel):
     as_of: date | None
     reporting_currency: str
     positions: dict[str, Position]
     total: str
     warnings: list[str] = []
+    llm_usage: LLMUsage | None = None
 
     @field_validator("total")
     @classmethod
