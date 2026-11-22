@@ -16,6 +16,16 @@ test.describe('Authentication Feature - Critical User Journeys', () => {
     await expect(page).toHaveURL(/.*login/);
   });
 
+  test('the navigation shows the Fireons logo mark instead of an emoji', async ({ page }) => {
+    await signIn(page, 'logomark');
+
+    await page.goto('/networth');
+
+    const brand = page.locator('nav a[href="/"]');
+    await expect(brand).toHaveText('Fireons');
+    await expect(brand.locator('svg polygon')).toHaveCount(1);
+  });
+
   test('protected route redirects unauthenticated user to login', async ({ page }) => {
     await page.goto('/networth');
 

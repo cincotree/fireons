@@ -16,9 +16,19 @@ export default function Navigation() {
           <div className="flex items-center gap-1">
             <Link
               href="/"
-              className="text-lg font-bold text-white hover:text-gray-300 transition-colors mr-8"
+              className="flex items-center gap-1 text-lg font-bold text-white hover:text-gray-300 transition-colors mr-8"
             >
-              🤖 Fireons
+              <svg viewBox="0 0 24 24" className="h-6 w-6 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <defs>
+                  <linearGradient id="navLogoGradient" x1="0" y1="1" x2="0" y2="0">
+                    <stop offset="0" stopColor="#0f172a" />
+                    <stop offset="0.55" stopColor="#0891b2" />
+                    <stop offset="1" stopColor="#67e8f9" />
+                  </linearGradient>
+                </defs>
+                <polygon points="12,2 16,7 14,10 18,14 15,19 12,22 9,19 6,14 10,10 8,7" fill="url(#navLogoGradient)" />
+              </svg>
+              Fireons
             </Link>
             <Link
               href="/professionals"
