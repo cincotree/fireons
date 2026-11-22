@@ -281,10 +281,10 @@ export default function Features() {
             Join Fireons today and start your journey to financial independence
           </p>
           <Link
-            href={appRoutes.waitlist}
+            href={appRoutes.join}
             className="inline-block bg-amber-500 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-amber-600 transition-colors shadow-lg"
           >
-            Join the Waitlist
+            Join Fireons
           </Link>
         </div>
       </section>

@@ -206,10 +206,10 @@ export default function Calculators() {
             Join Fireons to track your real net worth, not just a one-time estimate
           </p>
           <Link
-            href={appRoutes.waitlist}
+            href={appRoutes.join}
             className="inline-block bg-blue-800 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-blue-900 transition-colors shadow-lg"
           >
-            Join the Waitlist
+            Join Fireons
           </Link>
         </div>
       </section>

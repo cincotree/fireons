@@ -58,8 +58,8 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href={appRoutes.waitlist} className="text-gray-400 hover:text-white transition-colors">
-                  Join the Waitlist
+                <Link href={appRoutes.join} className="text-gray-400 hover:text-white transition-colors">
+                  Join Fireons
                 </Link>
               </li>
             </ul>
