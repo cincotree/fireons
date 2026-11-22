@@ -35,7 +35,7 @@ export function NetWorthNotice({ version }: { version: string }) {
       <section>
         <h3 className="font-semibold text-gray-900">3. Who handles it for us</h3>
         <ul className="mt-1 list-disc pl-5 space-y-1">
-          <li>Anthropic, to read the text of documents you upload and extract figures from it.</li>
+          <li>Anthropic, directly or through OpenRouter, to read the text of documents you upload and extract figures from it.</li>
           <li>Amazon Web Services, to host the application.</li>
           <li>Neon, to store the database.</li>
         </ul>

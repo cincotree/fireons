@@ -6,6 +6,7 @@ from pypdf import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 
 import ingestion.extract as extract_module
+from ingestion.llm_client import AnthropicExtractor, ExtractionUsage
 from ingestion.extract import (
     ExtractionTruncatedError,
     begin_usage_tracking,
@@ -50,13 +51,17 @@ class _FakeClient:
         self.messages = _FakeMessages(response)
 
 
+def _fake_extractor(response: _FakeResponse, model: str = "claude-sonnet-5") -> AnthropicExtractor:
+    return AnthropicExtractor(client=_FakeClient(response), model=model)
+
+
 def test_max_tokens_stop_reason_raises_truncated_error(monkeypatch):
     """A response cut off by the output budget must be reported distinctly from
     a generically malformed result — the document itself is fine, it just has
     more holdings than fit in one pass. Confirmed happening in practice with a
     real, comprehensive multi-folio statement."""
     fake_response = _FakeResponse(stop_reason="max_tokens", content=[])
-    monkeypatch.setattr(extract_module, "get_client", lambda: _FakeClient(fake_response))
+    monkeypatch.setattr(extract_module, "get_extractor", lambda: _fake_extractor(fake_response))
 
     with pytest.raises(ExtractionTruncatedError):
         extract_facts_from_text("some statement text that never hits the cache")
@@ -116,7 +121,7 @@ def test_extract_facts_from_text_records_usage_when_tracking_active(monkeypatch)
             cache_read_input_tokens=0,
         ),
     )
-    monkeypatch.setattr(extract_module, "get_client", lambda: _FakeClient(fake_response))
+    monkeypatch.setattr(extract_module, "get_extractor", lambda: _fake_extractor(fake_response))
 
     token = begin_usage_tracking()
     extract_facts_from_text("some statement text that never hits the cache — usage test")
@@ -140,7 +145,7 @@ def test_extract_facts_from_text_records_nothing_without_active_tracking(monkeyp
     end_usage_tracking(token)  # simulates an earlier, unrelated tracked call completing
 
     fake_response = _FakeResponse(stop_reason="max_tokens", content=[])
-    monkeypatch.setattr(extract_module, "get_client", lambda: _FakeClient(fake_response))
+    monkeypatch.setattr(extract_module, "get_extractor", lambda: _fake_extractor(fake_response))
 
     with pytest.raises(ExtractionTruncatedError):
         extract_facts_from_text("some statement text that never hits the cache — leak test")
@@ -166,3 +171,49 @@ def test_estimate_cost_usd_known_model():
 def test_estimate_cost_usd_unknown_model_returns_none():
     usage = [extract_module.ExtractionUsage(1000, 1000, 0, 0)]
     assert estimate_cost_usd(usage, "some-future-model") is None
+
+
+def test_estimate_cost_usd_prefers_provider_reported_cost():
+    usage = [
+        ExtractionUsage(1000, 1000, 0, 0, cost_usd=0.012),
+        ExtractionUsage(500, 500, 0, 0, cost_usd=0.003),
+    ]
+    assert estimate_cost_usd(usage, "anthropic/claude-sonnet-5") == pytest.approx(0.015)
+
+
+def test_estimate_cost_usd_falls_back_to_pricing_when_any_cost_missing():
+    usage = [
+        ExtractionUsage(1000, 0, 0, 0, cost_usd=0.5),
+        ExtractionUsage(1000, 0, 0, 0),
+    ]
+    assert estimate_cost_usd(usage, "claude-sonnet-5") == pytest.approx(2000 * 3.00 / 1_000_000)
+    assert estimate_cost_usd(usage, "anthropic/claude-sonnet-5") is None
+
+
+def test_extract_facts_from_text_raises_when_no_tool_use_block(monkeypatch):
+    fake_response = _FakeResponse(stop_reason="end_turn", content=[])
+    monkeypatch.setattr(extract_module, "get_extractor", lambda: _fake_extractor(fake_response))
+
+    with pytest.raises(ValueError, match="tool_use"):
+        extract_facts_from_text("some statement text that never hits the cache — no tool test")
+
+
+def test_extraction_cache_is_scoped_to_provider_and_model(monkeypatch):
+    text = "some statement text that never hits the cache — model scope test"
+    first = _FakeResponse(
+        stop_reason="tool_use",
+        content=[_FakeToolUseBlock(input={"document_type": "bank_statement"})],
+    )
+    second = _FakeResponse(
+        stop_reason="tool_use",
+        content=[_FakeToolUseBlock(input={"document_type": "loan_statement"})],
+    )
+
+    monkeypatch.setattr(extract_module, "get_extractor", lambda: _fake_extractor(first, "model-a"))
+    assert extract_facts_from_text(text) == {"document_type": "bank_statement"}
+
+    monkeypatch.setattr(extract_module, "get_extractor", lambda: _fake_extractor(second, "model-a"))
+    assert extract_facts_from_text(text) == {"document_type": "bank_statement"}
+
+    monkeypatch.setattr(extract_module, "get_extractor", lambda: _fake_extractor(second, "model-b"))
+    assert extract_facts_from_text(text) == {"document_type": "loan_statement"}

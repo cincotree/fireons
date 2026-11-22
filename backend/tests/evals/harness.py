@@ -41,8 +41,8 @@ def _orderings(case: dict) -> list[list[Path]]:
 
 
 def _marks(case: dict) -> list:
-    if case.get("requires_llm") and not get_settings().anthropic_api_key:
-        return [pytest.mark.skip(reason="routes to the LLM tier; ANTHROPIC_API_KEY not set")]
+    if case.get("requires_llm") and not get_settings().llm_configured:
+        return [pytest.mark.skip(reason="routes to the LLM tier; no API key set for the active LLM_PROVIDER")]
     return []
 
 

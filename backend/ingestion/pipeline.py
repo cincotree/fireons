@@ -327,7 +327,7 @@ def ingest(
         output_tokens=sum(u.output_tokens for u in usage),
         cache_creation_input_tokens=sum(u.cache_creation_input_tokens for u in usage),
         cache_read_input_tokens=sum(u.cache_read_input_tokens for u in usage),
-        estimated_cost_usd=estimate_cost_usd(usage, get_settings().anthropic_model),
+        estimated_cost_usd=estimate_cost_usd(usage, get_settings().active_model),
     )
 
     return NetWorth(
