@@ -1,10 +1,10 @@
 # Invite-only registration
 
-In production, signing up needs an invite code. Sign-in is Google or Reddit only, so the code is passed to the provider flow (`/api/auth/{google|reddit}/login?invite_code=`) and checked when a new user is created. Existing users sign in without one. Invites live in the `invites` table and are managed with SQL (Neon SQL editor or `psql`). There is no admin page.
+Production registration is open by default (`invite_only` is `false` in Terraform). Set it to `true` to make signing up need an invite code. Sign-in is Google or Reddit only, so the code is passed to the provider flow (`/api/auth/{google|reddit}/login?invite_code=`) and checked when a new user is created. Existing users sign in without one. Invites live in the `invites` table and are managed with SQL (Neon SQL editor or `psql`). There is no admin page.
 
 ## How it works
 
-- The API reads `INVITE_ONLY`. When it is `true`, a new social sign-up requires a valid `invite_code`. Terraform sets it to `true` for production (`invite_only` in `infra/environments/production`).
+- The API reads `INVITE_ONLY`. When it is `true`, a new social sign-up requires a valid `invite_code`. Terraform sets it from `invite_only` in `infra/environments/production`, which defaults to `false`.
 - When it is unset or `false` (local development, the e2e suite), sign-up is open and `invite_code` is ignored.
 - `GET /api/auth/registration` returns `{"invite_required": true|false}`. The join page uses it to show an invite code field.
 - `/register?invite=<code>` prefills the field, so you can send people a link.
