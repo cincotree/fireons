@@ -13,7 +13,6 @@ from ingestion.extract import (
     extract_facts_from_text,
 )
 from ingestion.llm_client import (
-    AnthropicExtractor,
     LLMProviderError,
     OpenRouterExtractor,
     build_extractor,
@@ -25,9 +24,6 @@ TOOL_NAME = EXTRACT_TOOL["name"]
 @pytest.fixture(autouse=True)
 def _isolate_llm_env(monkeypatch):
     for name in (
-        "LLM_PROVIDER",
-        "ANTHROPIC_API_KEY",
-        "ANTHROPIC_MODEL",
         "OPENROUTER_API_KEY",
         "OPENROUTER_MODEL",
         "OPENROUTER_BASE_URL",
@@ -91,39 +87,25 @@ def _call(extractor: OpenRouterExtractor):
     )
 
 
-def test_build_extractor_defaults_to_openrouter():
+def test_build_extractor_uses_openrouter():
     extractor = build_extractor(_settings(openrouter_api_key="o-key"))
     assert isinstance(extractor, OpenRouterExtractor)
     assert extractor.model == "anthropic/claude-sonnet-5"
 
 
-def test_build_extractor_selects_anthropic():
-    extractor = build_extractor(_settings(llm_provider="anthropic", anthropic_api_key="a-key"))
-    assert isinstance(extractor, AnthropicExtractor)
-    assert extractor.model == "claude-sonnet-5"
-
-
-def test_build_extractor_selects_openrouter_model():
-    extractor = build_extractor(
-        _settings(llm_provider="openrouter", openrouter_api_key="o-key", openrouter_model="openai/gpt-5")
-    )
+def test_build_extractor_uses_configured_model():
+    extractor = build_extractor(_settings(openrouter_api_key="o-key", openrouter_model="openai/gpt-5"))
     assert isinstance(extractor, OpenRouterExtractor)
     assert extractor.model == "openai/gpt-5"
 
 
-def test_unknown_provider_is_rejected():
-    with pytest.raises(ValueError):
-        _settings(llm_provider="somebody-else")
-
-
 def test_settings_report_active_model_and_configuration():
-    anthropic_settings = _settings(llm_provider="anthropic", anthropic_api_key="a-key", openrouter_api_key="")
-    assert anthropic_settings.active_model == "claude-sonnet-5"
-    assert anthropic_settings.llm_configured
+    configured = _settings(openrouter_api_key="o-key")
+    assert configured.active_model == "anthropic/claude-sonnet-5"
+    assert configured.llm_configured
 
-    openrouter_settings = _settings(anthropic_api_key="a-key", openrouter_api_key="")
-    assert openrouter_settings.active_model == "anthropic/claude-sonnet-5"
-    assert not openrouter_settings.llm_configured
+    unconfigured = _settings(openrouter_api_key="")
+    assert not unconfigured.llm_configured
 
 
 def test_request_forces_tool_and_restricts_providers():
@@ -318,19 +300,3 @@ def test_extract_facts_from_text_truncated_through_openrouter(monkeypatch):
 
     with pytest.raises(ExtractionTruncatedError):
         extract_facts_from_text("openrouter statement text that never hits the cache — truncated")
-
-
-def test_openrouter_mode_does_not_import_anthropic_sdk():
-    import subprocess
-    import sys
-
-    code = (
-        "import sys;"
-        "from ingestion.config import Settings;"
-        "from ingestion.llm_client import build_extractor;"
-        "build_extractor(Settings(_env_file=None, llm_provider='openrouter', openrouter_api_key='k'));"
-        "print('anthropic' in sys.modules)"
-    )
-    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env={"PATH": ""})
-    assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == "False"

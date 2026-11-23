@@ -98,8 +98,8 @@ hasn't been proven against a fixture yet (see "What's not covered" below).
 
 - **Cost controls.** The parser tier above is the primary one. For whatever still
   reaches the LLM: an in-process cache (keyed by document text hash) avoids
-  re-extracting the same file twice within one `ingest()` call, plus Anthropic
-  prompt caching on the (large, static) tool schema and system prompt.
+  re-extracting the same file twice within one `ingest()` call, plus prompt
+  caching (for Anthropic models on OpenRouter) on the (large, static) tool schema and system prompt.
 
 - **Rate limiting** (`rate_limit.py`, enforced at the API layer, not inside
   `ingest()` itself) — 50MB cumulative upload volume per user per hour is the

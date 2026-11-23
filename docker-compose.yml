@@ -1,8 +1,6 @@
 x-backend-environment: &backend-environment
   DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/fireons_development
   SECRET_KEY: ${SECRET_KEY:-local-development-only-change-me}
-  LLM_PROVIDER: ${LLM_PROVIDER:-openrouter}
-  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
   OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
   OPENROUTER_MODEL: ${OPENROUTER_MODEL:-anthropic/claude-sonnet-5}
 

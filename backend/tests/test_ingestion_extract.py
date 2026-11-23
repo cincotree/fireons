@@ -6,7 +6,7 @@ from pypdf import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 
 import ingestion.extract as extract_module
-from ingestion.llm_client import AnthropicExtractor, ExtractionUsage
+from ingestion.llm_client import ExtractionUsage, ToolCallResult
 from ingestion.extract import (
     ExtractionTruncatedError,
     begin_usage_tracking,
@@ -38,21 +38,27 @@ class _FakeResponse:
     usage: _FakeUsage = field(default_factory=_FakeUsage)
 
 
-class _FakeMessages:
-    def __init__(self, response: _FakeResponse):
+class _FakeExtractor:
+    provider = "fake"
+
+    def __init__(self, response: _FakeResponse, model: str):
         self._response = response
+        self.model = model
 
-    def create(self, **kwargs) -> _FakeResponse:
-        return self._response
+    def call_tool(self, system: str, tool: dict, user_text: str, max_tokens: int) -> ToolCallResult:
+        response = self._response
+        usage = ExtractionUsage(
+            input_tokens=response.usage.input_tokens,
+            output_tokens=response.usage.output_tokens,
+            cache_creation_input_tokens=response.usage.cache_creation_input_tokens,
+            cache_read_input_tokens=response.usage.cache_read_input_tokens,
+        )
+        tool_input = next((block.input for block in response.content if block.type == "tool_use"), None)
+        return ToolCallResult(tool_input=tool_input, truncated=response.stop_reason == "max_tokens", usage=usage)
 
 
-class _FakeClient:
-    def __init__(self, response: _FakeResponse):
-        self.messages = _FakeMessages(response)
-
-
-def _fake_extractor(response: _FakeResponse, model: str = "claude-sonnet-5") -> AnthropicExtractor:
-    return AnthropicExtractor(client=_FakeClient(response), model=model)
+def _fake_extractor(response: _FakeResponse, model: str = "anthropic/claude-sonnet-5") -> _FakeExtractor:
+    return _FakeExtractor(response, model)
 
 
 def test_max_tokens_stop_reason_raises_truncated_error(monkeypatch):

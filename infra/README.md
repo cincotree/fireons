@@ -11,7 +11,7 @@ Terraform (OpenTofu compatible) for the AWS foundation in `ap-southeast-1`. Noth
 ## What it creates
 
 - GitHub OIDC provider and the `fireons-production-github-deploy` role, assumable only by `repo:cincotree/fireons:environment:production`
-- Secrets Manager secret `fireons/production` as an empty shell (no secret version is managed, so values never enter Terraform state) for the keys `SECRET_KEY`, `DATABASE_URL`, `OPENROUTER_API_KEY` (or `LLM_PROVIDER=anthropic` with `ANTHROPIC_API_KEY`) and the sign-in keys below
+- Secrets Manager secret `fireons/production` as an empty shell (no secret version is managed, so values never enter Terraform state) for the keys `SECRET_KEY`, `DATABASE_URL`, `OPENROUTER_API_KEY` and the sign-in keys below
 - ACM certificates for `app.fireons.com` and `api.fireons.com` in `us-east-1` (CloudFront)
 - API: Lambda `fireons-production-api` (arm64, Python 3.12, Lambda Web Adapter layer) with alias `live`, a Function URL on the alias, and a CloudFront distribution in front
 - Web app: private S3 bucket `fireons-production-webapp-<account>`, CloudFront distribution with OAC, a path rewrite function, custom 404 and security headers
@@ -40,7 +40,7 @@ Apply, phase 1 (CloudFront default domains):
 4. `./bootstrap.sh` creates the versioned, encrypted state bucket and writes `environments/production/backend.hcl` (gitignored).
 5. `cd environments/production`, `cp terraform.tfvars.example terraform.tfvars` and set `budget_email`.
 6. `terraform init -backend-config=backend.hcl`, then `terraform plan` and `terraform apply`.
-7. Fill the secret with `aws secretsmanager put-secret-value --secret-id fireons/production --secret-string file://secret.json`, keys `SECRET_KEY`, `DATABASE_URL` (Neon direct URL as `postgresql+psycopg://...?sslmode=require`), `OPENROUTER_API_KEY` and optionally `OPENROUTER_MODEL` (or `LLM_PROVIDER` set to `anthropic` plus `ANTHROPIC_API_KEY`) and the sign-in keys from [docs/oauth-sign-in.md](../docs/oauth-sign-in.md): `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, optionally `REDDIT_OAUTH_CLIENT_ID` and `REDDIT_OAUTH_CLIENT_SECRET`, and `OAUTH_REDIRECT_BASE_URL` (the API's public URL, `api_base_url` output, for example `https://api.fireons.com`). Register `<OAUTH_REDIRECT_BASE_URL>/auth/google/callback` (and `/auth/reddit/callback`) with the providers. Delete `secret.json` afterwards. Setting a secret needs the API redeployed or a cold start to take effect.
+7. Fill the secret with `aws secretsmanager put-secret-value --secret-id fireons/production --secret-string file://secret.json`, keys `SECRET_KEY`, `DATABASE_URL` (Neon direct URL as `postgresql+psycopg://...?sslmode=require`), `OPENROUTER_API_KEY`, optionally `OPENROUTER_MODEL`, and the sign-in keys from [docs/oauth-sign-in.md](../docs/oauth-sign-in.md): `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, optionally `REDDIT_OAUTH_CLIENT_ID` and `REDDIT_OAUTH_CLIENT_SECRET`, and `OAUTH_REDIRECT_BASE_URL` (the API's public URL, `api_base_url` output, for example `https://api.fireons.com`). Register `<OAUTH_REDIRECT_BASE_URL>/auth/google/callback` (and `/auth/reddit/callback`) with the providers. Delete `secret.json` afterwards. Setting a secret needs the API redeployed or a cold start to take effect.
 
 First deploy from your machine (AWS credentials for the same account, `uv`, Node, `zip`):
 8. `make deploy-api` (names derive from `DEPLOY_ENV`, default `production`) builds the zip, runs migrations against Neon, publishes a version, smoke tests `/health` and `/health/ready`, then moves alias `live`.

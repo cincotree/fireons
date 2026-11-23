@@ -38,39 +38,6 @@ class ToolCallingExtractor(Protocol):
     def call_tool(self, system: str, tool: dict, user_text: str, max_tokens: int) -> ToolCallResult: ...
 
 
-class AnthropicExtractor:
-    provider = "anthropic"
-
-    def __init__(self, client: Any, model: str):
-        self._client = client
-        self.model = model
-
-    def call_tool(self, system: str, tool: dict, user_text: str, max_tokens: int) -> ToolCallResult:
-        response = self._client.messages.create(
-            model=self.model,
-            max_tokens=max_tokens,
-            system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
-            tools=[{**tool, "cache_control": {"type": "ephemeral"}}],
-            tool_choice={"type": "tool", "name": tool["name"]},
-            messages=[{"role": "user", "content": user_text}],
-        )
-        usage = ExtractionUsage(
-            input_tokens=response.usage.input_tokens,
-            output_tokens=response.usage.output_tokens,
-            cache_creation_input_tokens=response.usage.cache_creation_input_tokens or 0,
-            cache_read_input_tokens=response.usage.cache_read_input_tokens or 0,
-        )
-        tool_input = next(
-            (block.input for block in response.content if block.type == "tool_use"),
-            None,
-        )
-        return ToolCallResult(
-            tool_input=tool_input,
-            truncated=response.stop_reason == "max_tokens",
-            usage=usage,
-        )
-
-
 class OpenRouterExtractor:
     provider = "openrouter"
 
@@ -208,17 +175,10 @@ def _error_message(response: httpx.Response) -> str:
 
 
 def build_extractor(settings: Settings) -> ToolCallingExtractor:
-    if settings.llm_provider == "openrouter":
-        return OpenRouterExtractor(
-            api_key=settings.openrouter_api_key,
-            model=settings.openrouter_model,
-            base_url=settings.openrouter_base_url,
-        )
-    import anthropic
-
-    return AnthropicExtractor(
-        client=anthropic.Anthropic(api_key=settings.anthropic_api_key),
-        model=settings.anthropic_model,
+    return OpenRouterExtractor(
+        api_key=settings.openrouter_api_key,
+        model=settings.openrouter_model,
+        base_url=settings.openrouter_base_url,
     )
 
 
