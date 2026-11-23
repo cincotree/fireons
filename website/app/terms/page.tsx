@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Metadata } from 'next';
-import { appRoutes } from '@/lib/config';
+import { appRoutes, config } from '@/lib/config';
 
 export const metadata: Metadata = {
   title: 'Terms of Service - Fireons',
@@ -29,7 +29,7 @@ const sections = [
     body: [
       'You sign in with a Google or Reddit account. You are responsible for that account and for everything done through your Fireons session.',
       'You must be at least 18 years old to use the net worth features. Give us accurate information and tell us if you think someone else has access to your account.',
-      'Fireons may be invite-only at times. We can decline or close an account that does not follow these terms.',
+      'We can decline or close an account that does not follow these terms.',
     ],
   },
   {
@@ -98,12 +98,6 @@ const sections = [
       'These terms are governed by the laws of India, and the courts of India have jurisdiction over any dispute about them.',
     ],
   },
-  {
-    title: 'Contact',
-    body: [
-      'Questions about these terms can be sent to our support team through the Fireons website.',
-    ],
-  },
 ];
 
 export default function Terms() {
@@ -142,6 +136,26 @@ export default function Terms() {
           ))}
         </div>
 
+        <div className="mt-10">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">
+            {sections.length + 1}. Contact
+          </h2>
+          <p className="text-gray-700">
+            Questions about these terms can be sent to{' '}
+            {config.privacyContactEmail ? (
+              <a
+                href={`mailto:${config.privacyContactEmail}`}
+                className="text-cyan-700 underline hover:text-cyan-800"
+              >
+                {config.privacyContactEmail}
+              </a>
+            ) : (
+              'our support team through the Fireons website'
+            )}
+            .
+          </p>
+        </div>
+
         <p className="text-gray-700 mt-12">
           Read how we handle your information in our{' '}
           <Link href="/privacy" className="text-cyan-700 underline hover:text-cyan-800">
@@ -158,10 +172,10 @@ export default function Terms() {
             Join Fireons and take control of your financial future
           </p>
           <Link
-            href={appRoutes.waitlist}
+            href={appRoutes.join}
             className="inline-block bg-blue-800 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-blue-900 transition-colors shadow-lg"
           >
-            Join the Waitlist
+            Join Fireons
           </Link>
         </div>
       </section>

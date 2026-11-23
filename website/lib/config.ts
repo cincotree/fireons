@@ -1,5 +1,7 @@
 export const config = {
   web3formsAccessKey: process.env.NEXT_PUBLIC_WEB3FORMS_ACCESS_KEY,
+  privacyContactEmail: process.env.NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL,
+  appUrl: (process.env.NEXT_PUBLIC_APP_URL || 'https://app.fireons.com').replace(/\/$/, ''),
 };
 
 export const professionalParam = {
@@ -8,6 +10,8 @@ export const professionalParam = {
 };
 
 export const appRoutes = {
+  join: `${config.appUrl}/register`,
+  signIn: `${config.appUrl}/login`,
   waitlist: '/waitlist',
   waitlistProfessional: `/waitlist?${professionalParam.name}=${professionalParam.value}`,
   calculators: '/calculators',

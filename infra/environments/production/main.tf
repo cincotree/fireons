@@ -20,7 +20,6 @@ module "fireons" {
   enable_custom_domains        = var.enable_custom_domains
   lambda_web_adapter_layer_arn = var.lambda_web_adapter_layer_arn
   api_reserved_concurrency     = var.api_reserved_concurrency
-  invite_only                  = var.invite_only
   api_memory_mb                = var.api_memory_mb
   scheduled_jobs               = var.scheduled_jobs
 }

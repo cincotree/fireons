@@ -32,10 +32,10 @@ export default function Home() {
                 </svg>
               </Link>
               <Link
-                href={appRoutes.waitlist}
+                href={appRoutes.join}
                 className="bg-cyan-600 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-cyan-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
               >
-                Join the Waitlist
+                Join Fireons
               </Link>
             </div>
           </div>
@@ -159,10 +159,10 @@ export default function Home() {
               Join thousands of Fireons working towards financial independence
             </p>
             <Link
-              href={appRoutes.waitlist}
+              href={appRoutes.join}
               className="inline-flex items-center gap-2 bg-cyan-600 text-white px-10 py-5 rounded-xl text-lg font-semibold hover:bg-cyan-700 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
             >
-              Join the Waitlist
+              Join Fireons
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
               </svg>

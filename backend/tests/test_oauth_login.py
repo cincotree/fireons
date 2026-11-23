@@ -1,7 +1,5 @@
 from urllib.parse import parse_qs, urlparse
 
-from datetime import datetime, timedelta, timezone
-
 import httpx
 import pytest
 import pytest_asyncio
@@ -14,7 +12,7 @@ import oauth_providers
 from api.oauth_api import get_oauth_http_client
 from app import app
 from app_config import AppSettings, get_app_settings
-from database.models import Invite, InviteRedemption, OAuthIdentity, User
+from database.models import OAuthIdentity, User
 from database.session import get_session
 
 SECRET = get_app_settings().secret_key
@@ -297,157 +295,30 @@ async def test_a_failing_provider_returns_to_login_without_leaking_details(clien
     assert "google-secret" not in response.headers["location"]
 
 
-@pytest.mark.asyncio
-async def test_invite_only_blocks_new_social_sign_ups_without_a_code(client, session):
-    app.dependency_overrides[get_app_settings] = lambda: settings_for(invite_only=True)
-    _, state = await begin(client, "google")
-
-    response = await finish(client, "google", state)
-
-    assert failure_code(response) == "invite_required"
-    assert await session.scalar(select(func.count()).select_from(User)) == 0
-
-
-@pytest.mark.asyncio
-async def test_invite_only_accepts_a_valid_code_once(client, session):
-    app.dependency_overrides[get_app_settings] = lambda: settings_for(invite_only=True)
-    session.add(Invite(code="welcome", max_uses=1))
-    await session.flush()
-    _, state = await begin(client, "google", invite_code="welcome")
-
-    landing(await finish(client, "google", state))
-
-    invite = await session.scalar(select(Invite).where(Invite.code == "welcome"))
-    assert invite.use_count == 1
-
-
-@pytest.mark.asyncio
-async def test_invite_only_lets_existing_social_users_sign_in_without_a_code(client, session):
-    _, first_state = await begin(client, "google")
-    landing(await finish(client, "google", first_state))
-    app.dependency_overrides[get_app_settings] = lambda: settings_for(invite_only=True)
-    _, state = await begin(client, "google")
-
-    landing(await finish(client, "google", state))
-
-
 def test_provider_helpers_build_the_expected_redirect_uri():
     settings = settings_for(oauth_redirect_base_url="https://api.example.com/")
 
     assert oauth_providers.redirect_uri("google", settings) == "https://api.example.com/auth/google/callback"
 
 
-async def sign_up(client, provider, subject, code=None):
-    provider.google_info = {"sub": subject, "email": f"{subject}@example.com", "email_verified": True, "name": subject}
-    params = {"invite_code": code} if code is not None else {}
-    _, state = await begin(client, "google", **params)
-    return await finish(client, "google", state)
+@pytest.mark.asyncio
+async def test_new_users_can_sign_up_without_any_invite_code(client, session):
+    _, state = await begin(client, "google")
 
+    landing(await finish(client, "google", state))
 
-async def add_invite(session, code="welcome-code", **fields):
-    invite = Invite(code=code, max_uses=fields.pop("max_uses", 1), **fields)
-    session.add(invite)
-    await session.flush()
-    return invite
-
-
-@pytest.fixture
-def invite_only(client):
-    app.dependency_overrides[get_app_settings] = lambda: settings_for(invite_only=True)
+    assert await session.scalar(select(func.count()).select_from(User)) == 1
 
 
 @pytest.mark.asyncio
-async def test_registration_info_reports_invite_requirement(client):
-    assert (await client.get("/auth/registration")).json() == {"invite_required": False}
+async def test_a_stale_client_sending_an_invite_code_still_signs_up(client, session):
+    _, state = await begin(client, "google", invite_code="left-over-code")
 
-    app.dependency_overrides[get_app_settings] = lambda: settings_for(invite_only=True)
-    assert (await client.get("/auth/registration")).json() == {"invite_required": True}
+    landing(await finish(client, "google", state))
 
-
-@pytest.mark.asyncio
-async def test_a_valid_invite_records_the_redemption(client, session, provider, invite_only):
-    invite = await add_invite(session)
-
-    claims = landing(await sign_up(client, provider, "ann", "welcome-code"))
-
-    await session.refresh(invite)
-    assert invite.use_count == 1
-    redemption = (await session.execute(select(InviteRedemption))).scalar_one()
-    assert (redemption.invite_id, redemption.user_id) == (invite.id, claims["sub"])
+    assert await session.scalar(select(func.count()).select_from(User)) == 1
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("code", [None, "", "   ", "not-the-code"])
-async def test_missing_or_unknown_codes_are_rejected(client, session, provider, invite_only, code):
-    await add_invite(session)
-
-    response = await sign_up(client, provider, "bob", code)
-
-    assert failure_code(response) == "invite_required"
-
-
-@pytest.mark.asyncio
-async def test_a_single_use_invite_cannot_be_reused(client, session, provider, invite_only):
-    await add_invite(session)
-
-    first = await sign_up(client, provider, "first", "welcome-code")
-    second = await sign_up(client, provider, "second", "welcome-code")
-
-    landing(first)
-    assert failure_code(second) == "invite_required"
-
-
-@pytest.mark.asyncio
-async def test_a_multi_use_invite_allows_each_use(client, session, provider, invite_only):
-    await add_invite(session, max_uses=2)
-
-    results = [await sign_up(client, provider, f"user{n}", "welcome-code") for n in range(3)]
-
-    landing(results[0])
-    landing(results[1])
-    assert failure_code(results[2]) == "invite_required"
-
-
-@pytest.mark.asyncio
-async def test_revoked_and_expired_invites_are_rejected(client, session, provider, invite_only):
-    await add_invite(session, "revoked", revoked_at=datetime.now(timezone.utc))
-    await add_invite(session, "expired", expires_at=datetime.now(timezone.utc) - timedelta(minutes=1))
-
-    assert failure_code(await sign_up(client, provider, "a", "revoked")) == "invite_required"
-    assert failure_code(await sign_up(client, provider, "b", "expired")) == "invite_required"
-
-
-@pytest.mark.asyncio
-async def test_an_invite_with_a_future_expiry_is_accepted(client, session, provider, invite_only):
-    await add_invite(session, expires_at=datetime.now(timezone.utc) + timedelta(days=1))
-
-    landing(await sign_up(client, provider, "carl", "welcome-code"))
-
-
-@pytest.mark.asyncio
-async def test_the_invite_code_is_trimmed(client, session, provider, invite_only):
-    await add_invite(session)
-
-    landing(await sign_up(client, provider, "dana", "  welcome-code  "))
-
-
-@pytest.mark.asyncio
-async def test_a_failed_provider_exchange_does_not_burn_the_invite(client, session, provider, invite_only):
-    invite = await add_invite(session)
-    provider.token_status = 500
-
-    response = await sign_up(client, provider, "erin", "welcome-code")
-
-    assert failure_code(response) == "provider_failed"
-    await session.refresh(invite)
-    assert invite.use_count == 0
-
-
-@pytest.mark.asyncio
-async def test_the_invite_code_is_ignored_when_not_invite_only(client, session, provider):
-    invite = await add_invite(session)
-
-    landing(await sign_up(client, provider, "fay", "welcome-code"))
-
-    await session.refresh(invite)
-    assert invite.use_count == 0
+async def test_the_registration_info_endpoint_is_gone(client):
+    assert (await client.get("/auth/registration")).status_code == 404

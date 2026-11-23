@@ -96,7 +96,7 @@ docker run -p 3000:3000 fireons/frontend
 
 ### Production registration
 
-Registration is invite-only in production. See [docs/invite-only-registration.md](docs/invite-only-registration.md) for how to create and manage invites, and [infra/README.md](infra/README.md) for deploying the AWS infrastructure.
+See [infra/README.md](infra/README.md) for deploying the AWS infrastructure.
 
 ### Professionals directory data
 

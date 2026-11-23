@@ -55,10 +55,16 @@ export default function Header() {
               Free Calculators
             </Link>
             <Link
-              href={appRoutes.waitlist}
+              href={appRoutes.signIn}
+              className="text-slate-700 hover:text-cyan-700 px-3 py-2.5 font-medium transition-colors"
+            >
+              Sign in
+            </Link>
+            <Link
+              href={appRoutes.join}
               className="bg-cyan-600 text-white px-6 py-2.5 rounded-lg hover:bg-cyan-700 transition-all font-medium shadow-md hover:shadow-lg"
             >
-              Join Waitlist
+              Join Fireons
             </Link>
           </div>
 
@@ -111,10 +117,16 @@ export default function Header() {
                   Free Calculators
                 </Link>
                 <Link
-                  href={appRoutes.waitlist}
+                  href={appRoutes.signIn}
+                  className="text-slate-700 hover:text-cyan-700 px-4 py-2.5 font-medium text-center"
+                >
+                  Sign in
+                </Link>
+                <Link
+                  href={appRoutes.join}
                   className="bg-cyan-600 text-white px-4 py-2.5 rounded-lg hover:bg-cyan-700 transition-all font-medium text-center shadow-md"
                 >
-                  Join Waitlist
+                  Join Fireons
                 </Link>
               </div>
             </div>

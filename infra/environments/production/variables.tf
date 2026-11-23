@@ -42,11 +42,6 @@ variable "api_reserved_concurrency" {
   default = 3
 }
 
-variable "invite_only" {
-  type    = bool
-  default = true
-}
-
 variable "api_memory_mb" {
   type    = number
   default = 1769

@@ -5,7 +5,7 @@ from typing import AsyncIterator, Optional
 from urllib.parse import quote
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from jose import JWTError, jwt
 from sqlalchemy import select
@@ -13,10 +13,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import oauth_providers
-from api.auth_api import consume_invite
 from app_config import AppSettings, get_app_settings
 from auth_utils import create_access_token
-from database.models import InviteRedemption, OAuthIdentity, User
+from database.models import OAuthIdentity, User
 from database.session import get_session
 from oauth_providers import OAuthError, OAuthProfile
 
@@ -25,7 +24,6 @@ router = APIRouter(prefix="/auth", tags=["oauth"])
 STATE_MINUTES = 10
 NONCE_COOKIE = "oauth_nonce"
 STATE_TYPE = "oauth_state"
-MAX_INVITE_LENGTH = 64
 USERNAME_MAX = 40
 
 
@@ -39,12 +37,11 @@ def _require_provider(provider: str, settings: AppSettings) -> None:
         raise HTTPException(status_code=404, detail="Unknown or disabled sign-in provider")
 
 
-def _sign_state(settings: AppSettings, provider: str, nonce: str, invite_code: str) -> str:
+def _sign_state(settings: AppSettings, provider: str, nonce: str) -> str:
     claims = {
         "typ": STATE_TYPE,
         "provider": provider,
         "nonce": nonce,
-        "invite": invite_code,
         "exp": datetime.now(timezone.utc) + timedelta(minutes=STATE_MINUTES),
     }
     return jwt.encode(claims, settings.secret_key, algorithm=settings.algorithm)
@@ -94,12 +91,11 @@ async def list_providers(settings: AppSettings = Depends(get_app_settings)) -> d
 @router.get("/{provider}/login")
 async def start_login(
     provider: str,
-    invite_code: str = Query(default="", max_length=MAX_INVITE_LENGTH),
     settings: AppSettings = Depends(get_app_settings),
 ):
     _require_provider(provider, settings)
     nonce = secrets.token_urlsafe(24)
-    state = _sign_state(settings, provider, nonce, invite_code.strip())
+    state = _sign_state(settings, provider, nonce)
     response = RedirectResponse(oauth_providers.authorize_url(provider, settings, state), status_code=302)
     response.set_cookie(
         NONCE_COOKIE,
@@ -113,9 +109,7 @@ async def start_login(
     return response
 
 
-async def _resolve_user(
-    session: AsyncSession, settings: AppSettings, profile: OAuthProfile, invite_code: str
-) -> User | str:
+async def _resolve_user(session: AsyncSession, profile: OAuthProfile) -> User | str:
     identity = await session.scalar(
         select(OAuthIdentity).where(
             OAuthIdentity.provider == profile.provider, OAuthIdentity.provider_user_id == profile.subject
@@ -134,13 +128,6 @@ async def _resolve_user(
             await session.commit()
             return existing
 
-    invite_id = None
-    if settings.invite_only:
-        try:
-            invite_id = await consume_invite(session, invite_code)
-        except HTTPException:
-            return "invite_required"
-
     user = User(
         email=trusted_email,
         username=await _unique_username(session, profile.username_hint),
@@ -150,8 +137,6 @@ async def _resolve_user(
     session.add(user)
     await session.flush()
     session.add(OAuthIdentity(user_id=user.id, provider=profile.provider, provider_user_id=profile.subject))
-    if invite_id is not None:
-        session.add(InviteRedemption(invite_id=invite_id, user_id=user.id))
     await session.commit()
     return user
 
@@ -184,7 +169,7 @@ async def finish_login(
     except OAuthError:
         return _failure(settings, "provider_failed")
     try:
-        outcome = await _resolve_user(session, settings, profile, str(claims.get("invite", "")))
+        outcome = await _resolve_user(session, profile)
     except IntegrityError:
         await session.rollback()
         return _failure(settings, "provider_failed")

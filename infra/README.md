@@ -16,7 +16,7 @@ Terraform (OpenTofu compatible) for the AWS foundation in `ap-southeast-1`. Noth
 - API: Lambda `fireons-production-api` (arm64, Python 3.12, Lambda Web Adapter layer) with alias `live`, a Function URL on the alias, and a CloudFront distribution in front
 - Web app: private S3 bucket `fireons-production-webapp-<account>`, CloudFront distribution with OAC, a path rewrite function, custom 404 and security headers
 - The API Lambda has reserved concurrency (`api_reserved_concurrency`, default 3, set it to `null` for no reservation) so a flood of requests cannot exhaust database connections or run up costs
-- The API runs with `INVITE_ONLY=true` (`invite_only`, default true): a new Google or Reddit sign-up needs an invite code from the `invites` table, and Terraform sets `FRONTEND_URL` to the web app URL for the sign-in redirects
+- Anyone can sign up with Google or Reddit. Terraform sets `FRONTEND_URL` to the web app URL for the sign-in redirects
 - AWS Budgets at 1 and 10 USD per month (actual and forecasted) notifying `budget_email`
 
 ## Make targets
@@ -75,10 +75,6 @@ Jobs run as on-demand Fargate tasks, so idle cost is the ECR storage only. The i
 - The Release workflow builds the arm64 image on a GitHub arm64 runner and pushes it to ECR as `latest` and the commit hash whenever `backend/` changes (job "Release jobs image"), so the runner never drifts from the API. The task definition uses `latest`, so new tasks pick it up. `make deploy-jobs-image` is the manual fallback: it derives the repository from the current AWS account (`fireons-<env>-jobs`), or from `JOBS_ECR_REPOSITORY_URL` if set. Roll back by re-running the Release workflow for an older ref.
 - Add a job by registering it in `backend/jobs/registry.py`, and add a `scheduled_jobs` entry if it is periodic.
 - Today the only job is `exchange_rate_sync`. The registry scrapers and enrichment are run locally, see [docs/professionals-data.md](../docs/professionals-data.md).
-
-## Invite-only registration
-
-Production registration needs an invite code from the `invites` table, which you manage with SQL. See [docs/invite-only-registration.md](../docs/invite-only-registration.md) for how to create, revoke and inspect invites.
 
 ## Which version is deployed
 
