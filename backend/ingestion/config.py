@@ -5,7 +5,7 @@ from secrets_source import SecretsManagerSettings
 
 
 class Settings(SecretsManagerSettings):
-    llm_provider: Literal["anthropic", "openrouter"] = "anthropic"
+    llm_provider: Literal["anthropic", "openrouter"] = "openrouter"
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-5"
     openrouter_api_key: str = ""

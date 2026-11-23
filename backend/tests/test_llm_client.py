@@ -91,13 +91,19 @@ def _call(extractor: OpenRouterExtractor):
     )
 
 
-def test_build_extractor_defaults_to_anthropic():
-    extractor = build_extractor(_settings(anthropic_api_key="a-key"))
+def test_build_extractor_defaults_to_openrouter():
+    extractor = build_extractor(_settings(openrouter_api_key="o-key"))
+    assert isinstance(extractor, OpenRouterExtractor)
+    assert extractor.model == "anthropic/claude-sonnet-5"
+
+
+def test_build_extractor_selects_anthropic():
+    extractor = build_extractor(_settings(llm_provider="anthropic", anthropic_api_key="a-key"))
     assert isinstance(extractor, AnthropicExtractor)
     assert extractor.model == "claude-sonnet-5"
 
 
-def test_build_extractor_selects_openrouter():
+def test_build_extractor_selects_openrouter_model():
     extractor = build_extractor(
         _settings(llm_provider="openrouter", openrouter_api_key="o-key", openrouter_model="openai/gpt-5")
     )
@@ -111,11 +117,11 @@ def test_unknown_provider_is_rejected():
 
 
 def test_settings_report_active_model_and_configuration():
-    anthropic_settings = _settings(anthropic_api_key="a-key", openrouter_api_key="")
+    anthropic_settings = _settings(llm_provider="anthropic", anthropic_api_key="a-key", openrouter_api_key="")
     assert anthropic_settings.active_model == "claude-sonnet-5"
     assert anthropic_settings.llm_configured
 
-    openrouter_settings = _settings(llm_provider="openrouter", anthropic_api_key="a-key", openrouter_api_key="")
+    openrouter_settings = _settings(anthropic_api_key="a-key", openrouter_api_key="")
     assert openrouter_settings.active_model == "anthropic/claude-sonnet-5"
     assert not openrouter_settings.llm_configured
 
