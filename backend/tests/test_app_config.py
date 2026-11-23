@@ -72,7 +72,7 @@ async def test_ingestion_pipeline_is_not_imported_when_disabled():
         "from app import create_app;"
         "from app_config import AppSettings;"
         "create_app(AppSettings(_env_file=None, secret_key='k'*32, ingestion_enabled=False, ingestion_test_enabled=False));"
-        "bad=[m for m in ('anthropic','pypdf','ingestion.pipeline') if m in sys.modules];"
+        "bad=[m for m in ('pypdf','ingestion.pipeline') if m in sys.modules];"
         "print(bad)"
     )
     result = subprocess.run(

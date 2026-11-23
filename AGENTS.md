@@ -70,7 +70,7 @@ Fireons is a personal finance tracker for managing net worth and accounts. The s
 Full design rationale lives in `backend/ingestion/README.md` - read it before changing extraction, staleness, or dedup logic. Summary:
 
 - **Entry point**: `pipeline.ingest(current_nw, files) -> NetWorth`, a pure function (`ingestion/model.py` defines `NetWorth`/`Position`). It does not touch the database itself.
-- **Two-tier extraction**, chosen per-document by `router.route_extract()`: a deterministic parser tier (`parsers/`, one module per document-type group - bank accounts, loans, deposits, mutual funds, demat, retirement, SGB, insurance, brokerage) tries first; each `try_parse_X(text) -> dict | None` either returns a complete, confident result or defers. Anything no parser recognizes falls back to `extract.py`, a single Anthropic tool-use schema covering 11 document types (bank/loan/brokerage/demat/MF-CAS/EPF/SGB/deposit/NPS/insurance/unrecognized) - nothing is hardcoded per-institution.
+- **Two-tier extraction**, chosen per-document by `router.route_extract()`: a deterministic parser tier (`parsers/`, one module per document-type group - bank accounts, loans, deposits, mutual funds, demat, retirement, SGB, insurance, brokerage) tries first; each `try_parse_X(text) -> dict | None` either returns a complete, confident result or defers. Anything no parser recognizes falls back to `extract.py`, a single forced tool-call schema sent through `llm_client.py` (OpenRouter) covering 11 document types (bank/loan/brokerage/demat/MF-CAS/EPF/SGB/deposit/NPS/insurance/unrecognized) - nothing is hardcoded per-institution.
 - **Deterministic account keys** are always built in code (`pipeline._account_name`) from stable identifiers (folio number, ISIN, account number), never generated as free text by the LLM - this is what makes cross-document dedup and the staleness/supersession logic reliable.
 - **`invariants.py`**: label-free self-checks on any produced `NetWorth` (units × NAV ≈ value, positions sum to total, no future `as_of`, account keys match their type prefix).
 - **Async flow for real uploads**: `api/ingestion_api.py` (`POST /ingestion/upload`) writes files to a per-request temp dir, rate-limits (`rate_limit.py` - 50MB/hour cumulative upload volume per user is the binding guard, cost tracks bytes not requests), creates an `IngestionRun` row, and hands off to a `BackgroundTasks` job (`background.run_ingestion`), which runs the (synchronous, possibly slow/LLM-calling) `ingest()` in a thread, then persists via `persistence.py` (`load_current_networth` / `persist_networth`, which upsert `Account`/`Balance`/`IngestedDocument` rows). Clients poll `GET /ingestion/runs/{run_id}` for status.
@@ -243,8 +243,8 @@ ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 
 # Ingestion pipeline (backend/ingestion/config.py)
-ANTHROPIC_API_KEY=
-ANTHROPIC_MODEL=claude-sonnet-5
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL=anthropic/claude-sonnet-5  # any OpenRouter model slug that supports forced tool calls
 ```
 
 ### Deployment settings (`backend/app_config.py`, `backend/database/config.py`)
@@ -259,7 +259,7 @@ EXCHANGE_RATE_SYNC_ENABLED=true                # in-process APScheduler job
 ```
 The schema comes from Alembic only; the app never creates tables. Run `uv run alembic upgrade head` before starting a fresh database (`make backend` and the e2e runner do this).
 
-When `APP_ENV` is set (e.g. `APP_ENV=production` on the Lambda), settings missing from the environment are read from the AWS Secrets Manager secret `fireons/<APP_ENV>`, a JSON object such as `{"SECRET_KEY": ..., "DATABASE_URL": ..., "ANTHROPIC_API_KEY": ...}` (`backend/secrets_source.py`). Env vars and `.env` take precedence. Locally `APP_ENV` is unset and nothing calls AWS.
+When `APP_ENV` is set (e.g. `APP_ENV=production` on the Lambda), settings missing from the environment are read from the AWS Secrets Manager secret `fireons/<APP_ENV>`, a JSON object such as `{"SECRET_KEY": ..., "DATABASE_URL": ..., "OPENROUTER_API_KEY": ...}` (`backend/secrets_source.py`). Env vars and `.env` take precedence. Locally `APP_ENV` is unset and nothing calls AWS.
 
 ### Scraper settings (optional, backend `.env`)
 ```env

@@ -168,8 +168,8 @@ uv sync  # Install dependencies
 # Development server with auto-reload
 uv run uvicorn app:app --reload
 
-# With environment variables
-ANTHROPIC_API_KEY=<your_key> uv run uvicorn app:app --reload
+# With environment variables (LLM extraction goes through OpenRouter)
+OPENROUTER_API_KEY=<your_key> uv run uvicorn app:app --reload
 ```
 
 ### Running Tests

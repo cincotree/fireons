@@ -1,12 +1,10 @@
 import hashlib
 from contextvars import ContextVar
-from dataclasses import dataclass
 from io import BytesIO
 
 from pypdf import PasswordType, PdfReader
 
-from ingestion.config import get_settings
-from ingestion.llm_client import get_client
+from ingestion.llm_client import ExtractionUsage, get_extractor
 
 # $ per million tokens. Sticker pricing, not any time-boxed intro rate — a
 # pricing dict that silently reverts to being wrong after an intro window
@@ -15,14 +13,6 @@ from ingestion.llm_client import get_client
 _PRICING_PER_MTOK: dict[str, tuple[float, float]] = {
     "claude-sonnet-5": (3.00, 15.00),
 }
-
-
-@dataclass
-class ExtractionUsage:
-    input_tokens: int
-    output_tokens: int
-    cache_creation_input_tokens: int
-    cache_read_input_tokens: int
 
 
 # Populated per ingest() call (see pipeline.py) so a single run's LLM calls can
@@ -50,6 +40,8 @@ def end_usage_tracking(token) -> list[ExtractionUsage]:
 
 
 def estimate_cost_usd(usage: list[ExtractionUsage], model: str) -> float | None:
+    if usage and all(u.cost_usd is not None for u in usage):
+        return sum(u.cost_usd for u in usage if u.cost_usd is not None)
     pricing = _PRICING_PER_MTOK.get(model)
     if pricing is None:
         return None
@@ -71,10 +63,6 @@ _EVAL_FIXTURE_PASSWORD = "Fireons-Eval-Test-1234"
 EXTRACT_TOOL = {
     "name": "record_extracted_facts",
     "description": "Record the raw facts extracted from a financial statement document.",
-    # Byte-identical on every call — caching it means only the first call in a session
-    # pays full price for this ~1KB schema; every later call (a different document,
-    # even) reads it from cache instead.
-    "cache_control": {"type": "ephemeral"},
     "input_schema": {
         "type": "object",
         "properties": {
@@ -394,47 +382,27 @@ def extract_facts(pdf_bytes: bytes, password: str | None = None) -> dict:
 
 
 def extract_facts_from_text(text: str) -> dict:
-    cache_key = hashlib.sha256(text.encode()).hexdigest()
+    extractor = get_extractor()
+    text_hash = hashlib.sha256(text.encode()).hexdigest()
+    cache_key = f"{extractor.provider}:{extractor.model}:{text_hash}"
     if cache_key in _extraction_cache:
         return _extraction_cache[cache_key]
 
-    settings = get_settings()
-    response = get_client().messages.create(
-        model=settings.anthropic_model,
+    result = extractor.call_tool(
+        system=EXTRACT_SYSTEM_PROMPT,
+        tool=EXTRACT_TOOL,
+        user_text=f"Extract the facts from this statement:\n\n{text}",
         max_tokens=_EXTRACTION_MAX_TOKENS,
-        system=[
-            {
-                "type": "text",
-                "text": EXTRACT_SYSTEM_PROMPT,
-                "cache_control": {"type": "ephemeral"},
-            }
-        ],
-        tools=[EXTRACT_TOOL],
-        tool_choice={"type": "tool", "name": "record_extracted_facts"},
-        messages=[
-            {
-                "role": "user",
-                "content": f"Extract the facts from this statement:\n\n{text}",
-            }
-        ],
     )
     usage_list = _run_usage.get()
     if usage_list is not None:
-        usage_list.append(
-            ExtractionUsage(
-                input_tokens=response.usage.input_tokens,
-                output_tokens=response.usage.output_tokens,
-                cache_creation_input_tokens=response.usage.cache_creation_input_tokens or 0,
-                cache_read_input_tokens=response.usage.cache_read_input_tokens or 0,
-            )
-        )
-    if response.stop_reason == "max_tokens":
+        usage_list.append(result.usage)
+    if result.truncated:
         raise ExtractionTruncatedError(
             "response cut off before it finished — the document likely has more "
             "holdings than fit in one extraction pass"
         )
-    for block in response.content:
-        if block.type == "tool_use":
-            _extraction_cache[cache_key] = block.input
-            return block.input
-    raise ValueError("Model did not return a tool_use block")
+    if result.tool_input is None:
+        raise ValueError("Model did not return a tool_use block")
+    _extraction_cache[cache_key] = result.tool_input
+    return result.tool_input

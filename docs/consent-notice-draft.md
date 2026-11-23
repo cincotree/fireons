@@ -31,7 +31,7 @@ Only to calculate and show you your own net worth, its breakdown and its change 
 
 **3. Who handles it for us**
 We use these service providers to run Fireons. They process your data only on our instructions.
-- Anthropic, to read document text and extract figures. [Confirm: what is sent (full text or excerpts), whether it is retained or used for training under our agreement, location.]
+- Anthropic, through OpenRouter, to read document text and extract figures. [Confirm: which model is active in production (OPENROUTER_MODEL); what is sent (full text or excerpts), whether it is retained or used for training under our agreement, location.]
 - Amazon Web Services, [region, currently Singapore], to host the application.
 - Neon, [region], to store the database.
 - [Any email, logging or analytics provider.]
