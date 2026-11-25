@@ -51,6 +51,17 @@ async def test_ingestion_test_router_can_be_disabled():
 
 
 @pytest.mark.asyncio
+async def test_ingestion_is_enabled_by_default(monkeypatch):
+    monkeypatch.delenv("INGESTION_ENABLED", raising=False)
+    monkeypatch.delenv("APP_ENV", raising=False)
+
+    async with _client() as client:
+        upload = await client.post("/api/ingestion/upload")
+
+    assert upload.status_code in (401, 403)
+
+
+@pytest.mark.asyncio
 async def test_ingestion_endpoints_return_503_when_disabled():
     async with _client(ingestion_enabled=False) as client:
         check = await client.post("/api/ingestion/check")
