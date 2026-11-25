@@ -43,7 +43,10 @@ async def seed_rates():
 
         for from_curr, to_curr, rate, date_str in rates:
             rate_date = date.fromisoformat(date_str)
-            await rate_repo.create_or_update(
+            if await rate_repo.exists(rate_date, from_curr, to_curr):
+                print(f"- Skipped {from_curr}/{to_curr} on {date_str} (already present)")
+                continue
+            await rate_repo.create(
                 date=rate_date,
                 from_currency=from_curr,
                 to_currency=to_curr,

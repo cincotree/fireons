@@ -203,7 +203,7 @@ async def test_create_exchange_rate(
     exchange_rate_repo: ExchangeRateRepository,
     session: AsyncSession,
 ):
-    rate = await exchange_rate_repo.create_or_update(
+    rate = await exchange_rate_repo.create(
         date=date(2024, 6, 1),
         from_currency="USD",
         to_currency="INR",
@@ -220,29 +220,21 @@ async def test_create_exchange_rate(
 
 
 @pytest.mark.asyncio
-async def test_update_exchange_rate(
+async def test_list_latest_only_returns_one_row_per_pair(
     exchange_rate_repo: ExchangeRateRepository,
     session: AsyncSession,
 ):
-    rate1 = await exchange_rate_repo.create_or_update(
-        date=date(2024, 6, 1),
-        from_currency="USD",
-        to_currency="EUR",
-        rate=Decimal("0.92"),
-    )
-    await session.commit()
-    rate1_id = rate1.id
-
-    rate2 = await exchange_rate_repo.create_or_update(
-        date=date(2024, 6, 1),
-        from_currency="USD",
-        to_currency="EUR",
-        rate=Decimal("0.93"),
-    )
+    await exchange_rate_repo.create(date(2024, 6, 1), "USD", "INR", Decimal("83.0"))
+    await exchange_rate_repo.create(date(2024, 6, 1), "USD", "INR", Decimal("83.9"))
+    await exchange_rate_repo.create(date(2024, 6, 1), "USD", "EUR", Decimal("0.92"))
     await session.commit()
 
-    assert rate2.id == rate1_id
-    assert rate2.rate == Decimal("0.93")
+    latest = await exchange_rate_repo.list_all(latest_only=True)
+
+    assert {(r.from_currency, r.to_currency): r.rate for r in latest} == {
+        ("USD", "INR"): Decimal("83.9"),
+        ("USD", "EUR"): Decimal("0.92"),
+    }
 
 
 @pytest.mark.asyncio
@@ -250,19 +242,19 @@ async def test_get_exchange_rate(
     exchange_rate_repo: ExchangeRateRepository,
     session: AsyncSession,
 ):
-    await exchange_rate_repo.create_or_update(
+    await exchange_rate_repo.create(
         date=date(2024, 1, 1),
         from_currency="USD",
         to_currency="GBP",
         rate=Decimal("0.79"),
     )
-    await exchange_rate_repo.create_or_update(
+    await exchange_rate_repo.create(
         date=date(2024, 6, 1),
         from_currency="USD",
         to_currency="GBP",
         rate=Decimal("0.80"),
     )
-    await exchange_rate_repo.create_or_update(
+    await exchange_rate_repo.create(
         date=date(2024, 12, 1),
         from_currency="USD",
         to_currency="GBP",
@@ -290,19 +282,19 @@ async def test_list_exchange_rates(
     exchange_rate_repo: ExchangeRateRepository,
     session: AsyncSession,
 ):
-    await exchange_rate_repo.create_or_update(
+    await exchange_rate_repo.create(
         date=date(2024, 6, 1),
         from_currency="USD",
         to_currency="INR",
         rate=Decimal("83.5"),
     )
-    await exchange_rate_repo.create_or_update(
+    await exchange_rate_repo.create(
         date=date(2024, 6, 1),
         from_currency="USD",
         to_currency="EUR",
         rate=Decimal("0.92"),
     )
-    await exchange_rate_repo.create_or_update(
+    await exchange_rate_repo.create(
         date=date(2024, 6, 1),
         from_currency="EUR",
         to_currency="INR",
@@ -325,7 +317,7 @@ async def test_delete_exchange_rate(
     exchange_rate_repo: ExchangeRateRepository,
     session: AsyncSession,
 ):
-    rate = await exchange_rate_repo.create_or_update(
+    rate = await exchange_rate_repo.create(
         date=date(2024, 6, 1),
         from_currency="USD",
         to_currency="CAD",
@@ -361,7 +353,7 @@ async def test_convert_amount_direct_rate(
     exchange_rate_repo: ExchangeRateRepository,
     session: AsyncSession,
 ):
-    await exchange_rate_repo.create_or_update(
+    await exchange_rate_repo.create(
         date=date(2024, 6, 1),
         from_currency="USD",
         to_currency="INR",
@@ -384,7 +376,7 @@ async def test_convert_amount_inverse_rate(
     exchange_rate_repo: ExchangeRateRepository,
     session: AsyncSession,
 ):
-    await exchange_rate_repo.create_or_update(
+    await exchange_rate_repo.create(
         date=date(2024, 6, 1),
         from_currency="USD",
         to_currency="INR",
@@ -407,13 +399,13 @@ async def test_convert_amount_triangulates_through_usd(
     exchange_rate_repo: ExchangeRateRepository,
     session: AsyncSession,
 ):
-    await exchange_rate_repo.create_or_update(
+    await exchange_rate_repo.create(
         date=date(2024, 6, 1),
         from_currency="USD",
         to_currency="EUR",
         rate=Decimal("0.92"),
     )
-    await exchange_rate_repo.create_or_update(
+    await exchange_rate_repo.create(
         date=date(2024, 6, 1),
         from_currency="USD",
         to_currency="GBP",
@@ -450,25 +442,25 @@ async def test_convert_amount_as_of_date_through_triangulation(
     exchange_rate_repo: ExchangeRateRepository,
     session: AsyncSession,
 ):
-    await exchange_rate_repo.create_or_update(
+    await exchange_rate_repo.create(
         date=date(2024, 1, 1),
         from_currency="USD",
         to_currency="EUR",
         rate=Decimal("0.90"),
     )
-    await exchange_rate_repo.create_or_update(
+    await exchange_rate_repo.create(
         date=date(2024, 6, 1),
         from_currency="USD",
         to_currency="EUR",
         rate=Decimal("0.92"),
     )
-    await exchange_rate_repo.create_or_update(
+    await exchange_rate_repo.create(
         date=date(2024, 1, 1),
         from_currency="USD",
         to_currency="GBP",
         rate=Decimal("0.78"),
     )
-    await exchange_rate_repo.create_or_update(
+    await exchange_rate_repo.create(
         date=date(2024, 6, 1),
         from_currency="USD",
         to_currency="GBP",
