@@ -13,7 +13,7 @@ class AppSettings(SecretsManagerSettings):
     cors_origins: str = "http://localhost:3000,http://localhost:3020"
     ingestion_test_enabled: bool = True
     public_read_limit_per_minute: int = 240
-    ingestion_enabled: bool = False
+    ingestion_enabled: bool = True
     frontend_url: str = "http://localhost:3000"
     oauth_redirect_base_url: str = "http://localhost:8000"
     google_oauth_client_id: str = ""
