@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import path from 'path';
-import { BACKEND_URL, signIn } from './support/session';
+import { BACKEND_URL, createUserToken, expireSession, signIn } from './support/session';
 
 
 test.describe('Net worth consent', () => {
@@ -70,6 +70,39 @@ test.describe('Net worth consent', () => {
 
     await expect(page.getByText('Could not save your consent. Please try again.')).toBeVisible();
     await expect(page.getByTestId('consent-gate')).toBeVisible();
+  });
+
+  test('opening Net Worth after the session expired asks to sign in and then returns there', async ({ page }) => {
+    await signIn(page, 'consentexpired');
+    await page.goto('/privacy');
+    await expect(page.getByTestId('consent-status')).toContainText('You agreed to notice version 1.0');
+
+    await expireSession(page);
+    await page.getByRole('link', { name: 'Net Worth' }).click();
+
+    await expect(page).toHaveURL(/\/login\/?$/);
+    await expect(page.getByText('Could not load your consent status')).not.toBeVisible();
+    expect(await page.evaluate(() => window.localStorage.getItem('token'))).toBeNull();
+
+    const freshToken = await createUserToken('consentreturn');
+    await page.goto(`/auth/callback/#token=${freshToken}`);
+    await expect(page).toHaveURL(/\/networth\/?$/);
+    await expect(page.getByRole('button', { name: 'Add Account' })).toBeVisible();
+  });
+
+  test('saving after the session expired on an open dashboard asks to sign in', async ({ page }) => {
+    await signIn(page, 'consentidle');
+    await page.goto('/networth');
+    await page.getByRole('button', { name: 'Add Account' }).click();
+    await page.locator('select').nth(2).selectOption({ label: '+ Create New Category' });
+    await page.getByPlaceholder('Category name').fill('Bank');
+    await page.getByPlaceholder(/Savings, Checking/).fill('IdleTabAccount');
+
+    await expireSession(page);
+    await page.getByRole('button', { name: 'Create Account' }).click();
+
+    await expect(page).toHaveURL(/\/login\/?$/);
+    expect(await page.evaluate(() => window.localStorage.getItem('token'))).toBeNull();
   });
 
   test('withdrawing on the Privacy page erases the data and gates the dashboard again', async ({ page }) => {

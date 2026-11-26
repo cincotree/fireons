@@ -1,5 +1,8 @@
-import { test, expect } from '@playwright/test';
-import { signIn } from './support/session';
+import { test, expect, type Page } from '@playwright/test';
+import { expireSession, signIn } from './support/session';
+
+const returnToTab = (page: Page) =>
+  page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
 
 test.describe('Authentication Feature - Critical User Journeys', () => {
   test('a signed-in user sees their name in the navigation and can log out', async ({ page }) => {
@@ -53,6 +56,47 @@ test.describe('Authentication Feature - Critical User Journeys', () => {
 
     await expect(page).toHaveURL(/.*login/);
     expect(await page.evaluate(() => window.localStorage.getItem('token'))).toBeNull();
+  });
+
+  test('returning to an idle tab after the session expired goes to login without a click', async ({ page }) => {
+    await signIn(page, 'idlereturn');
+    await page.goto('/onboarding');
+    await expect(page.locator('input[type="file"]')).toBeAttached();
+
+    await expireSession(page);
+    await returnToTab(page);
+
+    await expect(page).toHaveURL(/\/login\/?$/);
+    expect(await page.evaluate(() => window.localStorage.getItem('token'))).toBeNull();
+    expect(await page.evaluate(() => window.sessionStorage.getItem('postLoginPath'))).toBe('/onboarding/');
+  });
+
+  test('a server error while rechecking the session keeps the user signed in', async ({ page }) => {
+    await signIn(page, 'idleerror');
+    await page.goto('/networth');
+    await expect(page.getByRole('button', { name: 'Add Account' })).toBeVisible();
+    await page.route('**/api/auth/me', (route) => route.fulfill({ status: 500, body: '{}' }));
+
+    const checked = page.waitForResponse('**/api/auth/me');
+    await returnToTab(page);
+    await checked;
+
+    await expect(page.getByRole('button', { name: 'Add Account' })).toBeVisible();
+    await expect(page).toHaveURL(/\/networth\/?$/);
+    expect(await page.evaluate(() => window.localStorage.getItem('token'))).not.toBeNull();
+  });
+
+  test('an unreachable server on load does not discard the session', async ({ page }) => {
+    await signIn(page, 'offlineload');
+    await page.route('**/api/auth/me', (route) => route.abort());
+    await page.goto('/networth');
+    await expect(page).toHaveURL(/.*login/);
+    expect(await page.evaluate(() => window.localStorage.getItem('token'))).not.toBeNull();
+
+    await page.unroute('**/api/auth/me');
+    await page.goto('/networth');
+
+    await expect(page.getByRole('button', { name: 'Add Account' })).toBeVisible();
   });
 
   test('the login page has no username or password fields', async ({ page }) => {

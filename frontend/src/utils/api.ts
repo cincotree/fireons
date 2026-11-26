@@ -1,3 +1,5 @@
+export const SESSION_EXPIRED_EVENT = "fireons:session-expired";
+
 export function getBaseHttpUrl(): string {
     const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
     if (!baseUrl) {
@@ -6,12 +8,17 @@ export function getBaseHttpUrl(): string {
     return baseUrl.replace(/\/+$/, "");
 }
 
-export async function authFetch(url: string): Promise<Response> {
+export async function authFetch(url: string, init: RequestInit = {}): Promise<Response> {
     const token = localStorage.getItem("token");
-    const response = await fetch(url, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined);
-    if (response.status === 401 || response.status === 403) {
+    const headers = new Headers(init.headers);
+    if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
+    }
+    const response = await fetch(url, { ...init, headers });
+    const currentToken = localStorage.getItem("token");
+    if (response.status === 401 && (currentToken === token || currentToken === null)) {
         localStorage.removeItem("token");
-        window.location.assign("/login/");
+        window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
     }
     return response;
 }

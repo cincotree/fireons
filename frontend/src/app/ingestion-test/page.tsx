@@ -1,39 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { useAuth } from "@/contexts/AuthContext";
+import { RequireAuth } from "@/components/RequireAuth";
 import { Button } from "@/components/ui/button";
-import { getBaseHttpUrl } from "@/utils/api";
+import { authFetch, getBaseHttpUrl } from "@/utils/api";
 
-export default function IngestionTestPage() {
-  const { isAuthenticated, loading } = useAuth();
-  const router = useRouter();
-
+function IngestionTest() {
   const [file, setFile] = useState<File | null>(null);
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<unknown>(null);
-
-  useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      router.push("/login");
-    }
-  }, [isAuthenticated, loading, router]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-lg">Loading...</p>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return null;
-  }
 
   const handleSubmit = async () => {
     if (!file) {
@@ -46,17 +23,13 @@ export default function IngestionTestPage() {
     setIsSubmitting(true);
     try {
       const baseUrl = await getBaseHttpUrl();
-      const token = localStorage.getItem("token");
 
       const formData = new FormData();
       formData.append("file", file);
       formData.append("password", password);
 
-      const response = await fetch(`${baseUrl}/api/ingestion-test/upload`, {
+      const response = await authFetch(`${baseUrl}/api/ingestion-test/upload`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
         body: formData,
       });
 
@@ -121,5 +94,13 @@ export default function IngestionTestPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function IngestionTestPage() {
+  return (
+    <RequireAuth>
+      <IngestionTest />
+    </RequireAuth>
   );
 }

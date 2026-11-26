@@ -2,7 +2,8 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getBaseHttpUrl } from "@/utils/api";
+import { authFetch, getBaseHttpUrl, SESSION_EXPIRED_EVENT } from "@/utils/api";
+import { takePostLoginPath } from "@/utils/postLoginPath";
 
 interface User {
   id: string;
@@ -21,32 +22,9 @@ interface AuthContextType {
   isAuthenticated: boolean;
 }
 
-const POST_LOGIN_PATH_KEY = "postLoginPath";
-
-export function rememberPostLoginPath(path: string) {
-  try {
-    if (path.startsWith("/") && !path.startsWith("//")) {
-      sessionStorage.setItem(POST_LOGIN_PATH_KEY, path);
-    }
-  } catch {
-    return;
-  }
-}
-
-function takePostLoginPath(): string {
-  try {
-    const path = sessionStorage.getItem(POST_LOGIN_PATH_KEY);
-    sessionStorage.removeItem(POST_LOGIN_PATH_KEY);
-    if (path && path.startsWith("/") && !path.startsWith("//")) {
-      return path;
-    }
-  } catch {
-    return "/networth";
-  }
-  return "/networth";
-}
-
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const fetchCurrentUser = () => authFetch(`${getBaseHttpUrl()}/api/auth/me`);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -54,33 +32,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
+    const endSession = () => setUser(null);
+    window.addEventListener(SESSION_EXPIRED_EVENT, endSession);
     checkAuth();
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, endSession);
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    const checkOnReturn = () => {
+      if (document.visibilityState !== "visible") return;
+      fetchCurrentUser().catch((error) => console.error("Auth check failed:", error));
+    };
+    document.addEventListener("visibilitychange", checkOnReturn);
+    return () => document.removeEventListener("visibilitychange", checkOnReturn);
+  }, [user]);
 
   const checkAuth = async () => {
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        setLoading(false);
+      if (!localStorage.getItem("token")) {
         return;
       }
 
-      const baseUrl = getBaseHttpUrl();
-      const response = await fetch(`${baseUrl}/api/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
+      const response = await fetchCurrentUser();
       if (response.ok) {
-        const userData = await response.json();
-        setUser(userData);
-      } else {
-        localStorage.removeItem("token");
+        setUser(await response.json());
       }
     } catch (error) {
       console.error("Auth check failed:", error);
-      localStorage.removeItem("token");
     } finally {
       setLoading(false);
     }

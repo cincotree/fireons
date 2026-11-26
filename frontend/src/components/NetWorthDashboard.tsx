@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/modal";
-import { getBaseHttpUrl } from "@/utils/api";
+import { authFetch, getBaseHttpUrl } from "@/utils/api";
 import { SUPPORTED_CURRENCIES } from "@/utils/currencies";
 import { NetWorthChart } from "@/components/NetWorthChart";
 import { AssetAllocationChart } from "@/components/AssetAllocationChart";
@@ -55,13 +55,8 @@ export function NetWorthDashboard() {
     setError(null);
     try {
       const baseUrl = getBaseHttpUrl();
-      const token = localStorage.getItem("token");
 
-      const accountsRes = await fetch(`${baseUrl}/api/accounts?display_currency=${selectedCurrency}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const accountsRes = await authFetch(`${baseUrl}/api/accounts?display_currency=${selectedCurrency}`);
 
       if (!accountsRes.ok) {
         throw new Error("Failed to fetch data");
@@ -140,14 +135,12 @@ export function NetWorthDashboard() {
 
     try {
       const baseUrl = getBaseHttpUrl();
-      const token = localStorage.getItem("token");
 
       if (editingAccount) {
-        const updateResponse = await fetch(`${baseUrl}/api/accounts/${editingAccount.id}`, {
+        const updateResponse = await authFetch(`${baseUrl}/api/accounts/${editingAccount.id}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             name: accountName,
@@ -166,11 +159,10 @@ export function NetWorthDashboard() {
         const hasBalanceChanged = newBalance !== originalBalance;
 
         if (hasBalanceChanged && newBalance !== null && newBalance !== 0) {
-          const balanceResponse = await fetch(`${baseUrl}/api/accounts/${editingAccount.id}/balance`, {
+          const balanceResponse = await authFetch(`${baseUrl}/api/accounts/${editingAccount.id}/balance`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
               amount: newBalance,
@@ -184,11 +176,10 @@ export function NetWorthDashboard() {
           }
         }
       } else {
-        const response = await fetch(`${baseUrl}/api/accounts`, {
+        const response = await authFetch(`${baseUrl}/api/accounts`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             name: accountName,
@@ -205,11 +196,10 @@ export function NetWorthDashboard() {
         const newAccount = await response.json();
 
         if (balanceAmount && parseFloat(balanceAmount) !== 0) {
-          const balanceResponse = await fetch(`${baseUrl}/api/accounts/${newAccount.id}/balance`, {
+          const balanceResponse = await authFetch(`${baseUrl}/api/accounts/${newAccount.id}/balance`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
               amount: parseFloat(balanceAmount),
@@ -249,15 +239,11 @@ export function NetWorthDashboard() {
 
     try {
       const baseUrl = getBaseHttpUrl();
-      const token = localStorage.getItem("token");
 
-      const response = await fetch(
+      const response = await authFetch(
         `${baseUrl}/api/accounts/${accountToClose.id}/close`,
         {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
         }
       );
 
