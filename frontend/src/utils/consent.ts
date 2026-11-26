@@ -1,4 +1,4 @@
-import { getBaseHttpUrl } from "@/utils/api";
+import { authFetch, getBaseHttpUrl } from "@/utils/api";
 
 export interface ConsentStatus {
   purpose: string;
@@ -13,14 +13,6 @@ export interface ConsentWithdrawal extends ConsentStatus {
   runs_deleted: number;
 }
 
-function headers(): HeadersInit {
-  const token = localStorage.getItem("token");
-  return {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
-
 const consentUrl = () => `${getBaseHttpUrl()}/api/consent/net-worth`;
 
 export function guessCountry(): string | null {
@@ -33,15 +25,15 @@ export function guessCountry(): string | null {
 }
 
 export async function fetchConsent(): Promise<ConsentStatus> {
-  const response = await fetch(consentUrl(), { headers: headers() });
+  const response = await authFetch(consentUrl());
   if (!response.ok) throw new Error("Could not load your consent status");
   return response.json();
 }
 
 export async function grantConsent(noticeVersion: string): Promise<ConsentStatus> {
-  const response = await fetch(consentUrl(), {
+  const response = await authFetch(consentUrl(), {
     method: "POST",
-    headers: headers(),
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       notice_version: noticeVersion,
       age_confirmed: true,
@@ -56,7 +48,7 @@ export async function grantConsent(noticeVersion: string): Promise<ConsentStatus
 }
 
 export async function withdrawConsent(): Promise<ConsentWithdrawal> {
-  const response = await fetch(consentUrl(), { method: "DELETE", headers: headers() });
+  const response = await authFetch(consentUrl(), { method: "DELETE" });
   if (!response.ok) throw new Error("Could not withdraw your consent. Please try again.");
   return response.json();
 }

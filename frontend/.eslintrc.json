@@ -1,3 +1,53 @@
 {
-  "extends": ["next/core-web-vitals", "next/typescript"]
+  "extends": [
+    "next/core-web-vitals",
+    "next/typescript"
+  ],
+  "rules": {
+    "no-restricted-globals": [
+      "error",
+      {
+        "name": "fetch",
+        "message": "Use authFetch, publicFetch or adminRequest from @/utils so expired sessions are handled in one place."
+      },
+      {
+        "name": "XMLHttpRequest",
+        "message": "Use authFetch, publicFetch or adminRequest from @/utils so expired sessions are handled in one place."
+      }
+    ],
+    "no-restricted-properties": [
+      "error",
+      {
+        "object": "window",
+        "property": "fetch",
+        "message": "Use authFetch, publicFetch or adminRequest from @/utils so expired sessions are handled in one place."
+      },
+      {
+        "object": "globalThis",
+        "property": "fetch",
+        "message": "Use authFetch, publicFetch or adminRequest from @/utils so expired sessions are handled in one place."
+      }
+    ],
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "axios",
+            "message": "Use authFetch, publicFetch or adminRequest from @/utils so expired sessions are handled in one place."
+          }
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": [
+        "src/utils/api.ts"
+      ],
+      "rules": {
+        "no-restricted-globals": "off"
+      }
+    }
+  ]
 }

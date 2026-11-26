@@ -20,11 +20,18 @@ function base64Url(value: Buffer | string): string {
   return Buffer.from(value).toString('base64url');
 }
 
-function signToken(claims: Record<string, unknown>): string {
+function signToken(claims: Record<string, unknown>, lifetimeSeconds = 1800): string {
   const header = base64Url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const payload = base64Url(JSON.stringify({ ...claims, exp: Math.floor(Date.now() / 1000) + 1800 }));
+  const payload = base64Url(JSON.stringify({ ...claims, exp: Math.floor(Date.now() / 1000) + lifetimeSeconds }));
   const signature = createHmac('sha256', secretKey()).update(`${header}.${payload}`).digest();
   return `${header}.${payload}.${base64Url(signature)}`;
+}
+
+export async function expireSession(page: Page): Promise<void> {
+  const token = await page.evaluate(() => window.localStorage.getItem('token'));
+  if (!token) throw new Error('There is no session to expire');
+  const claims = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf-8'));
+  await page.evaluate((value) => window.localStorage.setItem('token', value), signToken(claims, -60));
 }
 
 export async function createUserToken(prefix = 'member', consented = true): Promise<string> {

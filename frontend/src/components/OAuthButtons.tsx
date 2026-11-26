@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getBaseHttpUrl } from "@/utils/api";
+import { getBaseHttpUrl, publicFetch } from "@/utils/api";
 
 const PROVIDERS = [
   { key: "google", label: "Continue with Google" },
@@ -25,7 +25,7 @@ export function useAuthProviders(): AuthProviders | null {
   const [providers, setProviders] = useState<AuthProviders | null>(null);
 
   useEffect(() => {
-    fetch(`${getBaseHttpUrl()}/api/auth/providers`)
+    publicFetch(`${getBaseHttpUrl()}/api/auth/providers`)
       .then((response) => (response.ok ? response.json() : {}))
       .then(setProviders)
       .catch(() => setProviders({}));

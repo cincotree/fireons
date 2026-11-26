@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
@@ -61,6 +61,17 @@ class TestConsentStatus:
         assert (await client.get(URL)).status_code in (401, 403)
         assert (await client.post(URL, json=grant_body())).status_code in (401, 403)
         assert (await client.delete(URL)).status_code in (401, 403)
+
+    async def test_expired_token_is_unauthorized(self, client: AsyncClient, member: User):
+        token = create_access_token(
+            data={"sub": member.id, "username": member.username, "email": member.email},
+            expires_delta=timedelta(minutes=-1),
+        )
+        expired = {"Authorization": f"Bearer {token}"}
+
+        assert (await client.get(URL, headers=expired)).status_code == 401
+        assert (await client.post(URL, json=grant_body(), headers=expired)).status_code == 401
+        assert (await client.delete(URL, headers=expired)).status_code == 401
 
     async def test_new_user_has_not_consented(self, client: AsyncClient, headers: dict):
         response = await client.get(URL, headers=headers)

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { getBaseHttpUrl } from "@/utils/api";
+import { getBaseHttpUrl, publicFetch } from "@/utils/api";
 import { setAdminToken } from "@/utils/adminToken";
 
 export default function AdminLoginPage() {
@@ -18,7 +18,7 @@ export default function AdminLoginPage() {
     setLoading(true);
 
     try {
-      const response = await fetch(`${getBaseHttpUrl()}/api/admin/login`, {
+      const response = await publicFetch(`${getBaseHttpUrl()}/api/admin/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),

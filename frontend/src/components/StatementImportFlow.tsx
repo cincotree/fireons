@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getBaseHttpUrl } from "@/utils/api";
+import { authFetch, getBaseHttpUrl } from "@/utils/api";
 
 const POLL_INTERVAL_MS = 2000;
 
@@ -70,14 +70,12 @@ export function StatementImportFlow({
 
   const checkFiles = async (candidates: File[]): Promise<FileCheckResult[]> => {
     const baseUrl = getBaseHttpUrl();
-    const token = localStorage.getItem("token");
 
     const formData = new FormData();
     candidates.forEach((file) => formData.append("files", file));
 
-    const response = await fetch(`${baseUrl}/api/ingestion/check`, {
+    const response = await authFetch(`${baseUrl}/api/ingestion/check`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
       body: formData,
     });
 
@@ -155,13 +153,10 @@ export function StatementImportFlow({
       return;
     }
     const baseUrl = getBaseHttpUrl();
-    const token = localStorage.getItem("token");
 
     pollIntervalRef.current = setInterval(async () => {
       try {
-        const response = await fetch(`${baseUrl}/api/ingestion/runs/${runId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await authFetch(`${baseUrl}/api/ingestion/runs/${runId}`);
         const data: IngestionRunResponse = await response.json();
         if (!response.ok) {
           throw new Error((data as unknown as { detail?: string }).detail || "Could not check import status");
@@ -197,7 +192,6 @@ export function StatementImportFlow({
     setIsSubmitting(true);
     try {
       const baseUrl = getBaseHttpUrl();
-      const token = localStorage.getItem("token");
 
       const formData = new FormData();
       files.forEach((file) => formData.append("files", file));
@@ -209,9 +203,8 @@ export function StatementImportFlow({
       }
       formData.append("passwords", JSON.stringify(passwordsPayload));
 
-      const response = await fetch(`${baseUrl}/api/ingestion/upload`, {
+      const response = await authFetch(`${baseUrl}/api/ingestion/upload`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
 

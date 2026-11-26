@@ -9,7 +9,7 @@ import {
   Legend,
   ChartOptions,
 } from "chart.js";
-import { getBaseHttpUrl } from "@/utils/api";
+import { authFetch, getBaseHttpUrl } from "@/utils/api";
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -46,17 +46,11 @@ export function AssetAllocationChart({ asOfDate, currency = "INR" }: AssetAlloca
     setError(null);
     try {
       const baseUrl = getBaseHttpUrl();
-      const token = localStorage.getItem("token");
       const params = new URLSearchParams({ currency });
       if (asOfDate) params.append("as_of_date", asOfDate);
 
-      const response = await fetch(
-        `${baseUrl}/api/allocation?${params.toString()}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+      const response = await authFetch(
+        `${baseUrl}/api/allocation?${params.toString()}`
       );
 
       if (!response.ok) {

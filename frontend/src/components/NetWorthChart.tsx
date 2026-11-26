@@ -11,7 +11,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { getBaseHttpUrl } from "@/utils/api";
+import { authFetch, getBaseHttpUrl } from "@/utils/api";
 
 interface NetWorthHistoryEntry {
   date: string;
@@ -45,18 +45,12 @@ export function NetWorthChart({
     setError(null);
     try {
       const baseUrl = getBaseHttpUrl();
-      const token = localStorage.getItem("token");
       const params = new URLSearchParams({ currency });
       if (startDate) params.append("start_date", startDate);
       if (endDate) params.append("end_date", endDate);
 
-      const response = await fetch(
-        `${baseUrl}/api/networth-history?${params.toString()}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+      const response = await authFetch(
+        `${baseUrl}/api/networth-history?${params.toString()}`
       );
 
       if (!response.ok) {
