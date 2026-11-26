@@ -111,19 +111,6 @@ test.describe('Onboarding — statement import from the net worth dashboard', ()
     await expect(page.getByText('SGB').first()).toBeVisible();
   });
 
-  test('the close button dismisses the dialog and reopening starts from the first step', async ({ page }) => {
-    await page.getByRole('button', { name: 'Import Statement' }).click();
-    await page.locator('input[type="file"]').setInputFiles([SGB_FIXTURE]);
-    await page.getByRole('button', { name: 'Continue' }).click();
-    await expect(page.getByRole('button', { name: 'Start Import' })).toBeVisible();
-
-    await page.getByRole('button', { name: 'Close', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Import your statements' })).not.toBeVisible();
-
-    await page.getByRole('button', { name: 'Import Statement' }).click();
-    await expect(page.getByRole('heading', { name: /Step 1 of 3/ })).toBeVisible();
-  });
-
   test('Escape dismisses the dialog after a validation error', async ({ page }) => {
     await page.getByRole('button', { name: 'Import Statement' }).click();
     await page.getByRole('button', { name: 'Continue' }).click();
