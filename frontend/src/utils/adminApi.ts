@@ -1,4 +1,4 @@
-import { getBaseHttpUrl, publicFetch } from "@/utils/api";
+import { getBaseHttpUrl } from "@/utils/api";
 import { getAdminToken } from "@/utils/adminToken";
 
 export class UnauthorizedError extends Error {}
@@ -10,7 +10,7 @@ export async function adminRequest<T>(path: string, init: RequestInit = {}): Pro
   }
 
   const { headers, ...options } = init;
-  const response = await publicFetch(`${getBaseHttpUrl()}/api/admin${path}`, {
+  const response = await fetch(`${getBaseHttpUrl()}/api/admin${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",

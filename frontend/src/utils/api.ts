@@ -8,17 +8,13 @@ export function getBaseHttpUrl(): string {
     return baseUrl.replace(/\/+$/, "");
 }
 
-export function publicFetch(url: string, init: RequestInit = {}): Promise<Response> {
-    return fetch(url, init);
-}
-
 export async function authFetch(url: string, init: RequestInit = {}): Promise<Response> {
     const token = localStorage.getItem("token");
     const headers = new Headers(init.headers);
     if (token) {
         headers.set("Authorization", `Bearer ${token}`);
     }
-    const response = await publicFetch(url, { ...init, headers });
+    const response = await fetch(url, { ...init, headers });
     const currentToken = localStorage.getItem("token");
     if (response.status === 401 && (currentToken === token || currentToken === null)) {
         localStorage.removeItem("token");

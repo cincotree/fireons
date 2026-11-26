@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { authFetch, getBaseHttpUrl, publicFetch, SESSION_EXPIRED_EVENT } from "@/utils/api";
+import { authFetch, getBaseHttpUrl, SESSION_EXPIRED_EVENT } from "@/utils/api";
 import { takePostLoginPath } from "@/utils/postLoginPath";
 
 interface User {
@@ -67,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const completeLogin = async (token: string) => {
     const baseUrl = getBaseHttpUrl();
-    const response = await publicFetch(`${baseUrl}/api/auth/me`, {
+    const response = await fetch(`${baseUrl}/api/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!response.ok) {

@@ -8,11 +8,11 @@
       "error",
       {
         "name": "fetch",
-        "message": "Use authFetch, publicFetch or adminRequest from @/utils so expired sessions are handled in one place."
+        "message": "Use authFetch from @/utils/api for signed-in requests so expired sessions are handled in one place."
       },
       {
         "name": "XMLHttpRequest",
-        "message": "Use authFetch, publicFetch or adminRequest from @/utils so expired sessions are handled in one place."
+        "message": "Use authFetch from @/utils/api for signed-in requests so expired sessions are handled in one place."
       }
     ],
     "no-restricted-properties": [
@@ -20,12 +20,12 @@
       {
         "object": "window",
         "property": "fetch",
-        "message": "Use authFetch, publicFetch or adminRequest from @/utils so expired sessions are handled in one place."
+        "message": "Use authFetch from @/utils/api for signed-in requests so expired sessions are handled in one place."
       },
       {
         "object": "globalThis",
         "property": "fetch",
-        "message": "Use authFetch, publicFetch or adminRequest from @/utils so expired sessions are handled in one place."
+        "message": "Use authFetch from @/utils/api for signed-in requests so expired sessions are handled in one place."
       }
     ],
     "no-restricted-imports": [
@@ -34,7 +34,7 @@
         "paths": [
           {
             "name": "axios",
-            "message": "Use authFetch, publicFetch or adminRequest from @/utils so expired sessions are handled in one place."
+            "message": "Use authFetch from @/utils/api for signed-in requests so expired sessions are handled in one place."
           }
         ]
       }
@@ -43,7 +43,11 @@
   "overrides": [
     {
       "files": [
-        "src/utils/api.ts"
+        "src/utils/api.ts",
+        "src/utils/adminApi.ts",
+        "src/contexts/AuthContext.tsx",
+        "src/components/OAuthButtons.tsx",
+        "src/app/admin/login/page.tsx"
       ],
       "rules": {
         "no-restricted-globals": "off"
