@@ -36,7 +36,7 @@ help:
 	@echo "Registry scraper (single steps)"
 	@echo "  scrape              Run one scraper once (SOURCE=sebi_ria, sebi_research_analyst, fee_only_india or fpsb_cfp)"
 	@echo "  scraper-worker      Run the weekly scraper scheduler in the foreground"
-	@echo "  enrich-nri          Check firm websites for NRI signals (python -m enrichment review-queue to review)"
+	@echo "  enrich-nri          Check firm websites for NRI signals"
 	@echo "  export-places       Export professionals found via Google Places to backend/exports (resumable, quota-capped)"
 	@echo "  enrich-places       Search the web (Tavily) for details of imported Google listings; run daily until done"
 	@echo "  find-websites       Find websites for unverified listings (register match, domain guess, Tavily search; run daily)"

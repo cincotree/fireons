@@ -1,7 +1,6 @@
 export interface NriSummary {
   confidence: "high" | "medium" | "low";
   signal_count: number;
-  confirmed: boolean;
   website_url: string | null;
 }
 
@@ -12,7 +11,6 @@ export interface NriSignal {
   matched_text: string;
   location: string;
   confidence: "high" | "medium" | "low";
-  review_status: "pending" | "confirmed" | "rejected";
   last_seen_at: string;
 }
 
@@ -53,6 +51,8 @@ export interface Registration {
   email: string | null;
   phone: string | null;
   contact_person: string | null;
+  website: string | null;
+  firm_name: string | null;
   source_url: string;
   first_seen_at: string;
   last_seen_at: string;

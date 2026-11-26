@@ -1,9 +1,11 @@
 import pytest
 import pytest_asyncio
 from sqlalchemy import func, select, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 import database.session as database_session
+import scraping.runner as scraping_runner
 from database.models import ProfessionalRegistration, RegistrationVersion, ScrapeRun
 from scraping.runner import _lock_key, run_source
 from scraping.types import RegistrationStatus, RunAlreadyInProgress, RunStatus
@@ -168,3 +170,80 @@ async def test_stale_running_rows_are_closed_out_by_the_next_run(engine):
 async def test_unknown_source_key_is_rejected():
     with pytest.raises(KeyError, match="Unknown source"):
         await run_source("nope")
+
+
+def connection_loss():
+    return OperationalError("SELECT 1", {}, Exception("consuming input failed: server closed the connection unexpectedly"))
+
+
+@pytest.fixture
+def no_retry_delay(monkeypatch):
+    async def instant(_seconds):
+        return None
+
+    monkeypatch.setattr(scraping_runner.asyncio, "sleep", instant)
+
+
+async def test_a_dropped_database_connection_is_retried(engine, monkeypatch, no_retry_delay):
+    real_execute = scraping_runner._execute
+    calls = []
+
+    async def flaky(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            raise connection_loss()
+        return await real_execute(*args, **kwargs)
+
+    monkeypatch.setattr(scraping_runner, "_execute", flaky)
+
+    summary = await scrape(GOOD_RECORDS)
+
+    assert summary.status == RunStatus.SUCCEEDED
+    assert len(calls) == 2
+    assert len(await registrations(engine)) == 6
+
+
+async def test_a_database_that_stays_down_fails_after_the_last_attempt(engine, monkeypatch, no_retry_delay):
+    calls = []
+
+    async def always_down(*args, **kwargs):
+        calls.append(1)
+        raise connection_loss()
+
+    monkeypatch.setattr(scraping_runner, "_execute", always_down)
+
+    with pytest.raises(OperationalError):
+        await scrape(GOOD_RECORDS)
+
+    assert len(calls) == scraping_runner.DB_ATTEMPTS
+
+
+async def test_other_database_errors_are_not_retried(engine, monkeypatch, no_retry_delay):
+    calls = []
+
+    async def broken(*args, **kwargs):
+        calls.append(1)
+        raise OperationalError("SELECT 1", {}, Exception("permission denied for table data_sources"))
+
+    monkeypatch.setattr(scraping_runner, "_execute", broken)
+
+    with pytest.raises(OperationalError):
+        await scrape(GOOD_RECORDS)
+
+    assert len(calls) == 1
+
+
+async def test_a_failed_lock_release_does_not_fail_a_finished_run(engine, monkeypatch):
+    async def unreachable(self, statement, *args, **kwargs):
+        if "pg_advisory_unlock" in str(statement):
+            raise connection_loss()
+        return await real_execute(self, statement, *args, **kwargs)
+
+    from sqlalchemy.ext.asyncio import AsyncConnection
+
+    real_execute = AsyncConnection.execute
+    monkeypatch.setattr(AsyncConnection, "execute", unreachable)
+
+    summary = await scrape(GOOD_RECORDS)
+
+    assert summary.status == RunStatus.SUCCEEDED

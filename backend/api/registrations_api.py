@@ -43,6 +43,11 @@ def _lowered(values: list[str]) -> list[str]:
     return [value.strip().lower() for value in values if value.strip()]
 
 
+def _attribute_text(registration: ProfessionalRegistration, key: str) -> Optional[str]:
+    value = (registration.attributes or {}).get(key)
+    return value if isinstance(value, str) and value else None
+
+
 router = APIRouter(
     prefix="/registrations",
     tags=["registrations"],
@@ -53,7 +58,6 @@ router = APIRouter(
 class NriSummary(BaseModel):
     confidence: str
     signal_count: int
-    confirmed: bool
     website_url: Optional[str]
 
 
@@ -79,6 +83,8 @@ class RegistrationResponse(BaseModel):
     email: Optional[str]
     phone: Optional[str]
     contact_person: Optional[str]
+    website: Optional[str] = None
+    firm_name: Optional[str] = None
     source_url: str
     first_seen_at: datetime
     last_seen_at: datetime
@@ -120,7 +126,6 @@ class NriSignalResponse(BaseModel):
     matched_text: str
     location: str
     confidence: str
-    review_status: str
     last_seen_at: datetime
 
 
@@ -192,6 +197,8 @@ def _to_response(
         email=registration.email,
         phone=registration.phone,
         contact_person=registration.contact_person,
+        website=_attribute_text(registration, "website"),
+        firm_name=_attribute_text(registration, "firm_name"),
         source_url=registration.source_url,
         first_seen_at=registration.first_seen_at,
         last_seen_at=registration.last_seen_at,
@@ -210,29 +217,25 @@ async def _nri_summaries(
             select(
                 NriSignal.professional_id,
                 NriSignal.confidence,
-                NriSignal.review_status,
                 ProfessionalWebsite.url,
             )
             .join(ProfessionalWebsite, ProfessionalWebsite.id == NriSignal.website_id)
             .where(
                 NriSignal.professional_id.in_(professional_ids),
-                NriSignal.review_status != "rejected",
             )
         )
     ).all()
     summaries: dict[str, NriSummary] = {}
-    for professional_id, confidence, review_status, website_url in rows:
+    for professional_id, confidence, website_url in rows:
         current = summaries.get(professional_id)
         if current is None:
             summaries[professional_id] = NriSummary(
                 confidence=confidence,
                 signal_count=1,
-                confirmed=review_status == "confirmed",
                 website_url=website_url,
             )
             continue
         current.signal_count += 1
-        current.confirmed = current.confirmed or review_status == "confirmed"
         if NRI_CONFIDENCE_RANK[confidence] > NRI_CONFIDENCE_RANK[current.confidence]:
             current.confidence = confidence
     return summaries
@@ -402,7 +405,6 @@ async def list_registrations(
             select(NriSignal.id)
             .where(
                 NriSignal.professional_id == ProfessionalRegistration.professional_id,
-                NriSignal.review_status != "rejected",
                 NriSignal.confidence.in_(NRI_MIN_CONFIDENCES[nri]),
             )
             .exists()
@@ -486,7 +488,7 @@ async def get_registration_nri(registration_id: str, session: AsyncSession = Dep
     signals = (
         await session.scalars(
             select(NriSignal)
-            .where(NriSignal.professional_id == professional.id, NriSignal.review_status != "rejected")
+            .where(NriSignal.professional_id == professional.id)
         )
     ).all()
     signals = sorted(
@@ -512,7 +514,6 @@ async def get_registration_nri(registration_id: str, session: AsyncSession = Dep
                 matched_text=signal.matched_text,
                 location=signal.location,
                 confidence=signal.confidence,
-                review_status=signal.review_status,
                 last_seen_at=signal.last_seen_at,
             )
             for signal in signals

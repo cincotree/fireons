@@ -2,12 +2,11 @@
 
 import { useEffect, useState } from "react";
 import {
-  BadgeCheck,
   ExternalLink,
+  Globe,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  History,
   Mail,
   MapPin,
   Phone,
@@ -31,14 +30,6 @@ const NRI_FILTER_OPTIONS = [
   { value: "high", label: "NRI: high confidence" },
   { value: "medium", label: "NRI: medium or higher" },
   { value: "low", label: "NRI: any signal" },
-];
-const VERIFICATION_OPTIONS = [
-  { value: "verified", label: "Verified sources only" },
-  { value: "unverified", label: "Unverified listings only" },
-];
-const DETAILS_OPTIONS = [
-  { value: "with_details", label: "With details" },
-  { value: "listing_only", label: "Maps link only" },
 ];
 const FOCUS_RING =
   "focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0E6B57] focus-visible:ring-offset-2 focus-visible:ring-offset-[#E8F0ED]";
@@ -114,8 +105,6 @@ export function ProfessionalDirectory() {
   const [stateFilter, setStateFilter] = useState<string[]>([]);
   const [cityFilter, setCityFilter] = useState<string[]>([]);
   const [nriFilter, setNriFilter] = useState("");
-  const [verificationFilter, setVerificationFilter] = useState("");
-  const [detailsFilter, setDetailsFilter] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [data, setData] = useState<RegistrationPage | null>(null);
@@ -153,8 +142,6 @@ export function ProfessionalDirectory() {
     stateFilter.forEach((name) => params.append("state", name));
     cityFilter.forEach((name) => params.append("city", name));
     if (nriFilter) params.set("nri", nriFilter);
-    if (verificationFilter) params.set("verification", verificationFilter);
-    if (detailsFilter) params.set("details", detailsFilter);
     setLoading(true);
     setError(null);
     fetchJson<RegistrationPage>(
@@ -173,7 +160,7 @@ export function ProfessionalDirectory() {
     return () => {
       cancelled = true;
     };
-  }, [search, stateFilter, cityFilter, nriFilter, verificationFilter, detailsFilter, page, reloadToken]);
+  }, [search, stateFilter, cityFilter, nriFilter, page, reloadToken]);
 
   const total = data?.total ?? 0;
   const firstShown = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
@@ -204,28 +191,6 @@ export function ProfessionalDirectory() {
           },
         ]
       : []),
-    ...(verificationFilter
-      ? [
-          {
-            key: `verification:${verificationFilter}`,
-            label:
-              VERIFICATION_OPTIONS.find((option) => option.value === verificationFilter)?.label ??
-              verificationFilter,
-            kind: "verification",
-            clear: () => setVerificationFilter(""),
-          },
-        ]
-      : []),
-    ...(detailsFilter
-      ? [
-          {
-            key: `details:${detailsFilter}`,
-            label: DETAILS_OPTIONS.find((option) => option.value === detailsFilter)?.label ?? detailsFilter,
-            kind: "details",
-            clear: () => setDetailsFilter(""),
-          },
-        ]
-      : []),
   ];
   const activeFilterCount = appliedFilters.length;
 
@@ -235,8 +200,6 @@ export function ProfessionalDirectory() {
     setStateFilter([]);
     setCityFilter([]);
     setNriFilter("");
-    setVerificationFilter("");
-    setDetailsFilter("");
     setPage(1);
   };
 
@@ -317,26 +280,6 @@ export function ProfessionalDirectory() {
                 triggerClassName={`${CONTROL} ${FOCUS_RING}`}
               />
               <FilterSelect
-                label="Verification"
-                allLabel="Verified and unverified"
-                value={verificationFilter}
-                options={VERIFICATION_OPTIONS}
-                onChange={(value) => {
-                  setVerificationFilter(value);
-                  setPage(1);
-                }}
-              />
-              <FilterSelect
-                label="Details"
-                allLabel="With or without details"
-                value={detailsFilter}
-                options={DETAILS_OPTIONS}
-                onChange={(value) => {
-                  setDetailsFilter(value);
-                  setPage(1);
-                }}
-              />
-              <FilterSelect
                 label="NRI signals"
                 allLabel="Any NRI signal status"
                 value={nriFilter}
@@ -398,7 +341,6 @@ export function ProfessionalDirectory() {
             <TableHeader className="hidden border-b border-[#DCE5E1] bg-[#FAFCFB] md:table-header-group">
               <TableRow className="hover:bg-transparent">
                 <TableHead className="h-11 px-5 text-xs font-semibold text-[#66766F]">Name</TableHead>
-                <TableHead className="h-11 px-4 text-xs font-semibold text-[#66766F]">Registration no.</TableHead>
                 <TableHead className="h-11 px-4 text-xs font-semibold text-[#66766F]">Location</TableHead>
                 <TableHead className="h-11 px-4 text-xs font-semibold text-[#66766F]">Contact</TableHead>
                 <TableHead className="h-11 px-4 text-xs font-semibold text-[#66766F]">NRI</TableHead>
@@ -409,7 +351,11 @@ export function ProfessionalDirectory() {
               {data?.items.map((registration) => (
                 <TableRow
                   key={registration.id}
-                  className="block border-[#E6ECE9] px-5 py-4 hover:bg-[#F8FBFA] md:table-row md:px-0 md:py-0"
+                  onClick={(event) => {
+                    if ((event.target as HTMLElement).closest("a, button")) return;
+                    setSelected(registration);
+                  }}
+                  className="group/row block cursor-pointer border-[#E6ECE9] px-5 py-4 transition-colors hover:bg-[#EDF5F2] md:table-row md:px-0 md:py-0"
                 >
                   <TableCell className="block p-0 md:table-cell md:px-5 md:py-4">
                     {registration.listing_only ? (
@@ -441,16 +387,16 @@ export function ProfessionalDirectory() {
                             type="button"
                             onClick={() => setSelected(registration)}
                             aria-label={`View history for ${registration.name}`}
-                            className="group inline-flex max-w-full items-center gap-1.5 rounded text-left text-[15px] font-semibold text-[#12211D] hover:text-[#0E6B57] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0E6B57]"
+                            className="group inline-flex max-w-full items-center gap-1 rounded text-left text-[15px] font-semibold text-[#12211D] hover:text-[#0E6B57] group-hover/row:text-[#0E6B57] group-hover/row:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0E6B57]"
                           >
                             <span className="break-words">{registration.name}</span>
-                            <History
-                              className="h-3.5 w-3.5 shrink-0 text-[#0E6B57] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                            <ChevronRight
+                              className="h-4 w-4 shrink-0 text-[#8AA79D] transition-transform group-hover/row:translate-x-0.5 group-hover/row:text-[#0E6B57]"
                               aria-hidden="true"
                             />
                           </button>
                           <p className="flex flex-wrap items-center gap-x-2 text-xs text-[#66766F]">
-                            <span>{registration.kind === "firm" ? "Firm" : "Individual"}</span>
+                            <span>{registration.firm_name ?? (registration.kind === "firm" ? "Firm" : "Individual")}</span>
                             {registration.verification === "unverified" && (
                               <span className="rounded-full border border-[#E2D3B3] bg-[#FBF5E6] px-2 py-0.5 font-semibold text-[#7A5A12]">
                                 Unverified
@@ -459,16 +405,6 @@ export function ProfessionalDirectory() {
                           </p>
                         </div>
                       </div>
-                    )}
-                  </TableCell>
-                  <TableCell className="block whitespace-nowrap p-0 pt-2 md:table-cell md:px-4 md:py-4">
-                    {registration.verification === "unverified" ? (
-                      <span className="text-sm text-[#7D8C86]">—</span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 text-sm font-medium tabular-nums text-[#12211D]">
-                        <BadgeCheck className="h-4 w-4 text-[#0E6B57]" aria-hidden="true" />
-                        {registration.registration_number}
-                      </span>
                     )}
                   </TableCell>
                   <TableCell className="block p-0 pt-2 md:table-cell md:px-4 md:py-4">
@@ -501,7 +437,20 @@ export function ProfessionalDirectory() {
                           {registration.phone}
                         </a>
                       )}
-                      {!registration.email && !registration.phone && <span className="text-[#7D8C86]">—</span>}
+                      {registration.website && (
+                        <a
+                          href={registration.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex max-w-[240px] items-center gap-1.5 rounded text-[#0E6B57] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0E6B57]"
+                        >
+                          <Globe className="h-4 w-4 shrink-0" aria-hidden="true" />
+                          <span className="truncate">{registration.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}</span>
+                        </a>
+                      )}
+                      {!registration.email && !registration.phone && !registration.website && (
+                        <span className="text-[#7D8C86]">—</span>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell className="block p-0 pt-2 md:table-cell md:px-4 md:py-4">

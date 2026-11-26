@@ -466,7 +466,7 @@ def test_public_read_limit_defaults_to_240_and_is_configurable(monkeypatch):
     assert AppSettings(_env_file=None).public_read_limit_per_minute == 7
 
 
-async def add_nri_signal(session, registration, website, confidence, review_status="pending", text="NRI services"):
+async def add_nri_signal(session, registration, website, confidence, text="NRI services"):
     signal = NriSignal(
         website_id=website.id,
         professional_id=registration.professional_id,
@@ -476,7 +476,6 @@ async def add_nri_signal(session, registration, website, confidence, review_stat
         text_hash=uuid4().hex + uuid4().hex,
         location="heading",
         confidence=confidence,
-        review_status=review_status,
     )
     session.add(signal)
     await session.flush()
@@ -507,8 +506,6 @@ async def with_nri(session, seeded):
     await add_nri_signal(session, seeded["mehta"], high_site, "low", text="FEMA rules")
     medium_site = await add_website(session, seeded["shah"], domain="shahfirm.in")
     await add_nri_signal(session, seeded["shah"], medium_site, "medium")
-    rejected_site = await add_website(session, seeded["old"], domain="oldtimer.in")
-    await add_nri_signal(session, seeded["old"], rejected_site, "high", review_status="rejected")
     await add_website(session, seeded["mehta_firm"], domain="plainsite.in")
     return seeded
 
@@ -520,7 +517,6 @@ async def test_list_includes_the_nri_summary_with_best_confidence(client, with_n
     assert by_name["Rohan Mehta"]["nri"] == {
         "confidence": "high",
         "signal_count": 2,
-        "confirmed": False,
         "website_url": "https://nrifirm.com/",
     }
     assert by_name["Priya Shah"]["nri"]["confidence"] == "medium"
@@ -538,19 +534,10 @@ async def test_nri_filter_uses_a_minimum_confidence(client, with_nri):
     assert await names("low") == ["Priya Shah", "Rohan Mehta"]
 
 
-async def test_rejected_signals_never_count(client, with_nri):
+async def test_professionals_without_signals_never_match_the_nri_filter(client, with_nri):
     body = (await client.get("/registrations", params={"nri": "low", "q": "Old Timer"})).json()
 
     assert body["total"] == 0
-
-
-async def test_confirmed_review_is_reported(client, session, with_nri):
-    site = await add_website(session, with_nri["gone"], domain="gonefirm.in")
-    await add_nri_signal(session, with_nri["gone"], site, "medium", review_status="confirmed")
-
-    body = (await client.get("/registrations", params={"q": "Gone Adviser"})).json()
-
-    assert body["items"][0]["nri"]["confirmed"] is True
 
 
 async def test_invalid_nri_filter_is_a_validation_error(client, with_nri):
@@ -570,15 +557,15 @@ async def test_nri_detail_lists_signals_best_first_with_the_website(client, with
     assert body["website"]["check_status"] == "checked"
     assert [s["confidence"] for s in body["signals"]] == ["high", "low"]
     assert body["signals"][0]["matched_text"] == "Wealth advisory for NRIs"
-    assert body["signals"][0]["review_status"] == "pending"
+    assert "review_status" not in body["signals"][0]
 
 
-async def test_nri_detail_hides_rejected_signals_and_handles_no_website(client, with_nri, session):
-    rejected = (await client.get(f"/registrations/{with_nri['old'].id}/nri")).json()
+async def test_nri_detail_handles_a_site_without_signals_and_no_website(client, with_nri, session):
+    no_signals = (await client.get(f"/registrations/{with_nri['mehta_firm'].id}/nri")).json()
     none_at_all = (await client.get(f"/registrations/{with_nri['gone'].id}/nri")).json()
 
-    assert rejected["signals"] == []
-    assert rejected["website"]["domain"] == "oldtimer.in"
+    assert no_signals["signals"] == []
+    assert no_signals["website"]["domain"] == "plainsite.in"
     assert none_at_all == {"registration_id": with_nri["gone"].id, "website": None, "signals": []}
 
 
@@ -719,3 +706,24 @@ async def test_registrations_reject_an_invalid_token(anonymous_client):
     response = await anonymous_client.get("/registrations", headers={"Authorization": "Bearer not-a-token"})
 
     assert response.status_code == 401
+
+
+async def test_website_and_firm_come_from_attributes(client, session, source):
+    planner = await add_registration(
+        session,
+        source,
+        "Asha Planner",
+        "FOI-asha-planner",
+        email=None,
+        phone=None,
+        attributes={"website": "https://www.ashaplans.example/", "firm_name": "Asha Plans LLP"},
+    )
+    bare = await add_registration(session, source, "Bare Planner", "FOI-bare-planner")
+
+    detail = (await client.get(f"/registrations/{planner.id}")).json()
+    assert detail["website"] == "https://www.ashaplans.example/"
+    assert detail["firm_name"] == "Asha Plans LLP"
+
+    plain = (await client.get(f"/registrations/{bare.id}")).json()
+    assert plain["website"] is None
+    assert plain["firm_name"] is None

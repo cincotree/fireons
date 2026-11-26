@@ -15,7 +15,6 @@ from database.models import (
     ProfessionalRegistration,
     ProfessionalWebsite,
 )
-from enrichment.__main__ import _review, _review_queue
 from enrichment.crawler import check_site
 from enrichment.runner import enrich_nri
 from scraping.http import PoliteClient
@@ -190,7 +189,7 @@ async def test_run_stores_signals_with_text_confidence_and_pending_review(engine
     assert (summary.websites_checked, summary.unreachable) == (1, 0)
     signals = await signals_for(engine, pid)
     assert summary.signals_found == len(signals) > 0
-    assert {s.review_status for s in signals} == {"pending"}
+    assert {s.review_status for s in signals} == {"confirmed"}
     assert any(s.confidence == "high" and "NRI" in s.matched_text for s in signals)
     site = await website_for(engine, pid)
     assert (site.check_status, site.pages_checked, site.derived_from) == ("checked", 2, "email_domain")
@@ -232,25 +231,20 @@ async def test_recent_checks_are_skipped_and_old_ones_repeated(engine):
     assert later.websites_checked == 1
 
 
-async def test_rerun_keeps_reviews_and_drops_stale_pending_signals(engine):
+async def test_rerun_drops_signals_no_longer_on_the_site(engine):
     pid = await add_professional(engine, "Nri Firm", "desk@nrifirm.com")
     client, _ = client_for(NRI_SITE)
     async with client:
         await enrich_nri(client=client, settings=fast_settings(), now=NOW)
     signals = await signals_for(engine, pid)
-    confirmed_id = signals[0].id
-    async with AsyncSession(engine) as session:
-        (await session.get(NriSignal, confirmed_id)).review_status = "confirmed"
-        await session.commit()
 
     plain, _ = client_for({"nrifirm.com": {"/": html(PLAIN_HOME)}})
     async with plain:
         summary = await enrich_nri(client=plain, settings=fast_settings(), now=NOW + timedelta(days=40))
 
     remaining = await signals_for(engine, pid)
-    assert summary.signals_removed == len(signals) - 1
-    assert [s.id for s in remaining] == [confirmed_id]
-    assert remaining[0].review_status == "confirmed"
+    assert summary.signals_removed == len(signals)
+    assert remaining == []
 
 
 async def test_unreachable_site_keeps_existing_signals(engine):
@@ -289,22 +283,6 @@ async def test_limit_caps_the_websites_checked_per_run(engine):
         summary = await enrich_nri(client=client, settings=fast_settings(), limit=1, now=NOW)
 
     assert summary.websites_checked == 1
-
-
-async def test_review_cli_updates_status_and_rejects_unknown_ids(engine, capsys):
-    pid = await add_professional(engine, "Nri Firm", "desk@nrifirm.com")
-    client, _ = client_for(NRI_SITE)
-    async with client:
-        await enrich_nri(client=client, settings=fast_settings(), now=NOW)
-    signal = (await signals_for(engine, pid))[0]
-
-    assert await _review_queue("high", 10) == 0
-    assert signal.id in capsys.readouterr().out
-    assert await _review(signal.id, "rejected") == 0
-    assert await _review("00000000-0000-0000-0000-000000000000", "confirmed") == 1
-    async with AsyncSession(engine) as session:
-        stored = await session.get(NriSignal, signal.id)
-    assert (stored.review_status, stored.reviewed_at is not None) == ("rejected", True)
 
 
 async def test_website_listed_by_the_source_is_checked_even_without_an_email(engine):

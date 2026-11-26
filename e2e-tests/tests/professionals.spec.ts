@@ -22,7 +22,7 @@ interface SeedRegistration {
 
 const NAMED: SeedRegistration[] = [
   { name: 'Rohan Mehta', number: 'INA900000001', city: 'Mumbai', state: 'Maharashtra', email: 'new-mehta@example.com', phone: '910000000001' },
-  { name: 'Priya Shah', number: 'INA900000002', city: 'Ahmedabad', state: 'Gujarat', email: 'priya@example.com' },
+  { name: 'Priya Shah', number: 'INA900000002', city: 'Ahmedabad', state: 'Gujarat', email: 'priya@example.com', attributes: { website: 'https://www.priyaplans.example/', firm_name: 'Priya Plans LLP' } },
   { name: 'Old Timer', number: 'INA900000003', city: 'Pune', state: 'Maharashtra', status: 'expired', validUntil: '2024-01-01' },
 ];
 
@@ -38,7 +38,7 @@ async function insertNri(
   client: pg.Client,
   registrationId: string,
   domain: string,
-  signals: { confidence: string; text: string; reviewStatus?: string; location?: string }[]
+  signals: { confidence: string; text: string; location?: string }[]
 ) {
   const professional = await client.query(
     `SELECT professional_id FROM professional_registrations WHERE id = $1`,
@@ -65,7 +65,7 @@ async function insertNri(
         `${domain}-${index}`.padEnd(64, '0'),
         signal.location ?? 'heading',
         signal.confidence,
-        signal.reviewStatus ?? 'pending',
+        'confirmed',
       ]
     );
   }
@@ -149,12 +149,7 @@ test.describe('Professionals directory - signed-in listing, filters and change h
         }
         if (row.name === 'Priya Shah') {
           await insertNri(client, registrationId, 'shah-invest.example.com', [
-            { confidence: 'medium', text: 'We also serve NRI clients', reviewStatus: 'confirmed', location: 'body' },
-          ]);
-        }
-        if (row.name === 'Old Timer') {
-          await insertNri(client, registrationId, 'oldtimer.example.com', [
-            { confidence: 'high', text: 'Rejected NRI claim', reviewStatus: 'rejected' },
+            { confidence: 'medium', text: 'We also serve NRI clients', location: 'body' },
           ]);
         }
         if (row.name === 'Rohan Mehta') {
@@ -245,13 +240,25 @@ test.describe('Professionals directory - signed-in listing, filters and change h
     await expect(page.getByRole('link', { name: 'Find professionals' })).toBeVisible();
   });
 
+  test('a planner with a listed website shows the firm and a website link, others do not', async ({ page }) => {
+    await page.goto('/professionals');
+    await expect(historyButton(page, 'Priya Shah')).toBeVisible();
+
+    const link = page.getByRole('link', { name: 'priyaplans.example' });
+    await expect(link).toHaveAttribute('href', 'https://www.priyaplans.example/');
+    await expect(page.getByText('Priya Plans LLP')).toBeVisible();
+    await expect(page.getByRole('link', { name: /\.example$/ })).toHaveCount(1);
+
+    await historyButton(page, 'Priya Shah').click();
+    await expect(page.getByRole('dialog').getByRole('link', { name: 'https://www.priyaplans.example/' })).toBeVisible();
+  });
+
   test('the table shows name, registration, location, contact, NRI signals', async ({ page }) => {
     await page.goto('/professionals');
     await expect(historyButton(page, 'Rohan Mehta')).toBeVisible();
 
     await expect(page.getByRole('columnheader')).toHaveText([
       'Name',
-      'Registration no.',
       'Location',
       'Contact',
       'NRI',
@@ -272,10 +279,10 @@ test.describe('Professionals directory - signed-in listing, filters and change h
 
     await openFilters(page);
 
-    await expect(page.getByRole('combobox')).toHaveCount(5);
+    await expect(page.getByRole('combobox')).toHaveCount(3);
     await expect(page.getByRole('combobox', { name: 'Source' })).toHaveCount(0);
-    await expect(filter(page, 'Verification')).toBeVisible();
-    await expect(filter(page, 'Details')).toBeVisible();
+    await expect(filter(page, 'Verification')).toHaveCount(0);
+    await expect(filter(page, 'Details')).toHaveCount(0);
     await expect(filter(page, 'NRI signals')).toBeVisible();
     await expect(filter(page, 'State')).toBeVisible();
     await expect(filter(page, 'City')).toBeVisible();
@@ -530,20 +537,36 @@ test.describe('Professionals directory - signed-in listing, filters and change h
     await expect(page.getByRole('button', { name: 'Next' })).toBeDisabled();
   });
 
-  test('clicking a name opens the change history with before and after values', async ({ page }) => {
+  test('clicking a name opens the details panel with no change history, and it closes', async ({ page }) => {
     await page.goto('/professionals');
 
     await page.getByRole('button', { name: 'View history for Rohan Mehta' }).click();
 
     await expect(page.getByRole('heading', { name: 'Rohan Mehta' })).toBeVisible();
-    const history = page.getByRole('list', { name: 'Change history' });
-    await expect(history.getByText('First recorded')).toBeVisible();
-    await expect(history.getByText('Changed', { exact: true })).toBeVisible();
-    await expect(history.getByText('old-mehta@example.com')).toBeVisible();
-    await expect(history.getByText('new-mehta@example.com')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Change history' })).toHaveCount(0);
+    await expect(page.getByRole('list', { name: 'Change history' })).toHaveCount(0);
+    await expect(page.getByText('old-mehta@example.com')).toHaveCount(0);
 
     await page.getByRole('button', { name: 'Close' }).click();
     await expect(page.getByRole('heading', { name: 'Rohan Mehta' })).toHaveCount(0);
+  });
+
+  test('the whole row is clickable, but links inside it keep their own behaviour', async ({ page }) => {
+    await page.goto('/professionals');
+    const row = page.getByRole('row').filter({ has: historyButton(page, 'Rohan Mehta') });
+    await expect(row).toHaveCSS('cursor', 'pointer');
+
+    await row.getByText('Mumbai, Maharashtra').click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Rohan Mehta' })).toBeVisible();
+    await page.getByRole('button', { name: 'Close' }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+
+    const mail = row.getByRole('link', { name: 'new-mehta@example.com' });
+    await expect(mail).toHaveAttribute('href', 'mailto:new-mehta@example.com');
+    await mail.evaluate((link) => link.addEventListener('click', (event) => event.preventDefault()));
+    await mail.click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
   });
 
   test('a listing failure shows an error and recovers on retry', async ({ page }) => {
@@ -568,13 +591,19 @@ test.describe('Professionals directory - signed-in listing, filters and change h
     await expect(page.getByRole('alert').filter({ hasText: 'Too many requests' })).toBeVisible();
   });
 
-  test('a history failure shows an error inside the dialog', async ({ page }) => {
-    await page.route(/\/history$/, (route) => route.fulfill({ status: 500, body: 'boom' }));
+  test('the panel never asks for the change history', async ({ page }) => {
+    let historyRequests = 0;
+    await page.route(/\/history$/, (route) => {
+      historyRequests += 1;
+      return route.fulfill({ status: 500, body: 'boom' });
+    });
     await page.goto('/professionals');
 
     await page.getByRole('button', { name: 'View history for Rohan Mehta' }).click();
 
-    await expect(page.getByRole('alert').filter({ hasText: 'Could not load history' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Rohan Mehta' })).toBeVisible();
+    await expect(page.getByRole('dialog').getByRole('alert')).toHaveCount(0);
+    expect(historyRequests).toBe(0);
   });
 
   const nriBadge = (page: Page, name: string) =>
@@ -615,7 +644,7 @@ test.describe('Professionals directory - signed-in listing, filters and change h
     await expect(page.getByText('No professionals match your filters.')).toBeVisible();
   });
 
-  test('opening the NRI badge shows the matched text, page, confidence and review state', async ({ page }) => {
+  test('opening the NRI badge shows the matched text, page, and confidence', async ({ page }) => {
     await page.goto('/professionals');
 
     await nriBadge(page, 'Rohan Mehta').click();
@@ -624,20 +653,12 @@ test.describe('Professionals directory - signed-in listing, filters and change h
     await expect(section.getByText('Wealth advisory for NRIs and overseas Indians')).toBeVisible();
     await expect(section.getByText('We understand FEMA rules')).toBeVisible();
     await expect(section.getByText('High confidence')).toBeVisible();
-    await expect(section.getByText('Not yet reviewed').first()).toBeVisible();
+    await expect(section.getByText(/review/i)).toHaveCount(0);
     await expect(section.getByRole('link', { name: 'mehta-wealth.example.com', exact: true })).toHaveAttribute(
       'href',
       'https://mehta-wealth.example.com/'
     );
     await expect(section.getByRole('link', { name: /mehta-wealth.example.com\/nri-0/ })).toBeVisible();
-  });
-
-  test('a reviewed signal is labelled confirmed', async ({ page }) => {
-    await page.goto('/professionals');
-
-    await nriBadge(page, 'Priya Shah').click();
-
-    await expect(page.getByRole('region', { name: 'NRI signals' }).getByText('Reviewed: confirmed')).toBeVisible();
   });
 
   test('professionals without signals have no NRI section in the panel', async ({ page }) => {
@@ -646,7 +667,6 @@ test.describe('Professionals directory - signed-in listing, filters and change h
 
     await historyButton(page, 'Zulu Otherperson').click();
 
-    await expect(page.getByRole('heading', { name: 'Change history' })).toBeVisible();
     await expect(page.getByRole('region', { name: 'NRI signals' })).toHaveCount(0);
   });
 
@@ -665,8 +685,7 @@ test.describe('Professionals directory - signed-in listing, filters and change h
 
   test('a Google listing with no web details shows only a Maps link, and one with details shows its name', async ({ page }) => {
     await page.goto('/professionals');
-    await openFilters(page);
-    await filter(page, 'Verification').selectOption('unverified');
+    await searchBox(page).fill('Google Maps');
 
     await expect(page.getByText('Showing 1–2 of 2')).toBeVisible();
     await expect(listingOnly(page)).toHaveCount(1);
@@ -679,17 +698,27 @@ test.describe('Professionals directory - signed-in listing, filters and change h
     await expect(unverifiedTag(page)).toHaveCount(2);
   });
 
-  test('unverified rows show no registration number or registered tick, register rows do', async ({ page }) => {
+  test('the table has no registration column, and the panel shows the registration below the phone for register rows only', async ({ page }) => {
     await page.goto('/professionals');
-    await openFilters(page);
-    await filter(page, 'Verification').selectOption('unverified');
+    await expect(page.getByRole('columnheader', { name: 'Registration no.' })).toHaveCount(0);
+    await expect(page.getByText('INA900000001')).toHaveCount(0);
+
+    await historyButton(page, 'Rohan Mehta').click();
+    const panel = page.getByRole('dialog');
+    await expect(panel.getByText('910000000001')).toBeVisible();
+    const registration = panel.getByText('Registration', { exact: true });
+    await expect(registration).toBeVisible();
+    await expect(panel.getByText('INA900000001')).toBeVisible();
+    const phoneBox = await panel.getByText('910000000001').boundingBox();
+    const registrationBox = await registration.boundingBox();
+    expect(registrationBox!.y).toBeGreaterThan(phoneBox!.y);
+    await page.getByRole('button', { name: 'Close' }).click();
+
+    await searchBox(page).fill('Google Maps');
     await expect(page.getByText('Showing 1–2 of 2')).toBeVisible();
-
-    await expect(page.getByText('GP-e2e-1')).toHaveCount(0);
+    await historyButton(page, 'Found Online Advisers').click();
+    await expect(page.getByRole('dialog').getByText('Registration', { exact: true })).toHaveCount(0);
     await expect(page.getByText('GP-e2e-2')).toHaveCount(0);
-
-    await filter(page, 'Verification').selectOption('verified');
-    await expect(page.getByText('INA900000001')).toBeVisible();
   });
 
   test('register rows are never shown as Maps-link-only listings', async ({ page }) => {
@@ -701,32 +730,6 @@ test.describe('Professionals directory - signed-in listing, filters and change h
     await expect(unverifiedTag(page)).toHaveCount(0);
   });
 
-  test('the details filter shows only Maps-link-only listings or everything with details', async ({ page }) => {
-    await page.goto('/professionals');
-    await openFilters(page);
-
-    await filter(page, 'Details').selectOption('listing_only');
-    await expect(page.getByText('Showing 1–1 of 1')).toBeVisible();
-    await expect(listingOnly(page)).toHaveCount(1);
-
-    await filter(page, 'Details').selectOption('with_details');
-    await expect(page.getByText(`Showing 1–25 of ${TOTAL - 1}`)).toBeVisible();
-    await expect(listingOnly(page)).toHaveCount(0);
-
-    await page.getByRole('button', { name: 'Remove With details details filter' }).click();
-    await expect(page.getByText(`Showing 1–25 of ${TOTAL}`)).toBeVisible();
-  });
-
-  test('the details filter combines with search and can match nothing', async ({ page }) => {
-    await page.goto('/professionals');
-    await openFilters(page);
-    await filter(page, 'Details').selectOption('listing_only');
-
-    await searchBox(page).fill('Rohan Mehta');
-
-    await expect(page.getByText('No professionals match your filters.')).toBeVisible();
-  });
-
   test('a Maps-link-only listing is not found by searching Google style names', async ({ page }) => {
     await page.goto('/professionals');
 
@@ -735,39 +738,15 @@ test.describe('Professionals directory - signed-in listing, filters and change h
     await expect(page.getByText('No professionals match your filters.')).toBeVisible();
   });
 
-  test('the verification filter shows only unverified or only verified rows', async ({ page }) => {
-    await page.goto('/professionals');
-    await openFilters(page);
-
-    await filter(page, 'Verification').selectOption('unverified');
-    await expect(page.getByText('Showing 1–2 of 2')).toBeVisible();
-    await expect(unverifiedTag(page)).toHaveCount(2);
-
-    await filter(page, 'Verification').selectOption('verified');
-    await expect(page.getByText(`Showing 1–25 of ${TOTAL - 2}`)).toBeVisible();
-    await expect(unverifiedTag(page)).toHaveCount(0);
-
-    await page.getByRole('button', { name: 'Remove Verified sources only verification filter' }).click();
-    await expect(page.getByText(`Showing 1–25 of ${TOTAL}`)).toBeVisible();
-  });
-
-  test('the verification filter combines with search and can match nothing', async ({ page }) => {
-    await page.goto('/professionals');
-    await openFilters(page);
-    await filter(page, 'Verification').selectOption('unverified');
-
-    await searchBox(page).fill('Rohan Mehta');
-
-    await expect(page.getByText('No professionals match your filters.')).toBeVisible();
-  });
-
-  test('the side panel shows the source name for register rows and no Google Maps link', async ({ page }) => {
+  test('the side panel names the source in its header but has no source link for register rows', async ({ page }) => {
     await page.goto('/professionals');
     await searchBox(page).fill('Rohan Mehta');
     await historyButton(page, 'Rohan Mehta').click();
 
     await expect(page.getByText('Published by')).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'SEBI Registered Investment Advisers' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Google Maps link' })).toHaveCount(0);
+    const panel = page.getByRole('dialog');
+    await expect(panel.getByText('SEBI Registered Investment Advisers').first()).toBeVisible();
+    await expect(panel.getByRole('link', { name: 'SEBI Registered Investment Advisers' })).toHaveCount(0);
+    await expect(panel.getByRole('link', { name: 'Google Maps link' })).toHaveCount(0);
   });
 });
