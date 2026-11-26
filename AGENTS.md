@@ -13,7 +13,8 @@ Never use em dashes (--) in any content or code.
 **Every new feature must ship with tests, not just the happy path.** Before considering a change done:
 
 - **Backend**: add unit tests for new business logic (`backend/tests/`) and, for new API endpoints, request-level tests that exercise auth, validation errors, and success responses. Run `uv run pytest` and confirm your new tests pass - don't just eyeball the code.
-- **Frontend user flows**: add a Playwright e2e spec (`e2e-tests/tests/`) that drives the actual UI for the new flow, including at least one realistic failure path (bad input, wrong credentials, rejected upload, etc.), not only the happy path. Run it (`bash e2e-tests/run-tests.sh <spec file>`) and confirm it passes against the real app.
+- **Frontend user flows**: for a new user flow, add a Playwright e2e spec (`e2e-tests/tests/`) that drives the actual UI, including at least one realistic failure path (bad input, wrong credentials, rejected upload, etc.), not only the happy path. Run it (`bash e2e-tests/run-tests.sh <spec file>`) and confirm it passes against the real app.
+- **E2E cost**: E2E tests are important but costly. Do not add them for small UI fixes or individual button interactions. Cover UI behaviour within the relevant user flows, and verify small fixes in a running browser and with the existing relevant specs.
 - Prefer extending an existing test file's patterns over inventing a new style. If you find pre-existing broken/stale tests while working nearby, flag them rather than silently leaving them broken or trying to fix unrelated debt in the same change.
 - Manually verify UI changes in a running browser before reporting a frontend change complete - a passing test suite is not a substitute for seeing the feature work.
 
