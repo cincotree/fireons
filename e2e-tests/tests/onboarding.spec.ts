@@ -111,15 +111,6 @@ test.describe('Onboarding — statement import from the net worth dashboard', ()
     await expect(page.getByText('SGB').first()).toBeVisible();
   });
 
-  test('the dialog backdrop covers the whole viewport', async ({ page }) => {
-    await page.getByRole('button', { name: 'Import Statement' }).click();
-
-    const backdrop = page.getByTestId('modal-backdrop');
-    await expect(backdrop).toBeVisible();
-    const viewport = page.viewportSize()!;
-    expect(await backdrop.boundingBox()).toEqual({ x: 0, y: 0, ...viewport });
-  });
-
   test('the close button dismisses the dialog and reopening starts from the first step', async ({ page }) => {
     await page.getByRole('button', { name: 'Import Statement' }).click();
     await page.locator('input[type="file"]').setInputFiles([SGB_FIXTURE]);

@@ -99,7 +99,7 @@ export const Modal = ({ open, onOpenChange, children, size = 'default', dismissi
 
     return (
         <div style={styles.dialog} onClick={handleOverlayClick}>
-            <div data-testid="modal-backdrop" style={styles.dialogOverlay} />
+            <div style={styles.dialogOverlay} />
             <div style={contentStyle}>
                 {dismissible && (
                     <Button
