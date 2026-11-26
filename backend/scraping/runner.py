@@ -1,9 +1,11 @@
+import asyncio
 import logging
 import zlib
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 
 from sqlalchemy import text, update
+from sqlalchemy.exc import DBAPIError
 
 from database.models import DataSource, ScrapeRun
 from database.session import get_engine, session_context
@@ -37,6 +39,9 @@ class RunSummary:
 
 logger = logging.getLogger("scraping.runner")
 
+DB_ATTEMPTS = 3
+DB_RETRY_DELAY_SECONDS = 5
+
 
 def _lock_key(source_key: str) -> int:
     return zlib.crc32(f"scrape:{source_key}".encode("utf-8"))
@@ -52,6 +57,30 @@ async def run_source(
 ) -> RunSummary:
     settings = settings or get_scrape_settings()
     source = source or get_source(source_key)
+    for attempt in range(1, DB_ATTEMPTS + 1):
+        try:
+            return await _run_locked(source_key, trigger, client, settings, today, source)
+        except DBAPIError as exc:
+            if attempt == DB_ATTEMPTS or not (exc.connection_invalidated or _is_connection_loss(exc)):
+                raise
+            logger.warning("database connection lost (attempt %s of %s): %s", attempt, DB_ATTEMPTS, exc)
+            await get_engine().dispose()
+            await asyncio.sleep(DB_RETRY_DELAY_SECONDS * attempt)
+    raise AssertionError("unreachable")
+
+
+def _is_connection_loss(exc: DBAPIError) -> bool:
+    return "server closed the connection" in str(exc) or "connection is closed" in str(exc).lower()
+
+
+async def _run_locked(
+    source_key: str,
+    trigger: RunTrigger,
+    client: PoliteClient | None,
+    settings: ScrapeSettings,
+    today: date | None,
+    source: Source,
+) -> RunSummary:
     lock_connection = await get_engine().connect()
     try:
         acquired = await lock_connection.scalar(
@@ -63,12 +92,19 @@ async def run_source(
         try:
             return await _execute(source, trigger, client, settings, today or date.today())
         finally:
-            await lock_connection.execute(
-                text("SELECT pg_advisory_unlock(:key)"), {"key": _lock_key(source_key)}
-            )
-            await lock_connection.commit()
+            await _release_lock(lock_connection, source_key)
     finally:
         await lock_connection.close()
+
+
+async def _release_lock(lock_connection, source_key: str) -> None:
+    try:
+        await lock_connection.execute(
+            text("SELECT pg_advisory_unlock(:key)"), {"key": _lock_key(source_key)}
+        )
+        await lock_connection.commit()
+    except DBAPIError as exc:
+        logger.warning("could not release the advisory lock for %s, the server frees it on disconnect: %s", source_key, exc)
 
 
 async def _execute(

@@ -20,7 +20,6 @@ Two targets cover everything: `make daily` (export-places, import-places, enrich
 | Import Google places | `make import-places` | after each export | |
 | Enrich Google places | `make enrich-places` | daily until none are pending (30 searches a day by default) | `TAVILY_API_KEY` |
 | NRI signals | `make enrich-nri` | after new websites are found | |
-| Review NRI signals | `python -m enrichment review-queue` then `python -m enrichment review <id> confirmed\|rejected` | as needed | |
 
 Enrichment is capped by `WEBSITE_SEARCH_DAILY_LIMIT` (default 30) and `WEBSITE_SEARCH_MONTHLY_LIMIT` (default 1000) in `backend/.env`, shared with the website finder. At the defaults, 2,400 listings take about 80 days. Raise both to go faster, but the monthly default matches the free Tavily allowance, so check your plan first.
 

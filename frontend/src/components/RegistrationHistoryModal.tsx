@@ -1,36 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BadgeCheck, ExternalLink, Mail, MapPin, Phone, User, X } from "lucide-react";
+import { BadgeCheck, ExternalLink, Globe, Mail, MapPin, Phone, User, X } from "lucide-react";
 import { Monogram } from "@/components/Monogram";
 import { authFetch, getBaseHttpUrl } from "@/utils/api";
 import { CONFIDENCE_LABELS } from "@/components/NriBadge";
-import { NriDetail, Registration, RegistrationHistory } from "@/types/professionals";
-
-const FIELD_LABELS: Record<string, string> = {
-  name: "Name",
-  kind: "Type",
-  registration_number: "Registration number",
-  profession_type: "Profession",
-  valid_from: "Valid from",
-  valid_until: "Valid until",
-  validity_raw: "Validity",
-  city: "City",
-  state: "State",
-  pincode: "Pincode",
-  address_raw: "Address",
-  email: "Email",
-  phone: "Phone",
-  contact_person: "Contact person",
-  attributes: "Other details",
-  source_url: "Source link",
-};
-
-export function formatValue(value: unknown): string {
-  if (value === null || value === undefined || value === "") return "—";
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
-}
+import { NriDetail, Registration } from "@/types/professionals";
 
 export function formatDateTime(value: string): string {
   return new Date(value).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -56,38 +31,11 @@ function DetailRow({ icon, label, children }: { icon: React.ReactNode; label: st
 }
 
 export function RegistrationHistoryModal({ registration, onClose }: Props) {
-  const [history, setHistory] = useState<RegistrationHistory | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [nriDetail, setNriDetail] = useState<NriDetail | null>(null);
   const [nriError, setNriError] = useState<string | null>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
-
-  useEffect(() => {
-    if (!registration) return;
-    let cancelled = false;
-    setHistory(null);
-    setError(null);
-    setLoading(true);
-    (async () => {
-      try {
-        const baseUrl = await getBaseHttpUrl();
-        const response = await authFetch(`${baseUrl}/api/registrations/${registration.id}/history`);
-        if (!response.ok) throw new Error("Could not load history. Please try again.");
-        const data: RegistrationHistory = await response.json();
-        if (!cancelled) setHistory(data);
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Could not load history.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [registration]);
 
   useEffect(() => {
     setNriDetail(null);
@@ -144,11 +92,6 @@ export function RegistrationHistoryModal({ registration, onClose }: Props) {
             <h2 id="history-title" className="text-lg font-semibold leading-snug text-[#12211D]">
               {registration.name}
             </h2>
-            <p className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium tabular-nums text-[#0E6B57]">
-              <BadgeCheck className="h-4 w-4" aria-hidden="true" />
-              {registration.registration_number}
-            </p>
-            <p className="mt-0.5 text-sm text-[#66766F]">{registration.source_name}</p>
             {registration.verification === "unverified" && (
               <p className="mt-1.5 inline-block rounded-full border border-[#E2D3B3] bg-[#FBF5E6] px-2 py-0.5 text-xs font-semibold text-[#7A5A12]">
                 Unverified: listed on Google Maps, not confirmed by a regulator or the owner
@@ -178,6 +121,18 @@ export function RegistrationHistoryModal({ registration, onClose }: Props) {
                 {registration.address || location}
               </DetailRow>
             )}
+            {registration.firm_name && (
+              <DetailRow icon={<BadgeCheck className="h-4 w-4" />} label="Firm">
+                {registration.firm_name}
+              </DetailRow>
+            )}
+            {registration.website && (
+              <DetailRow icon={<Globe className="h-4 w-4" />} label="Website">
+                <a href={registration.website} target="_blank" rel="noopener noreferrer" className="text-[#0E6B57] hover:underline">
+                  {registration.website}
+                </a>
+              </DetailRow>
+            )}
             {registration.email && (
               <DetailRow icon={<Mail className="h-4 w-4" />} label="Email">
                 <a href={`mailto:${registration.email}`} className="text-[#0E6B57] hover:underline">
@@ -192,25 +147,32 @@ export function RegistrationHistoryModal({ registration, onClose }: Props) {
                 </a>
               </DetailRow>
             )}
-            <div>
-              <a
-                href={registration.source_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-sm text-[#0E6B57] hover:underline"
-              >
-                <ExternalLink className="h-4 w-4 shrink-0 text-[#66766F]" aria-hidden="true" />
-                {registration.verification === "unverified" ? "Google Maps link" : registration.source_name}
-              </a>
-            </div>
+            {registration.verification !== "unverified" && (
+              <DetailRow icon={<BadgeCheck className="h-4 w-4" />} label="Registration">
+                <span className="tabular-nums">{registration.registration_number}</span>
+                <span className="block text-xs text-[#66766F]">{registration.source_name}</span>
+              </DetailRow>
+            )}
+            {registration.verification === "unverified" && (
+              <div>
+                <a
+                  href={registration.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-sm text-[#0E6B57] hover:underline"
+                >
+                  <ExternalLink className="h-4 w-4 shrink-0 text-[#66766F]" aria-hidden="true" />
+                  Google Maps link
+                </a>
+              </div>
+            )}
           </dl>
 
           {registration.nri && (
             <section aria-label="NRI signals" className="mt-8">
               <h3 className="text-base font-semibold text-[#12211D]">NRI signals</h3>
               <p className="mt-1 text-sm text-[#66766F]">
-                Found automatically on the firm&apos;s website. Wording, not a verified claim: each signal is
-                marked until someone reviews it.
+                Found automatically on the firm&apos;s website. Wording from the site, not a verified claim.
               </p>
               {nriError && (
                 <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
@@ -238,9 +200,6 @@ export function RegistrationHistoryModal({ registration, onClose }: Props) {
                       <span className="rounded-full bg-[#DDEEE8] px-2 py-0.5 text-[#0B5846]">
                         {CONFIDENCE_LABELS[signal.confidence]} confidence
                       </span>
-                      <span className="rounded-full bg-[#F0F4F2] px-2 py-0.5 text-[#4D5D57]">
-                        {signal.review_status === "confirmed" ? "Reviewed: confirmed" : "Not yet reviewed"}
-                      </span>
                       <span className="text-[#66766F]">
                         {signal.signal_type.replace(/_/g, " ")} in {signal.location}
                       </span>
@@ -261,71 +220,6 @@ export function RegistrationHistoryModal({ registration, onClose }: Props) {
                 ))}
               </ul>
             </section>
-          )}
-
-          <h3 className="mt-8 text-base font-semibold text-[#12211D]">Change history</h3>
-          <p className="mt-1 text-sm text-[#66766F]">Every time the published record changed, newest first.</p>
-
-          {loading && (
-            <div className="mt-5 space-y-3" aria-label="Loading history">
-              <div className="h-4 w-2/3 animate-pulse rounded bg-[#E8F0ED] motion-reduce:animate-none" />
-              <div className="h-4 w-1/2 animate-pulse rounded bg-[#E8F0ED] motion-reduce:animate-none" />
-            </div>
-          )}
-          {error && (
-            <div role="alert" className="mt-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-              {error}
-            </div>
-          )}
-
-          {history && (
-            <ol className="mt-5" aria-label="Change history">
-              {history.versions.map((version, index) => (
-                <li key={version.id} className="relative pb-6 pl-7 last:pb-0">
-                  {index < history.versions.length - 1 && (
-                    <span className="absolute left-[5px] top-4 h-full w-px bg-[#DCE5E1]" aria-hidden="true" />
-                  )}
-                  <span
-                    className={`absolute left-0 top-1.5 h-[11px] w-[11px] rounded-full border-2 border-white ring-2 ${
-                      version.is_initial ? "bg-[#0E6B57] ring-[#BFDDD3]" : "bg-[#B26A00] ring-[#F1D9B0]"
-                    }`}
-                    aria-hidden="true"
-                  />
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium text-[#12211D]">{formatDateTime(version.scraped_at)}</span>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        version.is_initial ? "bg-[#DDEEE8] text-[#0E6B57]" : "bg-[#FBEFD9] text-[#8A5200]"
-                      }`}
-                    >
-                      {version.is_initial ? "First recorded" : "Changed"}
-                    </span>
-                  </div>
-                  {version.is_initial ? (
-                    <p className="mt-1 text-sm text-[#66766F]">First published by {registration.source_name}.</p>
-                  ) : (
-                    <ul className="mt-2 space-y-1.5">
-                      {version.changes.map((change) => (
-                        <li key={change.field} className="text-sm text-[#2A3A35]">
-                          <span className="font-medium">{FIELD_LABELS[change.field] ?? change.field}</span>
-                          <span className="mt-0.5 block">
-                            <span className="text-[#66766F] line-through">{formatValue(change.previous)}</span>
-                            <span className="px-1.5 text-[#66766F]" aria-hidden="true">
-                              →
-                            </span>
-                            <span className="sr-only"> changed to </span>
-                            <span>{formatValue(change.current)}</span>
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </li>
-              ))}
-              {history.versions.length === 0 && (
-                <li className="text-sm text-[#66766F]">No history recorded yet.</li>
-              )}
-            </ol>
           )}
         </div>
       </aside>

@@ -18,6 +18,7 @@ logger = logging.getLogger("enrichment.runner")
 DERIVED_FROM_EMAIL = "email_domain"
 DERIVED_FROM_LISTING = "source_listing"
 PENDING = "pending"
+CONFIRMED = "confirmed"
 
 
 @dataclass
@@ -125,7 +126,7 @@ async def _store_result(website_id: str, result: SiteResult, now: datetime) -> t
                         text_hash=signal.text_hash,
                         location=signal.location.value,
                         confidence=signal.confidence.value,
-                        review_status=PENDING,
+                        review_status=CONFIRMED,
                         first_seen_at=now,
                         last_seen_at=now,
                     )
@@ -135,6 +136,7 @@ async def _store_result(website_id: str, result: SiteResult, now: datetime) -> t
                             "matched_text": signal.matched_text,
                             "location": signal.location.value,
                             "confidence": signal.confidence.value,
+                            "review_status": CONFIRMED,
                             "last_seen_at": now,
                         },
                     )
@@ -144,7 +146,6 @@ async def _store_result(website_id: str, result: SiteResult, now: datetime) -> t
             stale = await session.execute(
                 delete(NriSignal).where(
                     NriSignal.website_id == website.id,
-                    NriSignal.review_status == PENDING,
                     NriSignal.last_seen_at < now,
                 )
             )
