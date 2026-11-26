@@ -29,9 +29,14 @@ interface FileCheckResult {
 interface StatementImportFlowProps {
   embedded?: boolean;
   onImported?: () => void;
+  onRunSucceeded?: () => void;
 }
 
-export function StatementImportFlow({ embedded = false, onImported }: StatementImportFlowProps) {
+export function StatementImportFlow({
+  embedded = false,
+  onImported,
+  onRunSucceeded,
+}: StatementImportFlowProps) {
   const [files, setFiles] = useState<File[]>([]);
   const [checkResults, setCheckResults] = useState<FileCheckResult[] | null>(null);
   const [passwordByFilename, setPasswordByFilename] = useState<Record<string, string>>({});
@@ -42,9 +47,12 @@ export function StatementImportFlow({ embedded = false, onImported }: StatementI
   const [run, setRun] = useState<IngestionRunResponse | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const addMoreInputRef = useRef<HTMLInputElement | null>(null);
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
+      isMountedRef.current = false;
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
       }
@@ -143,6 +151,9 @@ export function StatementImportFlow({ embedded = false, onImported }: StatementI
   };
 
   const pollRun = async (runId: string) => {
+    if (!isMountedRef.current) {
+      return;
+    }
     const baseUrl = getBaseHttpUrl();
     const token = localStorage.getItem("token");
 
@@ -156,6 +167,9 @@ export function StatementImportFlow({ embedded = false, onImported }: StatementI
           throw new Error((data as unknown as { detail?: string }).detail || "Could not check import status");
         }
         setRun(data);
+        if (data.status === "succeeded") {
+          onRunSucceeded?.();
+        }
         if (data.status === "succeeded" || data.status === "failed") {
           if (pollIntervalRef.current) {
             clearInterval(pollIntervalRef.current);

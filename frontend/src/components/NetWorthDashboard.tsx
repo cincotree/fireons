@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/modal";
 import { getBaseHttpUrl } from "@/utils/api";
@@ -44,6 +44,7 @@ export function NetWorthDashboard() {
   const [accountToClose, setAccountToClose] = useState<Account | null>(null);
   const [chartsRefreshKey, setChartsRefreshKey] = useState(0);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const hasUnseenImportRef = useRef(false);
 
   useEffect(() => {
     fetchData();
@@ -270,6 +271,14 @@ export function NetWorthDashboard() {
       await fetchData();
     } catch (err) {
       alert(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const closeImportModal = () => {
+    setIsImportModalOpen(false);
+    if (hasUnseenImportRef.current) {
+      hasUnseenImportRef.current = false;
+      fetchData();
     }
   };
 
@@ -593,14 +602,14 @@ export function NetWorthDashboard() {
         </DialogContent>
       </Modal>
 
-      <Modal open={isImportModalOpen} onOpenChange={setIsImportModalOpen}>
+      <Modal open={isImportModalOpen} onOpenChange={closeImportModal} dismissible>
         <DialogContent>
           <StatementImportFlow
             embedded
-            onImported={() => {
-              setIsImportModalOpen(false);
-              fetchData();
+            onRunSucceeded={() => {
+              hasUnseenImportRef.current = true;
             }}
+            onImported={closeImportModal}
           />
         </DialogContent>
       </Modal>

@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
+import { X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 const styles = {
     dialog: {
@@ -7,6 +9,7 @@ const styles = {
         left: 0,
         width: '100%',
         height: '100%',
+        margin: 0,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -35,6 +38,11 @@ const styles = {
     dialogContentWide: {
         maxWidth: '960px',
     },
+    dialogClose: {
+        position: 'absolute' as const,
+        top: '12px',
+        right: '12px',
+    },
     dialogContentInner: {
         padding: '10px',
     },
@@ -57,13 +65,26 @@ interface DialogProps {
     onOpenChange: (open: boolean) => void;
     children: React.ReactNode;
     size?: 'default' | 'wide';
+    dismissible?: boolean;
 }
 
 interface DialogContentProps {
     children: React.ReactNode;
 }
 
-export const Modal = ({ open, onOpenChange, children, size = 'default' }: DialogProps) => {
+export const Modal = ({ open, onOpenChange, children, size = 'default', dismissible = false }: DialogProps) => {
+    const onOpenChangeRef = useRef(onOpenChange);
+    onOpenChangeRef.current = onOpenChange;
+
+    useEffect(() => {
+        if (!open || !dismissible) return;
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') onOpenChangeRef.current(false);
+        };
+        document.addEventListener('keydown', onKeyDown);
+        return () => document.removeEventListener('keydown', onKeyDown);
+    }, [open, dismissible]);
+
     if (!open) return null;
 
     const handleOverlayClick = (e: React.MouseEvent) => {
@@ -79,7 +100,22 @@ export const Modal = ({ open, onOpenChange, children, size = 'default' }: Dialog
     return (
         <div style={styles.dialog} onClick={handleOverlayClick}>
             <div style={styles.dialogOverlay} />
-            <div style={contentStyle}>{children}</div>
+            <div style={contentStyle}>
+                {dismissible && (
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Close"
+                        title="Close"
+                        style={styles.dialogClose}
+                        onClick={() => onOpenChange(false)}
+                    >
+                        <X className="h-4 w-4" />
+                    </Button>
+                )}
+                {children}
+            </div>
         </div>
     );
 };
