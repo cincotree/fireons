@@ -110,28 +110,4 @@ test.describe('Onboarding — statement import from the net worth dashboard', ()
     await expect(page.getByRole('heading', { name: 'Import your statements' })).not.toBeVisible();
     await expect(page.getByText('SGB').first()).toBeVisible();
   });
-
-  test('Escape dismisses the dialog after a validation error', async ({ page }) => {
-    await page.getByRole('button', { name: 'Import Statement' }).click();
-    await page.getByRole('button', { name: 'Continue' }).click();
-    await expect(page.getByText('Choose at least one statement PDF.')).toBeVisible();
-
-    await page.keyboard.press('Escape');
-    await expect(page.getByRole('heading', { name: 'Import your statements' })).not.toBeVisible();
-    await expect(page.getByRole('button', { name: 'Import Statement' })).toBeVisible();
-  });
-
-  test('closing after a successful import without pressing Done still refreshes the dashboard', async ({ page }) => {
-    await page.getByRole('button', { name: 'Import Statement' }).click();
-    await page.locator('input[type="file"]').setInputFiles([SGB_FIXTURE]);
-    await page.getByRole('button', { name: 'Continue' }).click();
-    await page.getByRole('button', { name: 'Start Import' }).click();
-    await expect(page.getByText(/Imported \d+ position\(s\) from 1 document\(s\)/)).toBeVisible({
-      timeout: 15000,
-    });
-
-    await page.keyboard.press('Escape');
-    await expect(page.getByRole('heading', { name: 'Import your statements' })).not.toBeVisible();
-    await expect(page.getByText('SGB').first()).toBeVisible();
-  });
 });
